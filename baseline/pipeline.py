@@ -1,9 +1,11 @@
 """
-Baseline Pipeline — LangChain LLMGraphTransformer → Neo4j (direct insertion)
+Baseline Pipeline — LangChain LLMGraphTransformer → Neo4j + LLM Ontology Induction
 
-This is the comparison baseline described in the project plan (Appendix D).
-No entity resolution, no ontology induction, no cross-domain transfer.
-Used to measure: entity duplication, type inconsistency, query accuracy.
+This is the improved comparison baseline described in the project plan (Appendix D).
+No entity resolution, no cross-domain transfer.
+Includes LLM-based ontology induction (maps extracted labels → Riskine classes)
+as a simpler alternative to Zone 3's Leiden community detection approach.
+Used to measure: entity duplication, type inconsistency, query accuracy, Riskine alignment.
 
 Usage:
   python3 baseline/pipeline.py              # original 512-token chunks
@@ -28,6 +30,7 @@ from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 
 import config
+from ontology_induction import run_ontology_induction
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +41,7 @@ class PipelineState(TypedDict):
     chunks: list[dict]
     graph_documents: list          # GraphDocument objects from LLMGraphTransformer
     neo4j_stats: dict              # nodes/rels inserted, errors
+    ontology_induction: dict       # label → Riskine class mapping + metrics
     errors: Annotated[list, operator.add]
     model: str                     # Ollama model name
 
@@ -73,7 +77,7 @@ PDF_SOURCE_KEY = "fema_F-123-general-property-SFIP_2021.pdf"  # zone1 source nam
 
 def load_chunks(state: PipelineState) -> PipelineState:
     """Load original 512-token chunks."""
-    print("\n[1/3] Loading chunks (original 512-token)...")
+    print("\n[1/4] Loading chunks (original 512-token)...")
     with open(config.CHUNKS_FILE) as f:
         chunks = json.load(f)
     print(f"  ✓ Loaded {len(chunks)} chunks from {config.CHUNKS_FILE}")
@@ -82,7 +86,7 @@ def load_chunks(state: PipelineState) -> PipelineState:
 
 def load_chunks_zone1(state: PipelineState) -> PipelineState:
     """Load Zone 1 section-aware chunks (PDF only — CSV chunks too large for LLM)."""
-    print("\n[1/3] Loading Zone 1 section-aware PDF chunks...")
+    print("\n[1/4] Loading Zone 1 section-aware PDF chunks...")
     with open(ZONE1_CHUNKS_FILE) as f:
         all_chunks = json.load(f)
     # Keep only PDF chunks (CSV chunks are 10K+ tokens — not suitable for LLMGraphTransformer)
@@ -99,7 +103,7 @@ def extract_triples(state: PipelineState) -> PipelineState:
     Expected issues: 20-30% entity duplication, type inconsistency.
     """
     model = state.get("model", config.OLLAMA_MODEL)
-    print(f"\n[2/3] Extracting graph triples with LLMGraphTransformer ({model})...")
+    print(f"\n[2/4] Extracting graph triples with LLMGraphTransformer ({model})...")
     llm = get_llm(model)
 
     transformer = LLMGraphTransformer(
@@ -153,7 +157,7 @@ def insert_to_neo4j(state: PipelineState) -> PipelineState:
     Baseline Neo4j insertion: direct, no deduplication.
     This will create duplicate nodes — intentional for baseline measurement.
     """
-    print("\n[3/3] Inserting into Neo4j AuraDB (direct, no entity resolution)...")
+    print("\n[3/4] Inserting into Neo4j AuraDB (direct, no entity resolution)...")
 
     if not state["graph_documents"]:
         print("  ✗ No graph documents to insert.")
@@ -187,6 +191,27 @@ def insert_to_neo4j(state: PipelineState) -> PipelineState:
         return {"neo4j_stats": {"error": str(e)}}
 
 
+def induce_ontology(state: PipelineState) -> PipelineState:
+    """
+    LLM-based ontology induction step.
+    Runs after Neo4j insertion; maps free-form extracted labels → Riskine
+    ontology classes and adds those classes as additional node labels.
+    """
+    model = state.get("model", config.OLLAMA_MODEL)
+    print(f"\n[4/4] Running LLM ontology induction ({model})...")
+    llm   = get_llm(model)
+    graph = get_neo4j_graph()
+    result = run_ontology_induction(graph, llm)
+    print(f"  ✓ Labels seen:      {result['labels_seen']}")
+    print(f"  ✓ Labels mapped:    {result['labels_mapped']}  (→ Riskine class)")
+    print(f"  - Labels unmapped:  {result['labels_unmapped']}  (→ Other)")
+    print(f"  ✓ Nodes relabelled: {result['nodes_relabelled']}")
+    for orig, cls in result.get("mapping", {}).items():
+        if cls != "Other":
+            print(f"      {orig!r:30s} → {cls}")
+    return {"ontology_induction": result}
+
+
 # ---------------------------------------------------------------------------
 # Graph / Compile
 # ---------------------------------------------------------------------------
@@ -204,14 +229,16 @@ def build_pipeline(zone1: bool = False):
     builder = StateGraph(PipelineState)
 
     loader_node = load_chunks_zone1 if zone1 else load_chunks
-    builder.add_node("load_chunks", loader_node)
-    builder.add_node("extract_triples", extract_triples)
-    builder.add_node("insert_to_neo4j", insert_to_neo4j)
+    builder.add_node("load_chunks",      loader_node)
+    builder.add_node("extract_triples",  extract_triples)
+    builder.add_node("insert_to_neo4j",  insert_to_neo4j)
+    builder.add_node("induce_ontology",  induce_ontology)
 
     builder.set_entry_point("load_chunks")
-    builder.add_edge("load_chunks", "extract_triples")
+    builder.add_edge("load_chunks",     "extract_triples")
     builder.add_edge("extract_triples", "insert_to_neo4j")
-    builder.add_edge("insert_to_neo4j", END)
+    builder.add_edge("insert_to_neo4j", "induce_ontology")
+    builder.add_edge("induce_ontology", END)
 
     return builder.compile()
 
@@ -229,13 +256,14 @@ def run_baseline(zone1: bool = False, model: str = config.OLLAMA_MODEL):
     print(f"LangChain LLMGraphTransformer → Neo4j AuraDB  (model: {model})")
     print("=" * 60)
 
-    print("\n[0/3] Clearing existing Neo4j graph for clean run...")
+    print("\n[0/4] Clearing existing Neo4j graph for clean run...")
     clear_neo4j()
 
     pipeline = build_pipeline(zone1=zone1)
     start = time.time()
     result = pipeline.invoke({
-        "chunks": [], "graph_documents": [], "neo4j_stats": {}, "errors": [],
+        "chunks": [], "graph_documents": [], "neo4j_stats": {},
+        "ontology_induction": {}, "errors": [],
         "model": model,
     })
     elapsed = time.time() - start
@@ -244,6 +272,11 @@ def run_baseline(zone1: bool = False, model: str = config.OLLAMA_MODEL):
     print(f"Pipeline complete in {elapsed:.1f}s")
     print(f"Errors: {len(result.get('errors', []))}")
     print(f"Neo4j stats: {result.get('neo4j_stats', {})}")
+
+    oi = result.get("ontology_induction", {})
+    if oi:
+        print(f"Ontology induction: {oi.get('labels_mapped', 0)}/{oi.get('labels_seen', 0)} labels mapped, "
+              f"{oi.get('nodes_relabelled', 0)} nodes relabelled")
 
     # Save run summary
     suffix = "_zone1" if zone1 else "_original"
@@ -255,6 +288,7 @@ def run_baseline(zone1: bool = False, model: str = config.OLLAMA_MODEL):
         "graph_documents": len(result.get("graph_documents", [])),
         "errors": result.get("errors", []),
         "neo4j_stats": result.get("neo4j_stats", {}),
+        "ontology_induction": result.get("ontology_induction", {}),
     }
     out_path = os.path.join(config.RESULTS_DIR, f"baseline_run_summary{suffix}.json")
     with open(out_path, "w") as f:

@@ -398,6 +398,22 @@ def run_evaluation(suffix: str = "original", run_riskine: bool = False, model: s
         print(f"  Riskine P={metrics.riskine_precision:.3f}  "
               f"R={metrics.riskine_recall:.3f}  F1={metrics.riskine_f1:.3f}")
 
+    # --- Load ontology induction detail from pipeline run summary (if available) ---
+    ontology_detail: dict = {}
+    run_summary_path = os.path.join(
+        config.RESULTS_DIR, f"baseline_run_summary_{suffix}.json"
+    )
+    if os.path.exists(run_summary_path):
+        try:
+            with open(run_summary_path, encoding="utf-8") as _f:
+                _summary = json.load(_f)
+            ontology_detail = _summary.get("ontology_induction", {})
+            if ontology_detail:
+                print(f"\n  [loaded ontology_induction from run summary: "
+                      f"{ontology_detail.get('labels_mapped', 0)}/{ontology_detail.get('labels_seen', 0)} labels mapped]")
+        except Exception:
+            pass
+
     # --- Save results ---
     report = {
         "mode": suffix,
@@ -406,6 +422,8 @@ def run_evaluation(suffix: str = "original", run_riskine: bool = False, model: s
         "type_consistency_detail": tc,
         "task_results": task_results,
     }
+    if ontology_detail:
+        report["ontology_induction_detail"] = ontology_detail
     if riskine_detail:
         report["riskine_detail"] = riskine_detail
     out_path = os.path.join(config.RESULTS_DIR, f"baseline_eval_results_{suffix}.json")
