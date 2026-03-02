@@ -3,13 +3,14 @@ Baseline Pipeline — LangChain LLMGraphTransformer → Neo4j + LLM Ontology Ind
 
 This is the improved comparison baseline described in the project plan (Appendix D).
 No entity resolution, no cross-domain transfer.
-Includes LLM-based ontology induction (maps extracted labels → Riskine classes)
-as a simpler alternative to Zone 3's Leiden community detection approach.
+Optionally includes LLM-based ontology induction (maps extracted labels → Riskine
+classes) as a simpler alternative to Zone 3's Leiden community detection approach.
 Used to measure: entity duplication, type inconsistency, query accuracy, Riskine alignment.
 
 Usage:
-  python3 baseline/pipeline.py              # original 512-token chunks
-  python3 baseline/pipeline.py --zone1      # Zone 1 section-aware chunks (ablation)
+  python3 baseline/pipeline.py                           # original 512-token chunks
+  python3 baseline/pipeline.py --zone1                   # Zone 1 section-aware chunks
+  python3 baseline/pipeline.py --zone1 --induce-ontology # + LLM ontology induction step
 """
 
 import json
@@ -77,7 +78,7 @@ PDF_SOURCE_KEY = "fema_F-123-general-property-SFIP_2021.pdf"  # zone1 source nam
 
 def load_chunks(state: PipelineState) -> PipelineState:
     """Load original 512-token chunks."""
-    print("\n[1/4] Loading chunks (original 512-token)...")
+    print("\n[1/3] Loading chunks (original 512-token)...")
     with open(config.CHUNKS_FILE) as f:
         chunks = json.load(f)
     print(f"  ✓ Loaded {len(chunks)} chunks from {config.CHUNKS_FILE}")
@@ -86,7 +87,7 @@ def load_chunks(state: PipelineState) -> PipelineState:
 
 def load_chunks_zone1(state: PipelineState) -> PipelineState:
     """Load Zone 1 section-aware chunks (PDF only — CSV chunks too large for LLM)."""
-    print("\n[1/4] Loading Zone 1 section-aware PDF chunks...")
+    print("\n[1/3] Loading Zone 1 section-aware PDF chunks...")
     with open(ZONE1_CHUNKS_FILE) as f:
         all_chunks = json.load(f)
     # Keep only PDF chunks (CSV chunks are 10K+ tokens — not suitable for LLMGraphTransformer)
@@ -103,7 +104,7 @@ def extract_triples(state: PipelineState) -> PipelineState:
     Expected issues: 20-30% entity duplication, type inconsistency.
     """
     model = state.get("model", config.OLLAMA_MODEL)
-    print(f"\n[2/4] Extracting graph triples with LLMGraphTransformer ({model})...")
+    print(f"\n[2/3] Extracting graph triples with LLMGraphTransformer ({model})...")
     llm = get_llm(model)
 
     transformer = LLMGraphTransformer(
@@ -157,7 +158,7 @@ def insert_to_neo4j(state: PipelineState) -> PipelineState:
     Baseline Neo4j insertion: direct, no deduplication.
     This will create duplicate nodes — intentional for baseline measurement.
     """
-    print("\n[3/4] Inserting into Neo4j AuraDB (direct, no entity resolution)...")
+    print("\n[3/3] Inserting into Neo4j AuraDB (direct, no entity resolution)...")
 
     if not state["graph_documents"]:
         print("  ✗ No graph documents to insert.")
@@ -225,20 +226,24 @@ def clear_neo4j():
     print(f"  ✓ Graph cleared (nodes remaining: {count})")
 
 
-def build_pipeline(zone1: bool = False):
+def build_pipeline(zone1: bool = False, induce: bool = False):
     builder = StateGraph(PipelineState)
 
     loader_node = load_chunks_zone1 if zone1 else load_chunks
-    builder.add_node("load_chunks",      loader_node)
-    builder.add_node("extract_triples",  extract_triples)
-    builder.add_node("insert_to_neo4j",  insert_to_neo4j)
-    builder.add_node("induce_ontology",  induce_ontology)
+    builder.add_node("load_chunks",     loader_node)
+    builder.add_node("extract_triples", extract_triples)
+    builder.add_node("insert_to_neo4j", insert_to_neo4j)
 
     builder.set_entry_point("load_chunks")
     builder.add_edge("load_chunks",     "extract_triples")
     builder.add_edge("extract_triples", "insert_to_neo4j")
-    builder.add_edge("insert_to_neo4j", "induce_ontology")
-    builder.add_edge("induce_ontology", END)
+
+    if induce:
+        builder.add_node("induce_ontology", induce_ontology)
+        builder.add_edge("insert_to_neo4j", "induce_ontology")
+        builder.add_edge("induce_ontology", END)
+    else:
+        builder.add_edge("insert_to_neo4j", END)
 
     return builder.compile()
 
@@ -247,19 +252,21 @@ def build_pipeline(zone1: bool = False):
 # Main
 # ---------------------------------------------------------------------------
 
-def run_baseline(zone1: bool = False, model: str = config.OLLAMA_MODEL):
+def run_baseline(zone1: bool = False, model: str = config.OLLAMA_MODEL, induce: bool = False):
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
     mode_label = "Zone1 Chunks (Ablation)" if zone1 else "Original 512-Token Chunks"
+    induction_label = " + Ontology Induction" if induce else ""
+    total_steps = 4 if induce else 3
     print("=" * 60)
-    print(f"CS584 Capstone — Baseline Pipeline [{mode_label}]")
+    print(f"CS584 Capstone — Baseline Pipeline [{mode_label}{induction_label}]")
     print(f"LangChain LLMGraphTransformer → Neo4j AuraDB  (model: {model})")
     print("=" * 60)
 
-    print("\n[0/4] Clearing existing Neo4j graph for clean run...")
+    print(f"\n[0/{total_steps}] Clearing existing Neo4j graph for clean run...")
     clear_neo4j()
 
-    pipeline = build_pipeline(zone1=zone1)
+    pipeline = build_pipeline(zone1=zone1, induce=induce)
     start = time.time()
     result = pipeline.invoke({
         "chunks": [], "graph_documents": [], "neo4j_stats": {},
@@ -302,7 +309,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Baseline pipeline runner")
     parser.add_argument("--zone1", action="store_true",
                         help="Use Zone 1 section-aware chunks instead of original 512-token chunks")
+    parser.add_argument("--induce-ontology", action="store_true",
+                        help="Run LLM ontology induction step after Neo4j insertion "
+                             "(maps extracted labels → Riskine classes). Off by default.")
     parser.add_argument("--model", default=config.OLLAMA_MODEL,
                         help=f"Ollama model name (default: {config.OLLAMA_MODEL})")
     args = parser.parse_args()
-    run_baseline(zone1=args.zone1, model=args.model)
+    run_baseline(zone1=args.zone1, model=args.model, induce=args.induce_ontology)
