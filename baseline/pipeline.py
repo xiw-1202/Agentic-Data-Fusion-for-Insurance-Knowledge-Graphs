@@ -39,15 +39,16 @@ class PipelineState(TypedDict):
     graph_documents: list          # GraphDocument objects from LLMGraphTransformer
     neo4j_stats: dict              # nodes/rels inserted, errors
     errors: Annotated[list, operator.add]
+    model: str                     # Ollama model name
 
 
 # ---------------------------------------------------------------------------
 # LLM + Graph
 # ---------------------------------------------------------------------------
 
-def get_llm():
+def get_llm(model: str = config.OLLAMA_MODEL):
     return ChatOllama(
-        model=config.OLLAMA_MODEL,
+        model=model,
         base_url=config.OLLAMA_BASE_URL,
         temperature=0,
     )
@@ -97,8 +98,9 @@ def extract_triples(state: PipelineState) -> PipelineState:
     Direct extraction — no entity resolution, no type clustering.
     Expected issues: 20-30% entity duplication, type inconsistency.
     """
-    print(f"\n[2/3] Extracting graph triples with LLMGraphTransformer ({config.OLLAMA_MODEL})...")
-    llm = get_llm()
+    model = state.get("model", config.OLLAMA_MODEL)
+    print(f"\n[2/3] Extracting graph triples with LLMGraphTransformer ({model})...")
+    llm = get_llm(model)
 
     transformer = LLMGraphTransformer(
         llm=llm,
@@ -218,13 +220,13 @@ def build_pipeline(zone1: bool = False):
 # Main
 # ---------------------------------------------------------------------------
 
-def run_baseline(zone1: bool = False):
+def run_baseline(zone1: bool = False, model: str = config.OLLAMA_MODEL):
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
     mode_label = "Zone1 Chunks (Ablation)" if zone1 else "Original 512-Token Chunks"
     print("=" * 60)
     print(f"CS584 Capstone — Baseline Pipeline [{mode_label}]")
-    print("LangChain LLMGraphTransformer → Neo4j AuraDB")
+    print(f"LangChain LLMGraphTransformer → Neo4j AuraDB  (model: {model})")
     print("=" * 60)
 
     print("\n[0/3] Clearing existing Neo4j graph for clean run...")
@@ -232,7 +234,10 @@ def run_baseline(zone1: bool = False):
 
     pipeline = build_pipeline(zone1=zone1)
     start = time.time()
-    result = pipeline.invoke({"chunks": [], "graph_documents": [], "neo4j_stats": {}, "errors": []})
+    result = pipeline.invoke({
+        "chunks": [], "graph_documents": [], "neo4j_stats": {}, "errors": [],
+        "model": model,
+    })
     elapsed = time.time() - start
 
     print(f"\n{'=' * 60}")
@@ -244,6 +249,7 @@ def run_baseline(zone1: bool = False):
     suffix = "_zone1" if zone1 else "_original"
     summary = {
         "mode": "zone1" if zone1 else "original",
+        "model": model,
         "elapsed_seconds": round(elapsed, 2),
         "chunks_processed": len(result.get("chunks", [])),
         "graph_documents": len(result.get("graph_documents", [])),
@@ -262,5 +268,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Baseline pipeline runner")
     parser.add_argument("--zone1", action="store_true",
                         help="Use Zone 1 section-aware chunks instead of original 512-token chunks")
+    parser.add_argument("--model", default=config.OLLAMA_MODEL,
+                        help=f"Ollama model name (default: {config.OLLAMA_MODEL})")
     args = parser.parse_args()
-    run_baseline(zone1=args.zone1)
+    run_baseline(zone1=args.zone1, model=args.model)

@@ -26,9 +26,10 @@ import config
 RESULTS_DIR = config.RESULTS_DIR
 
 RUNS = {
-    "original":  ("Baseline (512-token)",         "baseline_eval_results_original.json"),
-    "zone1":     ("Baseline + Zone1 chunks",       "baseline_eval_results_zone1.json"),
-    "novel":     ("Novel Pipeline (full)",         "novel_eval_results.json"),   # future
+    "original":   ("Baseline (512-token)",         "baseline_eval_results_original.json"),
+    "zone1":      ("Baseline + Zone1 (Llama)",     "baseline_eval_results_zone1.json"),
+    "zone1_qwen": ("Baseline + Zone1 (Qwen2.5)",  "baseline_eval_results_zone1_qwen.json"),
+    "novel":      ("Novel Pipeline (full)",        "novel_eval_results.json"),   # future
 }
 
 
@@ -105,6 +106,9 @@ def compare():
     row("Duplication rate",   lambda m: m.get("duplication_rate"),   is_pct=True)
     row("Type inconsistency", lambda m: m.get("type_inconsistency_rate"), is_pct=True)
     row("Query accuracy",     lambda m: m.get("query_accuracy"),     is_pct=True)
+    row("Riskine Precision",  lambda m: m.get("riskine_precision") if m.get("riskine_available") else None, is_pct=True)
+    row("Riskine Recall",     lambda m: m.get("riskine_recall")    if m.get("riskine_available") else None, is_pct=True)
+    row("Riskine F1",         lambda m: m.get("riskine_f1")        if m.get("riskine_available") else None, is_pct=True)
 
     print()
 

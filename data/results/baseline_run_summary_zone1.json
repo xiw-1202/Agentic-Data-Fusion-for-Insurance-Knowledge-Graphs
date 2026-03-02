@@ -1,12 +1,13 @@
 {
   "mode": "zone1",
-  "elapsed_seconds": 659.64,
+  "model": "qwen2.5:7b",
+  "elapsed_seconds": 1094.29,
   "chunks_processed": 49,
   "graph_documents": 49,
   "errors": [],
   "neo4j_stats": {
-    "nodes_inserted": 242,
-    "rels_inserted": 380,
-    "unique_labels": 44
+    "nodes_inserted": 388,
+    "rels_inserted": 591,
+    "unique_labels": 91
   }
 }

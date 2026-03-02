@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KG Evaluation — zone1</title>
+<style>
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  background: #f5f6f8;
+  color: #222;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+h1  { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+h2  { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: #1a1a2e; }
+.subtitle { font-size: 12px; color: #666; margin-bottom: 10px; }
+.meta { font-size: 12px; color: #888; margin-bottom: 20px; }
+
+/* Sections */
+.sec {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  margin-top: 6px;
+}
+th, td {
+  border: 1px solid #e2e4e8;
+  padding: 5px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: #f0f2f5; font-weight: 600; }
+tr:nth-child(even) { background: #fafbfc; }
+tr.pass td:first-child { border-left: 3px solid #27ae60; }
+tr.fail td:first-child { border-left: 3px solid #e74c3c; }
+tr.pass { background: #f6fff8; }
+tr.fail { background: #fff6f6; }
+
+/* Inline badges */
+.v-match   { color: #1a7a4a; font-weight: 600; }
+.v-partial { color: #9a6800; font-weight: 600; }
+.v-none    { color: #999; }
+.pass-mark { color: #27ae60; font-weight: 700; }
+.fail-mark { color: #e74c3c; font-weight: 700; }
+
+/* Actual-returns cell */
+.ret-list { list-style: none; padding: 0; margin: 0; }
+.ret-list li {
+  background: #f4f5f7;
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  word-break: break-word;
+}
+.ret-none { color: #aaa; font-style: italic; font-size: 12px; }
+
+/* Keywords */
+.kw-list { font-size: 12px; color: #555; }
+.kw { display: inline-block; background: #eef2ff; border-radius: 3px;
+      padding: 1px 5px; margin: 1px 2px; }
+
+/* Note */
+.note { font-size: 12px; color: #888; margin-top: 8px; }
+
+/* Missed chips */
+.missed-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.missed-chip {
+  background: #fde8e8;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c0392b;
+}
+
+</style>
+</head>
+<body>
+<h1>KG Evaluation Report</h1>
+<p class="meta">Suffix: <strong>zone1</strong> &nbsp;·&nbsp; Baseline evaluation — Zone 1 pipeline</p>
+<div class="sec"><h2>1. Metrics Summary</h2><div class="subtitle">All three model runs side-by-side</div><table><thead><tr><th> </th><th>Baseline (512-tok)</th><th>llama3.1:8b</th><th>qwen2.5:7b</th></tr></thead><tbody><tr><td>Nodes</td><td>365</td><td>242</td><td>388</td></tr><tr><td>Relationships</td><td>587</td><td>380</td><td>591</td></tr><tr><td>Unique labels</td><td>58</td><td>44</td><td>91</td></tr><tr><td>Duplicate nodes</td><td>0</td><td>0</td><td>0</td></tr><tr><td>Duplication rate</td><td>0.0%</td><td>0.0%</td><td>0.0%</td></tr><tr><td>Type inconsistency</td><td>8.0%</td><td>15.2%</td><td>7.9%</td></tr><tr><td>Query accuracy</td><td>35.0%</td><td>50.0%</td><td>35.0%</td></tr><tr><td>Riskine Precision</td><td>N/A</td><td>16.7%</td><td>6.2%</td></tr><tr><td>Riskine Recall</td><td>N/A</td><td>50.0%</td><td>50.0%</td></tr><tr><td>Riskine F1</td><td>N/A</td><td>25.0%</td><td>11.0%</td></tr></tbody></table></div>
+<div class="sec"><h2>2. Query Accuracy — Representative Examples</h2><div class="subtitle">Model: llama3.1:8b  ·  10/20 tasks passed  ·  Query accuracy: 50%  ·  showing 5 pass + 5 fail</div><h3 style="margin:10px 0 4px;color:#27ae60">Passing examples</h3><table><thead><tr><th>#</th><th>Cat</th><th>Question</th><th>Expected</th><th>Graph returned</th><th>✓/✗</th></tr></thead><tbody><tr class="pass"><td>1</td><td>coverage</td><td>What types of property does NFIP cover under the General Property Form?</td><td><span class="kw-list"><span class="kw">building</span><span class="kw">contents</span><span class="kw">property</span></span></td><td><ul class="ret-list"><li>Failure To Inspect And Maintain The Property After A Flood Recedes</li><li>Seeps Or Leaks On Or Through The Insured Property</li><li>Alteration Of The Insured Property That Significantly Increases The Risk Of Flooding</li></ul></td><td><span class="pass-mark">✓</span></td></tr><tr class="pass"><td>8</td><td>policy_terms</td><td>What is Increased Cost of Compliance (ICC) coverage?</td><td><span class="kw-list"><span class="kw">ICC</span><span class="kw">compliance</span><span class="kw">increased cost</span></span></td><td><ul class="ret-list"><li>Increased Cost Of Compliance</li><li>Coverage D—Increased Cost Of Compliance</li></ul></td><td><span class="pass-mark">✓</span></td></tr><tr class="pass"><td>15</td><td>policy_terms</td><td>What happens if there is a coinsurance or other insurance?</td><td><span class="kw-list"><span class="kw">coinsurance</span><span class="kw">other insurance</span><span class="kw">pro rata</span></span></td><td><ul class="ret-list"><li>Other Insurance</li></ul></td><td><span class="pass-mark">✓</span></td></tr><tr class="pass"><td>19</td><td>policy_terms</td><td>How is the replacement cost value (RCV) determined for building coverage?</td><td><span class="kw-list"><span class="kw">replacement cost</span><span class="kw">actual cash value</span><span class="kw">ACV</span></span></td><td><ul class="ret-list"><li>Actual Cash Value</li><li>11. Buildings Or Units And All Their Contents If More Than 49 Percent Of The Actual Cas…</li></ul></td><td><span class="pass-mark">✓</span></td></tr><tr class="pass"><td>20</td><td>policy_terms</td><td>What is the Liberalization Clause in NFIP?</td><td><span class="kw-list"><span class="kw">liberalization</span><span class="kw">broadens</span><span class="kw">coverage</span></span></td><td><ul class="ret-list"><li>Liberalization Clause</li></ul></td><td><span class="pass-mark">✓</span></td></tr></tbody></table><h3 style="margin:16px 0 4px;color:#e74c3c">Failing examples</h3><table><thead><tr><th>#</th><th>Cat</th><th>Question</th><th>Expected</th><th>Graph returned</th><th>✓/✗</th></tr></thead><tbody><tr class="fail"><td>2</td><td>coverage</td><td>What is the maximum building coverage amount under NFIP?</td><td><span class="kw-list"><span class="kw">500,000</span><span class="kw">500000</span><span class="kw">limit</span></span></td><td><ul class="ret-list"><li>Building Coverage</li><li>Coverage A—Building Property</li></ul></td><td><span class="fail-mark">✗</span></td></tr><tr class="fail"><td>3</td><td>coverage</td><td>What is the maximum contents coverage amount?</td><td><span class="kw-list"><span class="kw">500,000</span><span class="kw">contents</span><span class="kw">limit</span></span></td><td><span class="ret-none">no rows returned</span></td><td><span class="fail-mark">✗</span></td></tr><tr class="fail"><td>6</td><td>policy_terms</td><td>What is the waiting period before a new NFIP policy takes effect?</td><td><span class="kw-list"><span class="kw">30</span><span class="kw">days</span><span class="kw">waiting period</span></span></td><td><span class="ret-none">no rows returned</span></td><td><span class="fail-mark">✗</span></td></tr><tr class="fail"><td>9</td><td>claims</td><td>What must a policyholder do after a flood loss?</td><td><span class="kw-list"><span class="kw">notify</span><span class="kw">report</span><span class="kw">proof of loss</span><span class="kw">60 days</span></span></td><td><ul class="ret-list"><li>Loss</li><li>Loss</li><li>Loss</li></ul></td><td><span class="fail-mark">✗</span></td></tr><tr class="fail"><td>11</td><td>definitions</td><td>How does NFIP define &#x27;flood&#x27;?</td><td><span class="kw-list"><span class="kw">overflow</span><span class="kw">surface water</span><span class="kw">inundation</span></span></td><td><ul class="ret-list"><li>Flood</li></ul></td><td><span class="fail-mark">✗</span></td></tr></tbody></table></div>
+<div class="sec"><h2>3. Riskine Ontology Alignment</h2><div class="subtitle">P=0.17  ·  R=0.50  ·  F1=0.25  ·  5/10 Riskine classes covered  ·  42 induced labels evaluated</div><table><thead><tr><th>Induced label (LLM)</th><th>Riskine class</th><th>Verdict</th><th>Cosine</th></tr></thead><tbody><tr><td>Organization</td><td>Organization</td><td><span class="v-match">MATCH</span></td><td>1.000</td></tr><tr><td>Person</td><td>Person</td><td><span class="v-match">MATCH</span></td><td>1.000</td></tr><tr><td>Coverage</td><td>Coverage</td><td><span class="v-match">MATCH</span></td><td>1.000</td></tr><tr><td>Property</td><td>Property</td><td><span class="v-match">MATCH</span></td><td>1.000</td></tr><tr><td>Structure</td><td>Structure</td><td><span class="v-match">MATCH</span></td><td>1.000</td></tr><tr><td>Personnel property</td><td>Property</td><td><span class="v-match">MATCH</span></td><td>0.608</td></tr><tr><td>Property type</td><td>Property</td><td><span class="v-partial">PARTIAL</span></td><td>0.759</td></tr><tr><td>Property exclusion</td><td>Property</td><td><span class="v-partial">PARTIAL</span></td><td>0.603</td></tr><tr><td>Policy</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Concept</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Event</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Contract</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Section</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Building type</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Regulation</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Location</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Entity</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Group</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Law</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Insurance</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Legislation</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Definition</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Flood type</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Building feature</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Policy action</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Ownership type</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Policy feature</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Program</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Fee</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Substance</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Ownership unit</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Policy type</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Exception</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Condition</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Premium</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Rating information</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Elevation certificate</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Flood insurance claim</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Policy clause</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Term</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Entities</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr><tr><td>Statute</td><td>—</td><td><span class="v-none">NO_CANDIDATE</span></td><td>—</td></tr></tbody></table><div style="margin-top:14px"><strong>Riskine classes never extracted (5/10):</strong><div class="missed-row"><div class="missed-chip">Product</div><div class="missed-chip">Damage</div><div class="missed-chip">Risk</div><div class="missed-chip">Object</div><div class="missed-chip">Address</div></div></div></div>
+<div class="sec"><h2>4. Label Explosion (Type Inconsistency)</h2><div class="subtitle">5 concepts exploded into multiple labels  ·  Type inconsistency rate: 15.2%  ·  Total unique labels: 42</div><table><thead><tr><th>Root concept</th><th>Labels the LLM created</th><th>Count</th></tr></thead><tbody><tr><td>policy</td><td>Policy  ·  Policy action  ·  Policy feature  ·  Policy type  ·  Policy clause</td><td>5</td></tr><tr><td>building</td><td>Building type  ·  Building feature</td><td>2</td></tr><tr><td>property</td><td>Property type  ·  Property  ·  Property exclusion</td><td>3</td></tr><tr><td>flood</td><td>Flood type  ·  Flood insurance claim</td><td>2</td></tr><tr><td>ownership</td><td>Ownership type  ·  Ownership unit</td><td>2</td></tr></tbody></table></div>
+</body>
+</html>

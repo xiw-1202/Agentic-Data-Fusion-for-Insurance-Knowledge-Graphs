@@ -11,7 +11,12 @@
     "tasks_total": 20,
     "tasks_with_results": 15,
     "tasks_keyword_match": 10,
-    "query_accuracy": 0.5
+    "query_accuracy": 0.5,
+    "model": "llama3.1:8b",
+    "riskine_precision": 0.1667,
+    "riskine_recall": 0.5,
+    "riskine_f1": 0.25,
+    "riskine_available": true
   },
   "duplication_detail": {
     "duplicate_groups": 0,
@@ -59,24 +64,24 @@
       "keyword_match": true,
       "sample": [
         {
-          "n.id": "General Property Form",
+          "n.id": "Failure To Inspect And Maintain The Property After A Flood Recedes",
           "labels(n)": [
             "__Entity__",
-            "Document"
+            "Event"
           ]
         },
         {
-          "n.id": "Insured Property",
+          "n.id": "Seeps Or Leaks On Or Through The Insured Property",
           "labels(n)": [
             "__Entity__",
-            "Entity"
+            "Event"
           ]
         },
         {
-          "n.id": "Building Coverage",
+          "n.id": "Alteration Of The Insured Property That Significantly Increases The Risk Of Flooding",
           "labels(n)": [
             "__Entity__",
-            "Concept"
+            "Event"
           ]
         }
       ]
@@ -165,25 +170,24 @@
       "keyword_match": true,
       "sample": [
         {
-          "n.id": "Federal Emergency Management Agency",
+          "n.id": "Failure To Inspect And Maintain The Property After A Flood Recedes",
           "labels(n)": [
             "__Entity__",
-            "Organization"
+            "Event"
           ]
         },
         {
-          "n.id": "Federal Insurance And Mitigation Administration",
+          "n.id": "Discharges Or Overflows From A Sump, Sump Pump, Or Related Equipment",
           "labels(n)": [
             "__Entity__",
-            "Organization"
+            "Event"
           ]
         },
         {
-          "n.id": "National Flood Insurance Act Of 1968",
+          "n.id": "Flood In The Area And The Flood Is The Proximate Cause Of The Sewer Or Drain Backup, Sump Pump Discharge Or Overflow, Or The Seepage Of Water",
           "labels(n)": [
             "__Entity__",
-            "Law",
-            "Legislation"
+            "Condition"
           ]
         }
       ]
@@ -221,19 +225,19 @@
       "keyword_match": false,
       "sample": [
         {
-          "n.id": "Direct Physical Loss",
-          "type(r)": "CAUSED_BY",
+          "n.id": "Loss",
+          "type(r)": "RELATED_TO",
           "m.id": "Flood"
         },
         {
-          "n.id": "Direct Physical Loss",
-          "type(r)": "CAUSES",
-          "m.id": "Pressure Or Weight Of Ice"
+          "n.id": "Loss",
+          "type(r)": "EXCEEDS",
+          "m.id": "Deductible Amount"
         },
         {
-          "n.id": "Direct Physical Loss",
-          "type(r)": "CAUSES",
-          "m.id": "Freezing Or Thawing"
+          "n.id": "Loss",
+          "type(r)": "SUBJECT_TO",
+          "m.id": "Limit Of Liability"
         }
       ]
     },
@@ -397,5 +401,353 @@
         }
       ]
     }
-  ]
+  ],
+  "riskine_detail": {
+    "suffix": "zone1",
+    "precision": 0.1667,
+    "recall": 0.5,
+    "f1": 0.25,
+    "induced_label_count": 42,
+    "riskine_class_count": 10,
+    "riskine_covered_count": 5,
+    "alignment_table": [
+      {
+        "induced": "Organization",
+        "riskine": "Organization",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Policy",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Person",
+        "riskine": "Person",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Concept",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Event",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Contract",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Section",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Building type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Property type",
+        "riskine": "Property",
+        "cosine": 0.759,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Coverage",
+        "riskine": "Coverage",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Property",
+        "riskine": "Property",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Regulation",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Location",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Entity",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Group",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Law",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Insurance",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Legislation",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Definition",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Flood type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Building feature",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Structure",
+        "riskine": "Structure",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Policy action",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Ownership type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policy feature",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Program",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Fee",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Substance",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Ownership unit",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policy type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Property exclusion",
+        "riskine": "Property",
+        "cosine": 0.6026,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Exception",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Condition",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Personnel property",
+        "riskine": "Property",
+        "cosine": 0.6076,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Premium",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Rating information",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Elevation certificate",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Flood insurance claim",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policy clause",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Term",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Entities",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Statute",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      }
+    ],
+    "unmatched_induced": [
+      "Policy",
+      "Concept",
+      "Event",
+      "Contract",
+      "Section",
+      "Building type",
+      "Regulation",
+      "Location",
+      "Entity",
+      "Group",
+      "Law",
+      "Insurance",
+      "Legislation",
+      "Definition",
+      "Flood type",
+      "Building feature",
+      "Policy action",
+      "Ownership type",
+      "Policy feature",
+      "Program",
+      "Fee",
+      "Substance",
+      "Ownership unit",
+      "Policy type",
+      "Exception",
+      "Condition",
+      "Premium",
+      "Rating information",
+      "Elevation certificate",
+      "Flood insurance claim",
+      "Policy clause",
+      "Term",
+      "Entities",
+      "Statute"
+    ],
+    "unmatched_riskine": [
+      "Product",
+      "Damage",
+      "Risk",
+      "Object",
+      "Address"
+    ]
+  }
 }

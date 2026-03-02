@@ -17,7 +17,11 @@ import re
 from dataclasses import dataclass, asdict
 
 # Allow imports from project root (config.py lives there)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _ROOT)
+# Allow imports from evaluation/ directory (riskine_loader, riskine_eval)
+_EVAL_DIR = os.path.join(_ROOT, "evaluation")
+sys.path.insert(0, _EVAL_DIR)
 
 from langchain_neo4j import Neo4jGraph
 from langchain_ollama import ChatOllama
@@ -198,6 +202,13 @@ class BaselineMetrics:
     tasks_with_results: int = 0
     tasks_keyword_match: int = 0
     query_accuracy: float = 0.0
+    # Model
+    model: str = config.OLLAMA_MODEL
+    # Riskine ontology alignment (optional — only when --riskine is passed)
+    riskine_precision: float = 0.0
+    riskine_recall: float = 0.0
+    riskine_f1: float = 0.0
+    riskine_available: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -285,16 +296,21 @@ def run_query_tasks(graph: Neo4jGraph) -> list[dict]:
 # Main
 # ---------------------------------------------------------------------------
 
-def run_evaluation(suffix: str = "original"):
+def run_evaluation(suffix: str = "original", run_riskine: bool = False, model: str = config.OLLAMA_MODEL):
     """
     Run evaluation against the current Neo4j graph.
-    suffix: 'original' | 'zone1'  — determines the output filename.
+
+    Args:
+        suffix:       'original' | 'zone1' | 'zone1_qwen' — output filename label
+        run_riskine:  if True, run step [5/5] Riskine alignment (slow, needs Ollama)
+        model:        Ollama model name for LLM judge in Riskine step
     """
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
-    label = "Zone1 Chunks (Ablation)" if suffix == "zone1" else "Original 512-Token Chunks"
+    label = "Zone1 Chunks (Ablation)" if suffix.startswith("zone1") else "Original 512-Token Chunks"
     print("=" * 60)
     print(f"CS584 Capstone — Baseline Evaluation [{label}]")
+    print(f"  suffix={suffix}  model={model}  riskine={'yes' if run_riskine else 'no'}")
     print("=" * 60)
 
     graph = Neo4jGraph(
@@ -304,7 +320,7 @@ def run_evaluation(suffix: str = "original"):
         database=config.NEO4J_DATABASE,
     )
 
-    metrics = BaselineMetrics()
+    metrics = BaselineMetrics(model=model)
 
     # --- Graph size ---
     print("\n[1/4] Graph size...")
@@ -362,6 +378,26 @@ def run_evaluation(suffix: str = "original"):
     print(f"  Tasks keyword-matched:    {metrics.tasks_keyword_match}/{metrics.tasks_total}")
     print(f"  Query accuracy:           {metrics.query_accuracy:.1%}  (project target: >75%)")
 
+    # --- Riskine alignment (optional) ---
+    riskine_detail: dict = {}
+    if run_riskine:
+        print("\n[5/5] Riskine ontology alignment...")
+        import riskine_loader
+        import riskine_eval
+        schemas = riskine_loader.fetch_and_cache()
+        riskine_classes = riskine_loader.extract_riskine_classes(schemas)
+        llm = ChatOllama(model=model, base_url=config.OLLAMA_BASE_URL, temperature=0)
+        riskine_result = riskine_eval.measure_riskine_alignment(
+            graph, llm, riskine_classes, suffix=suffix
+        )
+        metrics.riskine_precision = riskine_result["precision"]
+        metrics.riskine_recall    = riskine_result["recall"]
+        metrics.riskine_f1        = riskine_result["f1"]
+        metrics.riskine_available = True
+        riskine_detail = riskine_result
+        print(f"  Riskine P={metrics.riskine_precision:.3f}  "
+              f"R={metrics.riskine_recall:.3f}  F1={metrics.riskine_f1:.3f}")
+
     # --- Save results ---
     report = {
         "mode": suffix,
@@ -370,6 +406,8 @@ def run_evaluation(suffix: str = "original"):
         "type_consistency_detail": tc,
         "task_results": task_results,
     }
+    if riskine_detail:
+        report["riskine_detail"] = riskine_detail
     out_path = os.path.join(config.RESULTS_DIR, f"baseline_eval_results_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(report, f, indent=2, default=str)
@@ -390,8 +428,12 @@ def run_evaluation(suffix: str = "original"):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Baseline KG evaluation harness")
     parser.add_argument("--suffix", default="original",
-                        help="Label for this run: 'original' or 'zone1'")
+                        help="Label for this run: 'original', 'zone1', 'zone1_qwen', ...")
+    parser.add_argument("--riskine", action="store_true",
+                        help="Run Riskine ontology alignment step [5/5] (slow, needs Ollama)")
+    parser.add_argument("--model", default=config.OLLAMA_MODEL,
+                        help=f"Ollama model for Riskine LLM judge (default: {config.OLLAMA_MODEL})")
     args = parser.parse_args()
-    run_evaluation(suffix=args.suffix)
+    run_evaluation(suffix=args.suffix, run_riskine=args.riskine, model=args.model)

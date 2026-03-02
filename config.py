@@ -10,8 +10,9 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", NEO4J_USERNAME)  # AuraDB uses username as DB name
 
 # Ollama
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",  "http://localhost:11434")
+OLLAMA_MODEL     = os.getenv("OLLAMA_MODEL",     "llama3.1:8b")
+OLLAMA_MODEL_ALT = os.getenv("OLLAMA_MODEL_ALT", "qwen2.5:7b")
 
 # Chunking (matches baseline_pdf_loader.py)
 CHUNK_SIZE = 512
