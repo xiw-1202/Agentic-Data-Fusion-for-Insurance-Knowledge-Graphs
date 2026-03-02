@@ -1,11 +1,9 @@
-# CS584 AI Capstone — Progress Report: Weeks 1–3
+# CS584 AI Capstone — Progress Report: Weeks 1–5
 **Schema-Evolving Knowledge Graphs for Insurance: Automated Ontology Induction with Cross-Domain Transfer Learning**
 
 **Authors:** Xiaofei Wang · Zechary Chou
 **Course:** CS 584 AI Capstone — Emory University, Spring 2026
-**Date:** February 22, 2026
-
-> **Rename tip:** `mv README.md CS584_Progress_Report.md`
+**Last Updated:** March 1, 2026
 
 ---
 
@@ -21,6 +19,7 @@
    - 4.4 [Zone 1 — Novel Hybrid Chunking](#44-zone-1--novel-hybrid-chunking)
    - 4.5 [Ablation Study Setup](#45-ablation-study-setup)
    - 4.6 [Results Comparison Tool](#46-results-comparison-tool)
+   - 4.7 [Baseline Riskine Alignment + LLM Ontology Induction](#47-baseline-riskine-alignment--llm-ontology-induction)
 5. [Evaluation Method and Metrics](#5-evaluation-method-and-metrics)
 6. [Results](#6-results)
    - 6.1 [Baseline — Original 512-token Chunks](#61-baseline--original-512-token-chunks)
@@ -135,22 +134,32 @@ The **PDF is the primary knowledge source** — formal definitions, coverage rul
 
 ### 4.2 Baseline Pipeline — LangGraph + LLMGraphTransformer
 
-**File:** `baseline_pipeline.py`
+**File:** `baseline/pipeline.py`
 **Why we built it:** To establish a documented, reproducible baseline using off-the-shelf LangChain tools — the state-of-practice approach for LLM-based KG construction.
 
-**Architecture — LangGraph StateGraph, 3 nodes:**
+**Architecture — LangGraph StateGraph, 3 nodes (default) or 4 nodes with `--induce-ontology`:**
 
 ```
-load_chunks  →  extract_triples  →  insert_to_neo4j
+load_chunks  →  extract_triples  →  insert_to_neo4j  [→  induce_ontology]
 ```
 
 **State:**
 ```python
 class PipelineState(TypedDict):
-    chunks: List[dict]
-    documents: List[Document]
-    graph_documents: List[GraphDocument]
-    stats: dict
+    chunks: list[dict]
+    graph_documents: list          # GraphDocument objects
+    neo4j_stats: dict              # nodes/rels inserted
+    ontology_induction: dict       # populated only with --induce-ontology
+    errors: Annotated[list, operator.add]
+    model: str
+```
+
+**CLI flags:**
+```bash
+python3 baseline/pipeline.py                           # original 512-token chunks
+python3 baseline/pipeline.py --zone1                   # Zone 1 section-aware chunks
+python3 baseline/pipeline.py --zone1 --induce-ontology # + LLM ontology induction
+python3 baseline/pipeline.py --model qwen2.5:7b        # alternative model
 ```
 
 **Triple extraction (unconstrained):**
@@ -194,7 +203,7 @@ NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", NEO4J_USERNAME)
 
 ### 4.3 Baseline Evaluation Harness — 20 Query Tasks
 
-**File:** `baseline_eval.py`
+**File:** `baseline/eval.py`
 **Why we built it:** Reproducible, quantitative evaluation that can be re-run after each pipeline change. 20 questions mirror what a claims adjuster or domain expert would actually ask the knowledge graph — covering all sections of the SFIP document.
 
 **Task categories:**
@@ -236,7 +245,7 @@ Without this fix the metric was completely meaningless. After fix: **8.0%** (ori
 
 ### 4.4 Zone 1 — Novel Hybrid Chunking
 
-**File:** `zone1_ingestion.py`
+**File:** `zone1/ingestion.py`
 **Why we built it:** Replace fixed sliding-window chunking with structure-aware hybrid chunking that respects the semantic boundaries of insurance documents (Zone 1 of the novel pipeline per the project plan §3.2).
 
 **Core insight:** Insurance policy documents use numbered sections with ALL-CAPS headings. A chunk that crosses a section boundary strips the heading that gives meaning to its content. The LLM extracts triples without knowing what rule applies.
@@ -291,7 +300,7 @@ r'^(I{1,3}|...)\.\s+[A-Z]{2,}'
 
 **CSV chunking:** 50 records per chunk, each chunk includes field names and sample values for LLM context.
 
-**Zone 1 output — `data/results/zone1_chunks.json`:**
+**Zone 1 output — `data/flood/processed/zone1_chunks.json`:**
 
 | Source | Chunks | Notes |
 |--------|--------|-------|
@@ -322,12 +331,13 @@ r'^(I{1,3}|...)\.\s+[A-Z]{2,}'
 **CLI flags added:**
 ```bash
 # Original baseline
-python3 baseline_pipeline.py
-python3 baseline_eval.py
+python3 baseline/pipeline.py
+python3 baseline/eval.py
 
 # Zone 1 ablation
-python3 baseline_pipeline.py --zone1    # clears Neo4j, uses zone1_chunks.json
-python3 baseline_eval.py --suffix zone1 # saves to baseline_eval_results_zone1.json
+python3 baseline/pipeline.py --zone1               # clears Neo4j, uses zone1_chunks.json
+python3 baseline/eval.py --suffix zone1            # saves to baseline_eval_results_zone1.json
+python3 baseline/eval.py --suffix zone1 --riskine  # + Riskine ontology alignment score
 ```
 
 Results are saved separately so both are preserved for the final paper's Table 1.
@@ -336,8 +346,60 @@ Results are saved separately so both are preserved for the final paper's Table 1
 
 ### 4.6 Results Comparison Tool
 
-**File:** `compare_results.py`
+**File:** `evaluation/compare_results.py`
 Side-by-side terminal table comparing metrics across all runs. Supports original, zone1, and future novel pipeline results.
+
+**HTML report generation:**
+```bash
+python3 evaluation/visualize_results.py --suffix zone1 --html
+# Saves: data/results/visualization_report_zone1.html
+```
+
+---
+
+### 4.7 Baseline Riskine Alignment + LLM Ontology Induction
+
+**Files:** `evaluation/riskine_eval.py`, `evaluation/riskine_loader.py`, `baseline/ontology_induction.py`
+
+**Why we measured it:** Zone 3 of the novel pipeline produces a structured ontology aligned to the Riskine insurance ontology. To have a fair comparison, the baseline also needs an ontology alignment score.
+
+**Riskine reference:** 10 canonical flood-insurance classes sourced from [github.com/riskine/ontology](https://github.com/riskine/ontology):
+`Coverage · Product · Damage · Risk · Structure · Property · Person · Object · Organization · Address`
+Schemas stored locally in `data/riskine/schemas/`.
+
+**Riskine evaluation** (`baseline/eval.py --riskine`): Queries Neo4j `db.labels()`, uses embedding cosine similarity + LLM judge to compute:
+- **Precision** = `Riskine-matching labels / total extracted labels`
+- **Recall** = `Riskine classes covered / 10`
+- **F1** = harmonic mean
+
+**Baseline zone1 result (llama3.1:8b):**
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Precision | 0.167 | 5 of ~44 labels match a Riskine class |
+| Recall | 0.500 | 5 of 10 Riskine classes covered |
+| F1 | 0.250 | Limited by unconstrained free-form labels |
+
+**Why it's low:** LLMGraphTransformer invents labels like `PolicyAction`, `CoverageType`, `BuildingLocation` — none of which are Riskine class names. Only 5 of the 44 labels have sufficient semantic overlap.
+
+**Improved baseline — LLM Ontology Induction (opt-in):**
+`baseline/ontology_induction.py` adds a post-extraction step that:
+1. Collects all unique Neo4j labels
+2. Calls the LLM in a single batch to map each label → closest Riskine class
+3. Applies the mapping as **additional** Neo4j labels (non-destructive: original labels preserved)
+
+Run with:
+```bash
+python3 baseline/pipeline.py --zone1 --induce-ontology
+```
+
+This step is **off by default** — keeping current eval results stable while the full Zone 2–4 approach is still under development. When the full pipeline is complete, running both with `--induce-ontology` will give a fair apples-to-apples comparison.
+
+Expected improvement (not yet measured):
+| Metric | Without induction | With `--induce-ontology` |
+|--------|:-----------------:|:------------------------:|
+| Precision | 0.167 | ~0.50–0.70 |
+| Recall | 0.500 | ~0.70–0.90 |
+| F1 | 0.250 | ~0.55–0.75 |
 
 ---
 
@@ -350,9 +412,9 @@ Side-by-side terminal table comparing metrics across all runs. Supports original
 | Query Accuracy | `correct / 20` | **35%** | **50%** | > 75% |
 | Entity Duplication | `(nodes − unique) / nodes` | ~0% | ~0% | < 5% |
 | Type Inconsistency | `multi_label_roots / roots` | **8.0%** | **15.2%** | < 2% |
-| Precision vs Riskine | semantic class match | — | — | > 80% |
-| Recall vs Riskine | reference class coverage | — | — | > 70% |
-| F1 vs Riskine | harmonic mean P+R | — | — | > 0.75 |
+| Precision vs Riskine | semantic class match | — | **0.167** | > 80% |
+| Recall vs Riskine | reference class coverage | — | **0.500** | > 70% |
+| F1 vs Riskine | harmonic mean P+R | — | **0.250** | > 0.75 |
 | CTR | auto classes reusing flood | — | — | > 60% |
 | PTR | shared properties x-domain | — | — | > 50% |
 
@@ -442,6 +504,9 @@ Type Inconsistency: 15.2%            (↑ from 8.0% — expected)
 | Query accuracy | 35% | **50%** | **+15%** | **>75%** |
 | Entity duplication | ~0% | ~0% | — | <5% |
 | Type inconsistency | 8.0% | 15.2% | +7.2% *(expected)* | **<2%** |
+| Riskine F1 | — | **0.250** | — | **>0.75** |
+
+*Riskine F1 not measured on original 512-token run (added after zone1 evaluation).*
 
 ---
 
@@ -754,32 +819,57 @@ Python:        3.11+
 
 ```
 CS584_AI_Capstone/
-├── baseline_pdf_loader.py          # Pre-existing: 512-token sliding-window chunks
-├── baseline_pipeline.py            # LangGraph pipeline (--zone1 flag supported)
-├── baseline_eval.py                # 20-task evaluator (--suffix flag supported)
-├── zone1_ingestion.py              # Zone 1: hybrid section-aware + semantic chunking
-├── compare_results.py              # Side-by-side ablation comparison
-├── build_presentation.py           # 13-slide python-pptx deck builder
-├── config.py                       # Neo4j + Ollama settings
+├── config.py                       # Neo4j + Ollama + path settings
 ├── .env                            # Credentials (not committed)
-├── .env.example                    # Template
 │
-└── data/
-    ├── pdf_chunks.json                          # 56 original fixed chunks
-    ├── fema_policies_sample.csv                 # 500 OpenFEMA policy records
-    ├── fema_claims_sample.csv                   # 500 OpenFEMA claim records
-    └── results/
-        ├── zone1_chunks.json                    # 69 Zone 1 chunks
-        ├── baseline_eval_results_original.json  # 35%, 8.0% — original baseline
-        ├── baseline_eval_results_zone1.json     # 50%, 15.2% — Zone 1 ablation
-        └── novel_eval_results.json              # (future: Zones 2+3)
+├── baseline/                       # Comparison baseline (LLMGraphTransformer + Neo4j)
+│   ├── pipeline.py                 # LangGraph pipeline (--zone1, --induce-ontology, --model)
+│   ├── eval.py                     # 20-task evaluator (--suffix, --riskine flags)
+│   ├── ontology_induction.py       # LLM label → Riskine class mapping (opt-in)
+│   └── pdf_loader.py               # PDF chunk loading utility
+│
+├── zone1/
+│   └── ingestion.py                # Hybrid section-aware + semantic chunking (τ=0.85)
+│
+├── zone2/                          # Open IE with few-shot prompting (in progress)
+├── zone3/                          # Leiden ontology induction (upcoming)
+├── zone4/                          # Neo4j structured storage (upcoming)
+│
+├── evaluation/
+│   ├── riskine_eval.py             # Riskine P/R/F1 scoring (embedding + LLM judge)
+│   ├── riskine_loader.py           # Loads Riskine schema JSONs
+│   ├── visualize_results.py        # HTML report generation (--suffix, --html flags)
+│   └── compare_results.py          # Side-by-side terminal table
+│
+├── scripts/
+│   └── data_download.py            # OpenFEMA policy + claims data download
+│
+├── data/
+│   ├── flood/
+│   │   ├── raw/
+│   │   │   ├── pdf/                              # SFIP PDF (27 pages)
+│   │   │   └── openfema/                         # 500-record policy + claims CSVs
+│   │   └── processed/
+│   │       └── zone1_chunks.json                 # 69 Zone 1 chunks
+│   ├── riskine/
+│   │   └── schemas/                              # 10 Riskine class schemas (JSON)
+│   ├── auto/                                     # (placeholder — cross-domain)
+│   └── results/
+│       ├── baseline_eval_results_original.json   # 35%, 8.0% — original 512-token
+│       ├── baseline_eval_results_zone1.json      # 50%, 15.2%, F1=0.25 — Zone 1
+│       ├── riskine_eval_zone1.json               # Riskine alignment detail
+│       └── visualization_report_zone1.html       # HTML dashboard
+│
+└── docs/
+    ├── Automated_Insurance_Ontology_Induction.pptx
+    └── *.pdf                                     # Project plan documents
 ```
 
 ---
 
-## 12. Next Steps — Zones 2 and 3
+## 12. Next Steps — Zones 2, 3, and 4
 
-### Zone 2 — Open IE with Few-Shot Prompting (Weeks 4–5)
+### Zone 2 — Open IE with Few-Shot Prompting (Weeks 4–5, **IN PROGRESS**)
 
 **Why:** The 50% ceiling from Zone 1 is caused by LLMGraphTransformer inventing its own unconstrained relation types. Few-shot examples teach it a specific, typed vocabulary that covers negation, numerical facts, and procedural relations.
 
@@ -812,6 +902,17 @@ def keep_triple(t):
 ```
 
 **Expected:** Query accuracy > 60%, type inconsistency slightly reduced.
+
+---
+
+### Zone 2.5 — Entity Resolution (between Zone 2 and Zone 3)
+
+Merges surface-form duplicates before clustering:
+- Normalize entity names (lowercase, strip punctuation)
+- Embed all entity IDs → cluster near-duplicates (cosine > 0.92)
+- Merge into canonical node, redirect all edges
+
+**Target:** Entity duplication < 5% (currently ~0% at 500-record scale; will grow at full 150K).
 
 ---
 
@@ -867,10 +968,10 @@ A CTR > 60% would demonstrate that a domain-general insurance ontology backbone 
 | Period | Phase | Status | Deliverables |
 |--------|-------|:------:|-------------|
 | **Weeks 1–3** | Baseline Implementation | ✅ **COMPLETE** | LangGraph pipeline · Zone 1 chunking · 20-task eval · Ablation study · Progress presentation |
-| **Weeks 4–5** | Zone 2 — Open IE | 🔄 **NEXT** | Few-shot extractor · Quality filters · Entity/event distinction · Zone 2 eval |
-| **Weeks 6–7** | Zone 3 — Ontology Induction | ⏳ Upcoming | Leiden clustering · Entity resolution · Canonical classes · SUBCLASS_OF hierarchy |
+| **Weeks 4–5** | Zone 2 — Open IE + Baseline Improvements | 🔄 **IN PROGRESS** | Few-shot extractor · Quality filters · Riskine eval · Improved baseline (ontology induction step) |
+| **Weeks 6–7** | Zone 3 — Ontology Induction | ⏳ Upcoming | Leiden clustering · Entity resolution (Zone 2.5) · Canonical classes · SUBCLASS_OF hierarchy |
 | **Weeks 8–9** | Cross-Domain Transfer | ⏳ Upcoming | Auto pipeline run · CTR/PTR measurement · Ontology merging |
-| **Weeks 10–11** | Polish and Reporting | ⏳ Upcoming | Streamlit demo · Riskine P/R/F1 · Human annotation · 10–15 page report |
+| **Weeks 10–11** | Polish and Reporting | ⏳ Upcoming | Streamlit demo · Full Riskine P/R/F1 · Human annotation · 10–15 page report |
 
 ### Final Deliverables
 - Complete 4-zone LangGraph pipeline (end-to-end, reproducible)
@@ -882,5 +983,4 @@ A CTR > 60% would demonstrate that a domain-general insurance ontology backbone 
 
 ---
 
-*Generated: February 22, 2026 · CS584 AI Capstone · Emory University*
-*Rename: `mv README.md CS584_Progress_Report.md`*
+*Last updated: March 1, 2026 · CS584 AI Capstone · Emory University*
