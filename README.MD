@@ -1,9 +1,40 @@
-# CS584 AI Capstone — Progress Report: Weeks 1–5
+# CS584 AI Capstone — Progress Report: Week 8
 **Schema-Evolving Knowledge Graphs for Insurance: Automated Ontology Induction with Cross-Domain Transfer Learning**
 
 **Authors:** Xiaofei Wang · Zechary Chou
 **Course:** CS 584 AI Capstone — Emory University, Spring 2026
-**Last Updated:** March 9, 2026
+**Last Updated:** March 11, 2026
+
+---
+
+## Zone Status (Week 8)
+
+| Zone | Status | Best Result | Notes |
+|------|:------:|:-----------:|-------|
+| Zone 1 — Section-aware chunking | ✅ Done | Acc 50%, F1 0.250 | τ=0.85 semantic merge |
+| Baseline — LLMGraphTransformer | ✅ Done | Acc 35% | Comparison only |
+| Zone 2 v2 — Domain-agnostic Open IE | ✅ Done | Acc 35%, F1 ~0.000 | No anchors, honest baseline |
+| Zone 2 EDC canonicalization | ✅ Done | 48→14 rel types (71% reduction) | Included in best run |
+| Zone 2.5 — Entity resolution | ✅ Done | 0% duplication | cosine ≥ 0.90 merge |
+| Zone 3 — Leiden ontology induction | ✅ Done | **Acc 75%, F1 0.247** | 8b+EDC+MultiLeiden — best result |
+| Zone 3 — 70b GPU run | ✅ Done | Acc 65%, F1 0.158 | Turing cluster; F-07 naming penalty |
+| Zone 4 — Structured Neo4j storage | ⏳ Upcoming | — | 3-layer ontology schema |
+
+## Full Results Table
+
+| Run | Model | Query Acc | Type Incon. | Riskine F1 | Notes |
+|-----|-------|:---------:|:-----------:|:----------:|-------|
+| Baseline (512-tok) | llama3.1:8b | 35% | 8.0% | — | LLMGraphTransformer |
+| Zone 1 | llama3.1:8b | 50% | 15.2% | 0.250 | Section-aware chunking |
+| Zone 2 v1 | llama3.1:8b | 50% | 0.0% | 0.874 | ⚠️ Domain leakage — inflated |
+| Zone 2 v2 (honest) | llama3.1:8b | 35% | 0.0% | ~0.000 | All anchors removed |
+| Zone 3 (8b) | llama3.1:8b | 35% | 17.4% | 0.171 | Leiden res=0.6 |
+| Zone 3 (70b) | llama3.1:70b | 30% | 2.9% | 0.071 | Turing GPU; F-07 |
+| **Zone 3 8b+EDC+ML** | llama3.1:8b | **75%** | 14.3% | **0.247** | **Best result** |
+| Zone 3 70b+EDC+ML | llama3.1:70b | 65% | 16.7% | 0.158 | F-07/F-10 |
+
+> **Key finding (F-07):** Riskine F1 rewards naming convention similarity, not semantic quality.
+> The correct evaluation metric going forward is **CTR/PTR cross-domain transfer**.
 
 ---
 
@@ -33,7 +64,7 @@
 9. [Bugs Found and Fixed](#9-bugs-found-and-fixed)
 10. [Technical Stack](#10-technical-stack)
 11. [File Structure](#11-file-structure)
-12. [Next Steps — Zones 2 and 3](#12-next-steps--zones-2-and-3)
+12. [Zone 2 & 3 Implementation](#12-zone-2--3-implementation)
 13. [Timeline](#13-timeline)
 
 ---
@@ -66,25 +97,26 @@ Build an automated 4-zone pipeline that eliminates all four problems and produce
 ### 4-Zone Pipeline
 
 ```
-ZONE 1: Ingestion         ZONE 2: Open IE           ZONE 3: Schema Evolution    ZONE 4: Neo4j Storage
+ZONE 1: Ingestion ✅      ZONE 2: Open IE ✅         ZONE 3: Ontology ✅         ZONE 4: Storage ⏳
 ─────────────────         ──────────────────         ────────────────────────    ──────────────────────
-PDF + CSV input           Llama 3.1 8B               Leiden clustering           3-layer graph:
-Section-aware       →     Few-shot prompting    →     Ontology induction     →    • Ontology classes
-chunking                  (s, r, o, confidence)       Entity resolution           • Entity types
-τ = 0.85 semantic         Quality filter              Cross-domain transfer       • Entity instances
-merge                     confidence > 0.7
-
-✅ DONE                   ← NEXT →                   UPCOMING                    UPCOMING
+PDF + CSV input           Bootstrap vocab             Multi-res Leiden            3-layer graph:
+Section-aware       →     from documents        →     [0.3, 0.6, 1.2]        →    • OntologyClass nodes
+chunking                  3-pass extraction           Entity similarity graph     • SUBCLASS_OF hierarchy
+τ = 0.85 semantic         EDC canonicalization        Algorithmic SUBCLASS_OF     • Entity instances
+merge                     Entity resolution           5 structural edges
+                          (no domain hardcoding)      LLM class naming
 ```
 
-### Novel Contribution
-**Zone 3 is the core research contribution**: bottom-up ontology induction via Leiden community detection. Instead of hand-crafting schemas, the pipeline:
+### Novel Contributions (Implemented)
+**Zone 3 is the core research contribution**: bottom-up ontology induction via Leiden community detection. The pipeline:
 
-1. Builds a type-similarity graph from all raw labels the LLM produces
-2. Runs Leiden clustering to group labels that refer to the same abstract concept
-3. Uses the LLM to name each cluster as a canonical class (e.g., `InsurancePolicy`)
-4. Infers `SUBCLASS_OF` relationships between clusters
-5. Transfers the resulting ontology to a second domain (auto insurance) and measures reuse
+1. Builds an entity-similarity graph from embedding + structural (relation type) features
+2. Runs multi-resolution Leiden at [0.3, 0.6, 1.2] to discover coarse/medium/fine cluster hierarchy
+3. Uses the LLM to name each cluster as a canonical PascalCase ontology class
+4. Derives `SUBCLASS_OF` edges **algorithmically** from cross-resolution membership overlap (≥0.60) — no LLM hallucination
+5. Transfers the resulting ontology to a second domain (auto insurance) with **zero code changes**
+
+**EDC Canonicalization** (Zone 2): Post-extraction batch LLM call maps 48 raw relation types → 14 bootstrapped vocab types (71% reduction), reducing graph fragmentation without hardcoding any domain knowledge.
 
 ---
 
@@ -795,21 +827,22 @@ root = tokens[0].lower() if tokens else label.lower()
 
 | Component | Tool | Purpose |
 |-----------|------|---------|
-| Pipeline orchestration | LangGraph `StateGraph` | State machine: load → extract → store |
-| LLM (local) | Ollama + Llama 3.1 8B | Triple extraction, class naming |
-| KG extraction (baseline) | LangChain `LLMGraphTransformer` | Baseline triple extraction |
-| Graph database | Neo4j AuraDB | Knowledge graph storage + Cypher queries |
+| Pipeline orchestration | LangGraph `StateGraph` | State machine for Zone 2 and Zone 3 pipelines |
+| LLM (local) | Ollama + llama3.1:8b / llama3.1:70b | Triple extraction, EDC canonicalization, cluster naming |
+| KG extraction (baseline) | LangChain `LLMGraphTransformer` | Baseline only — comparison point |
+| Graph database | Neo4j AuraDB | Knowledge graph + ontology storage |
 | Graph connector | `langchain-neo4j` | Python ↔ Neo4j |
-| Embeddings | `all-MiniLM-L6-v2` | Semantic similarity for Zone 1 merge, Zone 3 clustering |
+| Embeddings | `sentence-transformers` (all-MiniLM-L6-v2) | Zone 1 merge, Zone 2 entity resolution, Zone 3 similarity graph |
 | PDF loading | LangChain `PyPDFLoader` | PDF text extraction |
-| Presentation | `python-pptx` | Slide deck generation |
-| Future: clustering | `graspologic` (Leiden) | Zone 3 community detection |
+| Community detection | `leidenalg` + `igraph` | Zone 3 multi-resolution Leiden |
+| GPU cluster | Emory Turing (Slurm, RTX 8000 48GB) | 70b model runs |
+| Visualization | `matplotlib` + `networkx` | Presentation figures |
 | Future: demo | Streamlit | Interactive KG explorer |
 
 **Environment:**
 ```
 Neo4j AuraDB:  URI = neo4j+s://...  |  DB = 8929c2c7
-Ollama:        http://localhost:11434  |  model = llama3.1:8b
+Ollama:        http://localhost:11434  |  model = llama3.1:8b (default), llama3.1:70b (cluster)
 Python:        3.11+
 ```
 
@@ -821,6 +854,7 @@ Python:        3.11+
 CS584_AI_Capstone/
 ├── config.py                       # Neo4j + Ollama + path settings
 ├── .env                            # Credentials (not committed)
+├── requirements.txt                # Pinned dependencies
 │
 ├── baseline/                       # Comparison baseline (LLMGraphTransformer + Neo4j)
 │   ├── pipeline.py                 # LangGraph pipeline (--zone1, --induce-ontology, --model)
@@ -831,18 +865,28 @@ CS584_AI_Capstone/
 ├── zone1/
 │   └── ingestion.py                # Hybrid section-aware + semantic chunking (τ=0.85)
 │
-├── zone2/                          # Open IE with few-shot prompting (in progress)
-├── zone3/                          # Leiden ontology induction (upcoming)
-├── zone4/                          # Neo4j structured storage (upcoming)
+├── zone2/                          # ✅ Domain-agnostic Open IE pipeline
+│   ├── pipeline.py                 # Bootstrapped vocab + 3-pass extraction + EDC + entity resolution
+│   ├── prompts.py                  # Extraction prompts (domain-agnostic, synthetic few-shot)
+│   └── entity_resolution.py       # Embedding-based entity merge (cosine ≥ 0.90)
+│
+├── zone3/                          # ✅ Leiden ontology induction
+│   └── pipeline.py                 # Multi-res Leiden + LLM naming + algorithmic SUBCLASS_OF
+│
+├── zone4/                          # ⏳ Structured Neo4j storage (upcoming)
 │
 ├── evaluation/
-│   ├── riskine_eval.py             # Riskine P/R/F1 scoring (embedding + LLM judge)
+│   ├── riskine_eval.py             # Member-based Riskine F1 (PascalCase humanization, LLM judge)
 │   ├── riskine_loader.py           # Loads Riskine schema JSONs
+│   ├── visualize_eval_examples.py  # Presentation figures (eval Q&A, prompts, KG subgraph)
 │   ├── visualize_results.py        # HTML report generation (--suffix, --html flags)
 │   └── compare_results.py          # Side-by-side terminal table
 │
 ├── scripts/
-│   └── data_download.py            # OpenFEMA policy + claims data download
+│   ├── data_download.py            # OpenFEMA policy + claims data download
+│   ├── cluster_setup.sh            # Emory Turing one-time setup (Ollama + 70b + venv)
+│   ├── slurm_zone2_zone3.sh        # Slurm GPU job (gres=gpu:1, mem=64G, 4h)
+│   └── sync_to_cluster.sh          # rsync via jump host lab0z.mathcs.emory.edu
 │
 ├── data/
 │   ├── flood/
@@ -852,114 +896,120 @@ CS584_AI_Capstone/
 │   │   └── processed/
 │   │       └── zone1_chunks.json                 # 69 Zone 1 chunks
 │   ├── riskine/
-│   │   └── schemas/                              # 10 Riskine class schemas (JSON)
-│   ├── auto/                                     # (placeholder — cross-domain)
-│   └── results/
-│       ├── baseline_eval_results_original.json   # 35%, 8.0% — original 512-token
-│       ├── baseline_eval_results_zone1.json      # 50%, 15.2%, F1=0.25 — Zone 1
-│       ├── riskine_eval_zone1.json               # Riskine alignment detail
-│       └── visualization_report_zone1.html       # HTML dashboard
+│   │   └── schemas/                              # 10 Riskine class schemas (EVALUATION ONLY)
+│   ├── auto/                                     # Cross-domain transfer data
+│   └── results/                                  # Generated eval JSONs + PNGs (git-ignored)
+│       ├── presentation_eval_qa.png              # 4-panel Q&A figure
+│       ├── presentation_prompts.png              # Prompt examples figure
+│       └── presentation_kg_subgraph.png          # KG visualization
 │
 └── docs/
-    ├── Automated_Insurance_Ontology_Induction.pptx
-    └── *.pdf                                     # Project plan documents
+    ├── CS584_Progress_Update_Week8.md            # Mentor-facing progress report (Week 8)
+    ├── FINDINGS.md                               # F-01 through F-10 empirical findings
+    ├── GENERALIZATION_PLAN.md                    # Domain leakage audit + fix rationale
+    └── CS_584_AI_Capstone_Simplified_Plan.pdf    # Original project plan (Feb 22)
 ```
 
 ---
 
-## 12. Generalization Pivot (Week 6)
-
-### Problem Identified: Domain Leakage
-
-An audit of the Zone 2 pipeline on March 9, 2026 revealed that the Riskine reference ontology had leaked from evaluation into the pipeline itself, undermining the project's core claim of **domain-agnostic** ontology induction.
-
-Three critical violations were found in `zone2/pipeline.py`:
-
-| Violation | What it did | Impact |
-|-----------|-------------|--------|
-| `ANCHORS` (9 entries) | Injected Riskine-labeled nodes ("NFIP Policy"→Product, "Flood"→Risk, etc.) directly into the graph | Pipeline would inject "Flood" nodes even when processing auto insurance |
-| `RELATION_ROLE_MAP` (15 entries) | Hardcoded relation→Riskine-class mappings (COVERS→Coverage/Property) | Riskine classes assigned during extraction, not evaluation |
-| `FEW_SHOT_PAIRS` (13 pairs) | All examples used exact SFIP text | Pipeline taught NFIP-specific patterns, useless for other LOBs |
-
-**The Zone 2 Riskine F1 of 0.874 was inflated.** The `label_nodes()` step guaranteed 9/10 Riskine classes appeared in `db.labels()` by injecting anchor nodes. Extraction-only F1 was ~0.35-0.45.
-
-### Decision: Separate Pipeline from Evaluation
-
-**New rule: Riskine appears ONLY in `evaluation/riskine_eval.py`. Never in the pipeline.**
-
-The pipeline must produce an ontology that is then *compared to* Riskine, not *built from* Riskine. This enables the same `python3 zone2/pipeline.py` to run on flood, auto, health, or any other LOB with zero code changes.
-
-Full audit and implementation plan: `docs/GENERALIZATION_PLAN.md`
-
----
-
-## 13. Revised Architecture (Post-Generalization)
-
-```
-ZONE 1: Ingestion        ZONE 2: Open IE (general)       ZONE 3: Ontology Induction      ZONE 4: Storage
-─────────────────        ────────────────────────         ──────────────────────────       ──────────────
-ANY insurance docs       Bootstrap from docs:             Leiden on extracted entities:    3-layer Neo4j:
-PDF + CSV           →      LLM proposes entity types →     Build similarity graph     →    Ontology classes
-Section-aware chunk        LLM proposes relation types     Leiden → 15-30 clusters         SUBCLASS_OF
-τ=0.85 merge               Synthetic few-shot (generic)    LLM names each cluster          Entity instances
-                           Extract (s,r,o,confidence)      LLM proposes SUBCLASS_OF
-                           Entity resolution               NO reference ontology used
-
-                           ┌──────────────────────────┐
-                           │ EVALUATION (separate)     │
-                           │ Induced ontology → Riskine│
-                           │ P / R / F1 / CTR / PTR   │
-                           └──────────────────────────┘
-```
+## 12. Zone 2 & 3 Implementation
 
 ### Zone 2 v2 — Domain-Agnostic Open IE
 
-**Removed:** EVAL_SEEDS, RELATION_ROLE_MAP, ANCHORS, label_nodes(), SFIP-specific few-shot pairs, SFIP section keywords.
+**What was removed (domain leakage, Week 6 audit):**
+- `ANCHORS` — 9 injected Riskine-labeled nodes that inflated F1 to 0.874
+- `RELATION_ROLE_MAP` — hardcoded relation→Riskine class mappings
+- `FEW_SHOT_PAIRS` (13 pairs) — all used exact SFIP text
+- `label_nodes()` — applied Riskine labels inside the pipeline
 
-**Added:** Entity type bootstrapping (LLM reads YOUR docs, proposes types), synthetic few-shot examples (4-5 generic insurance patterns: definition, coverage, exclusion, obligation, limit), generic section sampling keywords.
+**What was added (domain-agnostic):**
+- Entity type bootstrapping — LLM reads document samples, proposes entity types
+- Relation type bootstrapping — LLM reads document samples, proposes relation types
+- 3-pass extraction — general facts, numeric facts, obligation/procedure facts
+- EDC canonicalization — maps ~48 raw relation types → 14 vocab types (71% reduction)
+- Synthetic few-shot examples — generic insurance patterns (definition, coverage, exclusion, obligation, limit) — no SFIP text
 
-### Zone 3 — Bottom-Up Ontology Induction (restored purpose)
+**Critical rule: Riskine appears ONLY in `evaluation/riskine_eval.py`.**
+The pipeline produces an ontology that is then *compared to* Riskine, not *built from* Riskine.
 
-With Zone 2 no longer hardcoding Riskine labels, extraction produces 40-80 raw entity types — exactly the scenario Leiden was designed for.
-
-1. Build entity-similarity graph (embedding + structural + co-occurrence)
-2. Leiden community detection → 15-30 clusters
-3. LLM names each cluster (invents name — does NOT choose from Riskine)
-4. LLM proposes SUBCLASS_OF between clusters
-5. Write ontology layer to Neo4j
-
-### Revised Targets (honest)
-
-| Metric | Baseline | Zone 1 | Zone 2 v2 (general) | Zone 3 (Leiden) |
-|--------|:--------:|:------:|:-------------------:|:---------------:|
-| Query accuracy | 35% | 50% | ~45-55% | > 65% |
-| Type inconsistency | 8% | 15.2% | ~15-20% | < 5% |
-| Riskine F1 | — | 0.250 | ~0.35-0.45 | > 0.55 |
-| CTR (cross-domain) | — | — | — | > 60% |
+Full rationale: `docs/GENERALIZATION_PLAN.md`
 
 ---
 
-## 14. Timeline (Revised)
+### Zone 3 — Multi-Resolution Leiden Ontology Induction
+
+```python
+# Multi-resolution: coarse → medium → fine
+LEIDEN_RESOLUTIONS       = [0.3, 0.6, 1.2]   # 3 community levels
+HIERARCHY_OVERLAP_THRESH = 0.6               # child members ≥60% in parent → SUBCLASS_OF
+
+# 8b result:  [13, 14, 16] communities → 5 algorithmic SUBCLASS_OF edges
+# 70b result: [27, 28, 29] communities → 5 algorithmic SUBCLASS_OF edges (same count)
+```
+
+**`derive_hierarchy()` — algorithmic SUBCLASS_OF (replaces LLM guessing):**
+
+For each adjacent resolution pair (coarse→medium, medium→fine), find which fine cluster's members
+are ≥60% contained in a coarse cluster → emit a `SUBCLASS_OF` edge. No LLM hallucination.
+Both 8b and 70b produce exactly 5 edges — the method is structurally stable across models.
+
+**Best run (8b+EDC+MultiLeiden, suffix=`zone3_multileiden`):**
+```
+Primary classes (medium res):  InsuredAsset, InsuranceTerm, Timeframe,
+                                PolicyParticipantOrEvent, InsuredProperty,
+                                InsurancePolicyProvisions, CoverageExpansionProvision,
+                                ReplacementValue  (+6 singletons)
+
+SUBCLASS_OF edges (algorithmic):
+  InsuredAsset          SUBCLASS_OF InsuranceConcept      (overlap=1.00)
+  InsuranceTerm         SUBCLASS_OF InsuranceCoverageTerm (overlap=1.00)
+  PolicyParticipantOrEvent SUBCLASS_OF Event              (overlap=0.78)
+  InsuredProperty       SUBCLASS_OF InsuranceCoverageTerm (overlap=1.00)
+  InsurableProperty     SUBCLASS_OF InsuredAsset          (overlap=0.80)
+```
+
+---
+
+## 13. Empirical Findings Summary
+
+| # | Finding | Key Impact |
+|---|---------|-----------|
+| F-01 | 8B ignores dollar amounts as triple objects | 3-pass extraction with numeric focus pass |
+| F-02 | Few-shot pairs from source text cause global interference | Synthetic (not source-derived) few-shot |
+| F-03 | 8B and 70B extract ~1 triple/chunk regardless of model size | Multi-pass mitigation |
+| F-04 | Vocabulary compliance > volume (deepseek-r1:14B at 30% vs 8B at 50%) | Validates bootstrapped vocab approach |
+| F-05 | Entity resolution threshold is model-dependent (0.90 for 8B) | Per-model tuning needed |
+| F-06 | Zone 2 v1 F1=0.874 was domain leakage (9 Riskine anchors injected) | All anchors removed; honest F1 ≈ 0.000 |
+| F-07 | **Riskine F1 rewards naming convention similarity, not semantic quality.** 8B short names score higher than 70B compound names despite 70B having richer semantics. | Paper metric must be CTR/PTR, not Riskine F1 |
+| F-08 | Query accuracy is Cypher-pattern sensitive; 70B names differ from query patterns | 70B: 65% vs 8B: 75% despite richer ontology |
+| F-09 | EDC reduces structural discriminability → Leiden clusters are larger → type inconsistency rises | Type inconsistency is an eval artifact, not a labeling error |
+| F-10 | 70B bootstraps more varied vocabulary → EDC less effective (47→32 vs 48→14) | 70B graph richer but less canonicalized |
+
+Full details: `docs/FINDINGS.md`
+
+---
+
+## 14. Timeline (Week 8 State)
 
 | Period | Phase | Status | Deliverables |
 |--------|-------|:------:|-------------|
-| **Weeks 1–3** | Baseline Implementation | ✅ **COMPLETE** | LangGraph pipeline · Zone 1 chunking · 20-task eval · Ablation study |
-| **Weeks 4–5** | Zone 2 v1 (domain-coupled) | ✅ **COMPLETE** | Few-shot extractor · Findings F-01–F-05 · Riskine eval |
-| **Week 6** | Zone 2 v2 (generalized) | 🔄 **IN PROGRESS** | Remove domain hardcoding · Synthetic few-shot · Entity type bootstrap |
-| **Week 7** | Zone 3 — Ontology Induction | ⏳ Upcoming | Leiden clustering · LLM cluster naming · SUBCLASS_OF hierarchy |
-| **Week 8** | Auto Insurance Run | ⏳ Upcoming | Run identical pipeline on auto data (zero code changes) |
-| **Week 9** | Cross-Domain Transfer | ⏳ Upcoming | CTR/PTR measurement · Ontology merging analysis |
-| **Weeks 10–11** | Paper + Demo | ⏳ Upcoming | Streamlit demo · Human annotation · 10–15 page report |
+| Weeks 1–3 | Baseline Implementation | ✅ Done | LangGraph pipeline · Zone 1 chunking · 20-task eval · Ablation |
+| Weeks 4–5 | Zone 2 v1 (domain-coupled) | ✅ Done | Few-shot extractor · Findings F-01–F-05 · Riskine eval |
+| Week 6 | Zone 2 v2 (generalized) | ✅ Done | Removed all domain leakage · EDC · Synthetic few-shot |
+| Week 7 | Zone 3 — Ontology Induction | ✅ Done | MultiLeiden · Algorithmic SUBCLASS_OF · Turing 70b GPU run |
+| **Week 8** | Cross-domain transfer + presentation | 🔄 **In Progress** | CTR/PTR on auto data · Progress report · Visualizations |
+| Week 9 | Cross-domain analysis | ⏳ Upcoming | Flood vs auto ontology comparison · Transfer measurements |
+| Weeks 10–11 | Paper + Demo + Annotation | ⏳ Upcoming | Streamlit demo · Human annotation · Final report |
 
 ### Final Deliverables
-- **Domain-agnostic** 4-zone LangGraph pipeline (same code for any LOB)
-- Neo4j graph: flood insurance (full 150K-record run)
-- Neo4j graph: auto insurance (zero code changes from flood)
-- Cross-domain transfer evaluation: CTR/PTR with merged ontology
-- Evaluation table: Baseline → Zone 1 → Zone 2 v2 → Zone 3 (honest progression)
-- Streamlit demo: natural language → Cypher → graph visualization
-- 10–15 page report
+- **Domain-agnostic** 4-zone pipeline — identical code runs on flood and auto insurance
+- Neo4j graph: flood insurance ontology (induced, no reference ontology used)
+- Neo4j graph: auto insurance ontology (zero code changes from flood)
+- Cross-domain transfer evaluation: CTR/PTR
+- Full ablation table: Baseline → Zone 1 → Zone 2 → Zone 3
+- Streamlit demo: query the induced ontology, visualize SUBCLASS_OF hierarchy
+- Human annotation quality metric (reference-free, unaffected by naming convention bias)
 
 ---
 
-*Last updated: March 9, 2026 · CS584 AI Capstone · Emory University*
+*Last updated: March 11, 2026 · CS584 AI Capstone · Emory University*
