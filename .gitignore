@@ -42,3 +42,7 @@ env/
 # Logs
 *.log
 logs/
+
+# Generated pipeline artifacts (large or ephemeral)
+data/results/*.json
+data/results/zone2_vocab.json

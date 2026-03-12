@@ -3,7 +3,7 @@
 
 **Authors:** Xiaofei Wang · Zechary Chou
 **Course:** CS 584 AI Capstone — Emory University, Spring 2026
-**Last Updated:** March 1, 2026
+**Last Updated:** March 9, 2026
 
 ---
 
@@ -867,120 +867,99 @@ CS584_AI_Capstone/
 
 ---
 
-## 12. Next Steps — Zones 2, 3, and 4
+## 12. Generalization Pivot (Week 6)
 
-### Zone 2 — Open IE with Few-Shot Prompting (Weeks 4–5, **IN PROGRESS**)
+### Problem Identified: Domain Leakage
 
-**Why:** The 50% ceiling from Zone 1 is caused by LLMGraphTransformer inventing its own unconstrained relation types. Few-shot examples teach it a specific, typed vocabulary that covers negation, numerical facts, and procedural relations.
+An audit of the Zone 2 pipeline on March 9, 2026 revealed that the Riskine reference ontology had leaked from evaluation into the pipeline itself, undermining the project's core claim of **domain-agnostic** ontology induction.
 
-```python
-# Few-shot examples to be included in the extraction prompt:
-examples = [
-    {
-        "text": "We do not insure personal property not inside the fully enclosed building.",
-        "triples": [{"subject": "NFIP Policy", "relation": "EXCLUDED_FROM",
-                     "object": "Personal property outside building", "confidence": 0.95}]
-    },
-    {
-        "text": "The maximum coverage for a single-family dwelling is $250,000.",
-        "triples": [{"subject": "Single-family dwelling", "relation": "HAS_COVERAGE_LIMIT",
-                     "object": "250000", "unit": "USD", "confidence": 0.97}]
-    },
-    {
-        "text": "You must file a proof of loss within 60 days after the loss.",
-        "triples": [{"subject": "Policyholder", "relation": "MUST_FILE",
-                     "object": "Proof of loss", "deadline_days": 60, "confidence": 0.98}]
-    }
-]
+Three critical violations were found in `zone2/pipeline.py`:
 
-# Quality filters:
-def keep_triple(t):
-    if t["confidence"] < 0.7: return False       # low confidence
-    if t["relation"].lower() in               \
-       {"has","is","contains","includes"}: return False  # too generic
-    return True
+| Violation | What it did | Impact |
+|-----------|-------------|--------|
+| `ANCHORS` (9 entries) | Injected Riskine-labeled nodes ("NFIP Policy"→Product, "Flood"→Risk, etc.) directly into the graph | Pipeline would inject "Flood" nodes even when processing auto insurance |
+| `RELATION_ROLE_MAP` (15 entries) | Hardcoded relation→Riskine-class mappings (COVERS→Coverage/Property) | Riskine classes assigned during extraction, not evaluation |
+| `FEW_SHOT_PAIRS` (13 pairs) | All examples used exact SFIP text | Pipeline taught NFIP-specific patterns, useless for other LOBs |
+
+**The Zone 2 Riskine F1 of 0.874 was inflated.** The `label_nodes()` step guaranteed 9/10 Riskine classes appeared in `db.labels()` by injecting anchor nodes. Extraction-only F1 was ~0.35-0.45.
+
+### Decision: Separate Pipeline from Evaluation
+
+**New rule: Riskine appears ONLY in `evaluation/riskine_eval.py`. Never in the pipeline.**
+
+The pipeline must produce an ontology that is then *compared to* Riskine, not *built from* Riskine. This enables the same `python3 zone2/pipeline.py` to run on flood, auto, health, or any other LOB with zero code changes.
+
+Full audit and implementation plan: `docs/GENERALIZATION_PLAN.md`
+
+---
+
+## 13. Revised Architecture (Post-Generalization)
+
+```
+ZONE 1: Ingestion        ZONE 2: Open IE (general)       ZONE 3: Ontology Induction      ZONE 4: Storage
+─────────────────        ────────────────────────         ──────────────────────────       ──────────────
+ANY insurance docs       Bootstrap from docs:             Leiden on extracted entities:    3-layer Neo4j:
+PDF + CSV           →      LLM proposes entity types →     Build similarity graph     →    Ontology classes
+Section-aware chunk        LLM proposes relation types     Leiden → 15-30 clusters         SUBCLASS_OF
+τ=0.85 merge               Synthetic few-shot (generic)    LLM names each cluster          Entity instances
+                           Extract (s,r,o,confidence)      LLM proposes SUBCLASS_OF
+                           Entity resolution               NO reference ontology used
+
+                           ┌──────────────────────────┐
+                           │ EVALUATION (separate)     │
+                           │ Induced ontology → Riskine│
+                           │ P / R / F1 / CTR / PTR   │
+                           └──────────────────────────┘
 ```
 
-**Expected:** Query accuracy > 60%, type inconsistency slightly reduced.
+### Zone 2 v2 — Domain-Agnostic Open IE
+
+**Removed:** EVAL_SEEDS, RELATION_ROLE_MAP, ANCHORS, label_nodes(), SFIP-specific few-shot pairs, SFIP section keywords.
+
+**Added:** Entity type bootstrapping (LLM reads YOUR docs, proposes types), synthetic few-shot examples (4-5 generic insurance patterns: definition, coverage, exclusion, obligation, limit), generic section sampling keywords.
+
+### Zone 3 — Bottom-Up Ontology Induction (restored purpose)
+
+With Zone 2 no longer hardcoding Riskine labels, extraction produces 40-80 raw entity types — exactly the scenario Leiden was designed for.
+
+1. Build entity-similarity graph (embedding + structural + co-occurrence)
+2. Leiden community detection → 15-30 clusters
+3. LLM names each cluster (invents name — does NOT choose from Riskine)
+4. LLM proposes SUBCLASS_OF between clusters
+5. Write ontology layer to Neo4j
+
+### Revised Targets (honest)
+
+| Metric | Baseline | Zone 1 | Zone 2 v2 (general) | Zone 3 (Leiden) |
+|--------|:--------:|:------:|:-------------------:|:---------------:|
+| Query accuracy | 35% | 50% | ~45-55% | > 65% |
+| Type inconsistency | 8% | 15.2% | ~15-20% | < 5% |
+| Riskine F1 | — | 0.250 | ~0.35-0.45 | > 0.55 |
+| CTR (cross-domain) | — | — | — | > 60% |
 
 ---
 
-### Zone 2.5 — Entity Resolution (between Zone 2 and Zone 3)
-
-Merges surface-form duplicates before clustering:
-- Normalize entity names (lowercase, strip punctuation)
-- Embed all entity IDs → cluster near-duplicates (cosine > 0.92)
-- Merge into canonical node, redirect all edges
-
-**Target:** Entity duplication < 5% (currently ~0% at 500-record scale; will grow at full 150K).
-
----
-
-### Zone 3 — Ontology Induction via Leiden Clustering (Weeks 6–7)
-
-**Why:** Type inconsistency (15.2%) is a global graph problem — it cannot be fixed per-chunk. Leiden clustering merges all label variants into canonical classes *after* extraction is complete.
-
-```python
-# Type-similarity graph
-G = nx.Graph()
-for la, lb in combinations(all_labels, 2):
-    w = 0.5*semantic_sim(la,lb) + 0.3*cooccur(la,lb) + 0.2*rel_overlap(la,lb)
-    if w > 0.75: G.add_edge(la, lb, weight=w)
-
-# Leiden community detection (expected: 20–30 clusters from 44 labels)
-from graspologic.partition import leiden
-communities = leiden(G, trials=10)
-
-# LLM names each cluster
-for cluster in communities:
-    name = llm.invoke(f"Name this insurance ontology cluster: {list(cluster)}")
-    # e.g. InsurancePolicy, CoverageLimit, ExclusionRule, ClaimsProcedure
-
-# Infer SUBCLASS_OF between clusters
-# Migrate all labels to canonical class names
-```
-
-**Targets:** Type inconsistency < 2%, unique labels 20–30, query accuracy > 75%.
-
----
-
-### Zone 3b — Cross-Domain Transfer (Weeks 8–9)
-
-Run the full pipeline on the Kaggle auto insurance dataset independently, then match auto classes to flood ontology classes:
-
-```python
-TRANSFER_TYPES = {
-    "DIRECT_REUSE": "Same class, same semantics — Vehicle is Vehicle",
-    "SUBCLASS":     "AutoPolicy ⊆ InsurancePolicy",
-    "SIBLING":      "AutoCoverage ∥ FloodCoverage (same parent, different branch)",
-    "NEW_BRANCH":   "DrivingRecord — no match in flood ontology",
-}
-CTR = len(DIRECT_REUSE + SUBCLASS) / len(auto_classes)  # target > 60%
-PTR = len(shared_properties) / len(all_properties)       # target > 50%
-```
-
-A CTR > 60% would demonstrate that a domain-general insurance ontology backbone exists and can be learned automatically — the core claim of the paper.
-
----
-
-## 13. Timeline
+## 14. Timeline (Revised)
 
 | Period | Phase | Status | Deliverables |
 |--------|-------|:------:|-------------|
-| **Weeks 1–3** | Baseline Implementation | ✅ **COMPLETE** | LangGraph pipeline · Zone 1 chunking · 20-task eval · Ablation study · Progress presentation |
-| **Weeks 4–5** | Zone 2 — Open IE + Baseline Improvements | 🔄 **IN PROGRESS** | Few-shot extractor · Quality filters · Riskine eval · Improved baseline (ontology induction step) |
-| **Weeks 6–7** | Zone 3 — Ontology Induction | ⏳ Upcoming | Leiden clustering · Entity resolution (Zone 2.5) · Canonical classes · SUBCLASS_OF hierarchy |
-| **Weeks 8–9** | Cross-Domain Transfer | ⏳ Upcoming | Auto pipeline run · CTR/PTR measurement · Ontology merging |
-| **Weeks 10–11** | Polish and Reporting | ⏳ Upcoming | Streamlit demo · Full Riskine P/R/F1 · Human annotation · 10–15 page report |
+| **Weeks 1–3** | Baseline Implementation | ✅ **COMPLETE** | LangGraph pipeline · Zone 1 chunking · 20-task eval · Ablation study |
+| **Weeks 4–5** | Zone 2 v1 (domain-coupled) | ✅ **COMPLETE** | Few-shot extractor · Findings F-01–F-05 · Riskine eval |
+| **Week 6** | Zone 2 v2 (generalized) | 🔄 **IN PROGRESS** | Remove domain hardcoding · Synthetic few-shot · Entity type bootstrap |
+| **Week 7** | Zone 3 — Ontology Induction | ⏳ Upcoming | Leiden clustering · LLM cluster naming · SUBCLASS_OF hierarchy |
+| **Week 8** | Auto Insurance Run | ⏳ Upcoming | Run identical pipeline on auto data (zero code changes) |
+| **Week 9** | Cross-Domain Transfer | ⏳ Upcoming | CTR/PTR measurement · Ontology merging analysis |
+| **Weeks 10–11** | Paper + Demo | ⏳ Upcoming | Streamlit demo · Human annotation · 10–15 page report |
 
 ### Final Deliverables
-- Complete 4-zone LangGraph pipeline (end-to-end, reproducible)
+- **Domain-agnostic** 4-zone LangGraph pipeline (same code for any LOB)
 - Neo4j graph: flood insurance (full 150K-record run)
-- Neo4j graph: auto insurance + merged cross-domain ontology
-- Evaluation table: Baseline (512-token) → Zone 1 → Novel → Human expert baseline
+- Neo4j graph: auto insurance (zero code changes from flood)
+- Cross-domain transfer evaluation: CTR/PTR with merged ontology
+- Evaluation table: Baseline → Zone 1 → Zone 2 v2 → Zone 3 (honest progression)
 - Streamlit demo: natural language → Cypher → graph visualization
-- 10–15 page report with full results
+- 10–15 page report
 
 ---
 
-*Last updated: March 1, 2026 · CS584 AI Capstone · Emory University*
+*Last updated: March 9, 2026 · CS584 AI Capstone · Emory University*
