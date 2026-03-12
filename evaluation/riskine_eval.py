@@ -26,8 +26,26 @@ import os
 import sys
 import argparse
 
+import re
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+
+def _humanize_label(label: str) -> str:
+    """Convert PascalCase/CamelCase label to space-separated words for embedding.
+
+    Examples:
+        BuildingCoverage     → Building Coverage
+        FloodEventCoverage   → Flood Event Coverage
+        NFIPSuspension       → NFIP Suspension
+        Class90days          → Class 90days
+    """
+    # Handle sequences like ACRONYMWord → ACRONYM Word
+    s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1 \2', label)
+    # Handle camelCase boundary: lowercase→uppercase
+    s = re.sub(r'([a-z\d])([A-Z])', r'\1 \2', s)
+    return s
 
 # ---------------------------------------------------------------------------
 # Path setup — add project root and evaluation dir
@@ -52,8 +70,8 @@ import riskine_loader
 CANDIDATE_THRESHOLD = 0.60   # cosine similarity to pass candidate pair to LLM judge
 PARTIAL_WEIGHT = 0.5         # PARTIAL match contributes 0.5 to precision score
 
-# Labels to skip — LangChain infrastructure labels
-EXCLUDED_LABELS = {"__Entity__", "Document"}
+# Labels to skip — LangChain / Zone 3 infrastructure labels, not ontology concepts
+EXCLUDED_LABELS = {"__Entity__", "Document", "OntologyClass", "Entity"}
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +130,122 @@ def _llm_judge(llm: ChatOllama, induced: str, riskine_class: str, properties: li
 # Main alignment measurement
 # ---------------------------------------------------------------------------
 
+def _get_label_members(graph: Neo4jGraph, label: str) -> list[str]:
+    """Return entity IDs that carry a given Neo4j label (up to 30)."""
+    safe = re.sub(r"[^A-Za-z0-9_]", "", label)
+    if not safe:
+        return []
+    try:
+        rows = graph.query(
+            f"MATCH (n:{safe}) WHERE n.id IS NOT NULL RETURN n.id AS id LIMIT 30"
+        )
+        return [r["id"] for r in rows if r.get("id")]
+    except Exception:
+        return []
+
+
+def measure_riskine_alignment_members(
+    graph: Neo4jGraph,
+    riskine_classes: list[dict],
+    induced_labels: list[str],
+) -> dict:
+    """
+    Member-based Riskine alignment evaluation — removes naming-convention bias (F-07).
+
+    Problem with name-based F1:
+        'InsuranceParty' embeds far from 'Person' even though its members
+        {Insured, Insurer, FEMA, Bailee} are clearly person/org concepts.
+
+    Fix:
+        For each induced class, embed its member entity IDs and average them
+        into a cluster centroid. Compare centroids to Riskine class descriptions
+        (class name + property names) rather than just the class name.
+
+    Returns:
+        member_precision, member_recall, member_f1,
+        member_riskine_covered, member_alignment_table
+    """
+    MEMBER_CANDIDATE_THRESHOLD = 0.42   # centroid cosines are denser — lower threshold
+    MEMBER_MATCH_THRESHOLD     = 0.58   # above this → MATCH (score 1.0), else PARTIAL (0.5)
+
+    print("\n  [member-eval] Building member-centroid embeddings...")
+    centroids: list[np.ndarray] = []
+    descriptions: list[str] = []
+
+    for label in induced_labels:
+        members = _get_label_members(graph, label)
+        if members:
+            embs = embed_labels(members)                          # (M, 384)
+            centroid = embs.mean(axis=0)
+            norm = np.linalg.norm(centroid)
+            centroid = centroid / (norm + 1e-9)
+        else:
+            centroid = embed_labels([_humanize_label(label)])[0]  # fallback: class name
+        centroids.append(centroid)
+        descriptions.append(
+            f"{label}: [{', '.join(members[:5])}{'...' if len(members) > 5 else ''}]"
+            if members else label
+        )
+
+    induced_matrix = np.vstack(centroids)                         # (N, 384)
+
+    # Riskine representations: embed "<ClassName>: prop1, prop2, ..."
+    # This anchors to semantics (Person: name, address, nationality)
+    # rather than just the bare class name.
+    riskine_names = [c["name"] for c in riskine_classes]
+    riskine_texts = [
+        f"{c['name']}: {', '.join(c['properties'][:8])}"
+        for c in riskine_classes
+    ]
+    riskine_embs = embed_labels(riskine_texts)                    # (K, 384)
+
+    sim_matrix = np.dot(induced_matrix, riskine_embs.T)          # (N, K)
+
+    scores: list[float] = []
+    riskine_covered: set[str] = set()
+    member_table: list[dict] = []
+
+    for i, induced in enumerate(induced_labels):
+        best_j    = int(np.argmax(sim_matrix[i]))
+        best_sim  = float(sim_matrix[i][best_j])
+        rname     = riskine_names[best_j]
+
+        if best_sim >= MEMBER_MATCH_THRESHOLD:
+            score = 1.0
+            riskine_covered.add(rname)
+        elif best_sim >= MEMBER_CANDIDATE_THRESHOLD:
+            score = 0.5
+            riskine_covered.add(rname)
+        else:
+            score   = 0.0
+            rname   = None       # type: ignore[assignment]
+            best_sim = float(sim_matrix[i][best_j])
+
+        scores.append(score)
+        member_table.append({
+            "induced":        induced,
+            "members_sample": descriptions[i],
+            "riskine":        rname,
+            "cosine":         round(best_sim, 4),
+            "score":          score,
+        })
+
+    precision = sum(scores) / len(induced_labels)    if induced_labels  else 0.0
+    recall    = len(riskine_covered) / len(riskine_names) if riskine_names else 0.0
+    f1        = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+
+    print(f"  [member-eval] Member-based P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}")
+    print(f"  [member-eval] Riskine classes covered: {sorted(riskine_covered)}")
+
+    return {
+        "member_precision":       round(precision, 4),
+        "member_recall":          round(recall,    4),
+        "member_f1":              round(f1,        4),
+        "member_riskine_covered": sorted(riskine_covered),
+        "member_alignment_table": member_table,
+    }
+
+
 def measure_riskine_alignment(
     graph: Neo4jGraph,
     llm: ChatOllama,
@@ -152,10 +286,15 @@ def measure_riskine_alignment(
     riskine_by_name = {c["name"]: c for c in riskine_classes}
 
     print(f"  Induced labels: {len(induced_labels)}, Riskine classes: {len(riskine_names)}")
-    print("  Embedding labels with all-MiniLM-L6-v2...")
+    print("  Embedding labels with all-MiniLM-L6-v2 (PascalCase → human-readable)...")
 
-    induced_embs = embed_labels(induced_labels)   # (N_induced, 384)
-    riskine_embs = embed_labels(riskine_names)    # (N_riskine, 384)
+    # Humanize for embedding (BuildingCoverage → "Building Coverage") while keeping
+    # original names for display and scoring.
+    induced_for_embed = [_humanize_label(l) for l in induced_labels]
+    riskine_for_embed = [_humanize_label(n) for n in riskine_names]
+
+    induced_embs = embed_labels(induced_for_embed)   # (N_induced, 384)
+    riskine_embs = embed_labels(riskine_for_embed)   # (N_riskine, 384)
 
     # Cosine similarity matrix — embeddings are L2-normalized, so dot product = cosine sim
     sim_matrix = np.dot(induced_embs, riskine_embs.T)   # (N_induced, N_riskine)
@@ -241,12 +380,27 @@ def measure_riskine_alignment(
         "unmatched_riskine": unmatched_riskine,
     }
 
+    # Member-based alignment (F-07 fix) — embed cluster members, not class name strings.
+    # This removes naming-convention bias: a cluster named "InsuranceParty" whose members
+    # are {Insured, Insurer, FEMA} should embed close to Person/Organization regardless
+    # of what the cluster was named.
+    try:
+        member_results = measure_riskine_alignment_members(graph, riskine_classes, induced_labels)
+        result.update(member_results)
+    except Exception as exc:
+        print(f"  [member-eval] WARNING: member-based eval failed: {exc}")
+
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
     out_path = os.path.join(config.RESULTS_DIR, f"riskine_eval_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
     print(f"\n  ✓ Riskine alignment saved → {out_path}")
-    print(f"  Precision={precision:.3f}  Recall={recall:.3f}  F1={f1:.3f}")
+    print(f"  Name-based  P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}")
+    if "member_f1" in result:
+        mp = result["member_precision"]
+        mr = result["member_recall"]
+        mf = result["member_f1"]
+        print(f"  Member-based P={mp:.3f}  R={mr:.3f}  F1={mf:.3f}  (F-07 fix)")
 
     return result
 
@@ -289,6 +443,13 @@ if __name__ == "__main__":
     print(f"  Induced labels:    {result['induced_label_count']}")
     print(f"  Riskine classes:   {result['riskine_class_count']}")
     print(f"  Riskine covered:   {result['riskine_covered_count']}")
-    print(f"  Precision:         {result['precision']:.3f}")
-    print(f"  Recall:            {result['recall']:.3f}")
-    print(f"  F1:                {result['f1']:.3f}")
+    print(f"  Name-based:")
+    print(f"    Precision:       {result['precision']:.3f}")
+    print(f"    Recall:          {result['recall']:.3f}")
+    print(f"    F1:              {result['f1']:.3f}")
+    if "member_f1" in result:
+        print(f"  Member-based (F-07 fix — embeds cluster members, not class names):")
+        print(f"    Precision:       {result['member_precision']:.3f}")
+        print(f"    Recall:          {result['member_recall']:.3f}")
+        print(f"    F1:              {result['member_f1']:.3f}")
+        print(f"    Riskine covered: {result['member_riskine_covered']}")

@@ -49,16 +49,21 @@ EVAL_TASKS = [
     {
         "id": 2,
         "category": "coverage",
-        "question": "What is the maximum building coverage amount under NFIP?",
-        "cypher": "MATCH (n) WHERE toLower(n.id) CONTAINS 'building' AND (toLower(n.id) CONTAINS 'coverage' OR toLower(n.id) CONTAINS 'limit') RETURN n.id, labels(n) LIMIT 10",
-        "keywords": ["500,000", "500000", "limit"],
+        # NOTE: $250,000 building limit is NOT in the 49 SFIP PDF chunks (it's on the
+        # Declarations Page). Q2 now asks about the ICC Coverage D limit ($30,000),
+        # which IS present in chunk 13.
+        "question": "What is the maximum limit for Increased Cost of Compliance (ICC / Coverage D) under NFIP?",
+        "cypher": "MATCH (n)-[r]->(m) WHERE toLower(n.id) CONTAINS 'icc' OR toLower(n.id) CONTAINS 'compliance' OR toLower(n.id) CONTAINS 'coverage d' RETURN n.id, type(r), m.id LIMIT 10",
+        "keywords": ["30,000", "30000", "icc", "compliance"],
     },
     {
         "id": 3,
         "category": "coverage",
-        "question": "What is the maximum contents coverage amount?",
-        "cypher": "MATCH (n) WHERE toLower(n.id) CONTAINS 'content' AND (toLower(n.id) CONTAINS 'coverage' OR toLower(n.id) CONTAINS 'limit') RETURN n.id LIMIT 10",
-        "keywords": ["500,000", "contents", "limit"],
+        # NOTE: $100,000 contents limit is NOT in the 49 SFIP PDF chunks. Q3 now asks
+        # about Coverage B (Personal Property) scope, grounded in chunk 11.
+        "question": "What personal property is insured under Coverage B of the NFIP SFIP?",
+        "cypher": "MATCH (n)-[r]->(m) WHERE toLower(n.id) CONTAINS 'coverage b' OR (toLower(n.id) CONTAINS 'personal property' AND toLower(type(r)) CONTAINS 'cover') RETURN n.id, type(r), m.id LIMIT 10",
+        "keywords": ["personal property", "contents", "furniture", "clothing"],
     },
     {
         "id": 4,
@@ -77,9 +82,12 @@ EVAL_TASKS = [
     {
         "id": 6,
         "category": "policy_terms",
-        "question": "What is the waiting period before a new NFIP policy takes effect?",
-        "cypher": "MATCH (n) WHERE toLower(n.id) CONTAINS 'wait' OR toLower(n.id) CONTAINS 'effective' RETURN n.id LIMIT 10",
-        "keywords": ["30", "days", "waiting period"],
+        # NOTE: The 30-day new-policy waiting period is in the NFIA statute, not in the
+        # SFIP policy form text (0 SFIP chunk hits). Q6 now asks about the 90-day
+        # continuous lake flooding provision, which IS in chunk 39.
+        "question": "Under NFIP, how many continuous days must a lake flood an insured building before a pre-loss claim may be filed?",
+        "cypher": "MATCH (n)-[r]->(m) WHERE toLower(type(r)) CONTAINS 'wait' OR toLower(n.id) CONTAINS 'lake' OR toLower(m.id) CONTAINS 'lake' OR toLower(m.id) CONTAINS '90' RETURN n.id, type(r), m.id LIMIT 10",
+        "keywords": ["90", "days", "lake", "continuous"],
     },
     {
         "id": 7,
@@ -113,14 +121,19 @@ EVAL_TASKS = [
         "id": 11,
         "category": "definitions",
         "question": "How does NFIP define 'flood'?",
-        "cypher": "MATCH (n) WHERE n.id = 'Flood' OR n.id = 'flood' OR toLower(n.id) CONTAINS 'flood definition' RETURN n.id, labels(n) LIMIT 10",
+        # FIX: SFIP definitions are triples: Flood -[DEFINED_AS]-> "description".
+        # Keywords (overflow, inundation, surface water) are in the OBJECT node, not
+        # the subject. Must traverse the definition edge to find the description text.
+        "cypher": "MATCH (n)-[r]->(m) WHERE (n.id = 'Flood' OR toLower(n.id) CONTAINS 'flood') AND (toLower(type(r)) CONTAINS 'defin' OR toLower(type(r)) CONTAINS 'mean') RETURN n.id, type(r), m.id LIMIT 10",
         "keywords": ["overflow", "surface water", "inundation"],
     },
     {
         "id": 12,
         "category": "definitions",
         "question": "What is the definition of a 'building' under NFIP?",
-        "cypher": "MATCH (n) WHERE n.id = 'Building' OR n.id = 'building' RETURN n.id, labels(n) LIMIT 10",
+        # FIX: Same structural fix as Q11 — keywords (walled, roofed, structure) are
+        # in the object node of the DEFINED_AS triple, not the Building subject node.
+        "cypher": "MATCH (n)-[r]->(m) WHERE (n.id = 'Building' OR toLower(n.id) CONTAINS 'building') AND (toLower(type(r)) CONTAINS 'defin' OR toLower(type(r)) CONTAINS 'mean') RETURN n.id, type(r), m.id LIMIT 10",
         "keywords": ["walled", "roofed", "structure"],
     },
     {
@@ -134,7 +147,10 @@ EVAL_TASKS = [
         "id": 14,
         "category": "coverage",
         "question": "What personal property is covered under contents coverage?",
-        "cypher": "MATCH (n)-[r]->(m) WHERE toLower(n.id) CONTAINS 'content' AND toLower(type(r)) CONTAINS 'cover' RETURN n.id, type(r), m.id LIMIT 20",
+        # FIX: SFIP calls contents coverage "Coverage B". Current query only matched
+        # nodes whose ID contains 'content' — misses nodes named "Coverage B" or
+        # "Personal Property" that are the actual COVERS subjects/objects.
+        "cypher": "MATCH (n)-[r]->(m) WHERE (toLower(n.id) CONTAINS 'content' OR toLower(n.id) CONTAINS 'coverage b' OR toLower(n.id) CONTAINS 'personal property') AND toLower(type(r)) CONTAINS 'cover' RETURN n.id, type(r), m.id LIMIT 20",
         "keywords": ["furniture", "clothing", "appliances", "personal property"],
     },
     {
@@ -147,9 +163,11 @@ EVAL_TASKS = [
     {
         "id": 16,
         "category": "claims",
-        "question": "Can a policyholder appeal a claim decision?",
-        "cypher": "MATCH (n) WHERE toLower(n.id) CONTAINS 'appeal' OR toLower(n.id) CONTAINS 'dispute' RETURN n.id LIMIT 10",
-        "keywords": ["appeal", "dispute", "arbitration"],
+        # NOTE: SFIP uses "Appraisal" (not "appeal/arbitration") as its dispute mechanism.
+        # "appraisal" appears in SFIP chunks 32 and 35; "appeal" has 0 hits.
+        "question": "What is the appraisal process for resolving disputes about the amount of an NFIP loss?",
+        "cypher": "MATCH (n) WHERE toLower(n.id) CONTAINS 'appraisal' OR toLower(n.id) CONTAINS 'dispute' OR toLower(n.id) CONTAINS 'umpire' RETURN n.id, labels(n) LIMIT 10",
+        "keywords": ["appraisal", "appraiser", "umpire", "dispute"],
     },
     {
         "id": 17,
