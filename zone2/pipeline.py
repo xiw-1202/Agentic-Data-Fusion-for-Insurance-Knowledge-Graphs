@@ -51,6 +51,7 @@ from zone2.prompts import (
     SYSTEM_PROMPT_TEMPLATE,
     FEW_SHOT_PAIRS,
     PASS_FOCUS_INSTRUCTIONS,
+    SINGLE_PASS_FOCUS,
 )
 from zone2.entity_resolution import resolve_entities
 
@@ -69,6 +70,7 @@ class Zone2State(TypedDict):
     resolution_stats: dict                       # Zone 2.5 entity resolution stats
     errors:           Annotated[list, operator.add]
     model:            str
+    num_passes:       int
 
 
 # ---------------------------------------------------------------------------
@@ -161,12 +163,19 @@ _BOOTSTRAP_SECTION_GROUPS: list[list[str]] = [
 # Utilities
 # ---------------------------------------------------------------------------
 
-def get_llm(model: str, json_mode: bool = False) -> ChatOllama:
-    """Return a ChatOllama instance, optionally with JSON output mode."""
+def get_llm(model: str, json_mode: bool = False,
+            num_predict: int = 4096) -> ChatOllama:
+    """Return a ChatOllama instance, optionally with JSON output mode.
+
+    Args:
+        num_predict: Max output tokens. 4096 ≈ 50 triples max, prevents
+                     runaway generation while keeping all important facts.
+    """
     kwargs: dict = dict(
         model=model,
         base_url=config.OLLAMA_BASE_URL,
         temperature=0,
+        num_predict=num_predict,
     )
     if json_mode:
         kwargs["format"] = "json"
@@ -196,7 +205,7 @@ def _parse_json_list(text: str) -> list:
             return result
     except (json.JSONDecodeError, ValueError):
         pass
-    m = re.search(r'\[.*?\]', text, re.DOTALL)
+    m = re.search(r'\[.*\]', text, re.DOTALL)
     if m:
         try:
             result = json.loads(m.group())
@@ -280,13 +289,13 @@ def _load_prior_results() -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 def load_chunks(state: Zone2State) -> dict:
-    """Load PDF-only chunks from Zone 1 section-aware chunking output."""
-    print("\n[1/4] Loading Zone 1 PDF chunks...")
+    """Load all chunks from Zone 1 (PDF + CSV sources)."""
+    print("\n[1/4] Loading Zone 1 chunks...")
     with open(config.ZONE1_CHUNKS_FILE) as f:
         all_chunks = json.load(f)
-    pdf_chunks = [c for c in all_chunks if c["source"] == PDF_SOURCE_KEY]
-    print(f"  ✓ {len(pdf_chunks)} PDF chunks (filtered from {len(all_chunks)} total)")
-    return {"chunks": pdf_chunks}
+    sources = sorted(set(c.get("source", "unknown") for c in all_chunks))
+    print(f"  ✓ {len(all_chunks)} chunks from {len(sources)} sources: {sources}")
+    return {"chunks": all_chunks}
 
 
 def _select_stratified_samples(chunks: list[dict], max_samples: int = 8) -> list[str]:
@@ -435,10 +444,16 @@ def _parse_chunk_triples(parsed: list, chunk_id: str, source: str) -> list[dict]
         except (ValueError, TypeError):
             conf = 1.0
 
+        # Extract entity types if present (Phase A entity type propagation)
+        subj_type = str(item.get("subject_type", "")).strip() or "Unknown"
+        obj_type  = str(item.get("object_type", "")).strip() or "Unknown"
+
         triple: dict = {
-            "subject":    str(item["subject"]).strip(),
-            "relation":   rel,
-            "object":     str(item["object"]).strip(),
+            "subject":      str(item["subject"]).strip(),
+            "subject_type": subj_type,
+            "relation":    rel,
+            "object":      str(item["object"]).strip(),
+            "object_type": obj_type,
             "span":       str(item.get("span", ""))[:120],
             "confidence": conf,
             "chunk_id":   chunk_id,
@@ -449,7 +464,8 @@ def _parse_chunk_triples(parsed: list, chunk_id: str, source: str) -> list[dict]
     return triples
 
 
-def _build_extraction_messages(vocab: list[str], focus: str = "") -> list:
+def _build_extraction_messages(vocab: list[str], focus: str = "",
+                               entity_types: list[str] | None = None) -> list:
     """Build [SystemMessage, *few-shot pairs] used as the base for each chunk call.
 
     Args:
@@ -458,9 +474,17 @@ def _build_extraction_messages(vocab: list[str], focus: str = "") -> list:
                extraction. Pass 1 uses "" (no change). Passes 2-3 use different
                domain-specific focus instructions so temperature=0 produces different
                output across passes. See PASS_FOCUS_INSTRUCTIONS in prompts.py.
+        entity_types: Bootstrapped entity type names (e.g. InsurancePolicy, CoverageType).
     """
     vocab_lines = "\n".join(f"  - {r}" for r in vocab)
-    system_content = SYSTEM_PROMPT_TEMPLATE.format(vocab_lines=vocab_lines) + focus
+    if entity_types:
+        entity_type_lines = "\n".join(f"  - {t}" for t in entity_types)
+    else:
+        entity_type_lines = "  (no entity types available — use your best judgment)"
+    system_content = SYSTEM_PROMPT_TEMPLATE.format(
+        vocab_lines=vocab_lines,
+        entity_type_lines=entity_type_lines,
+    ) + focus
     messages: list = [SystemMessage(content=system_content)]
     for human_text, ai_text in FEW_SHOT_PAIRS:
         messages.append(HumanMessage(content=human_text))
@@ -623,6 +647,9 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
     return triples
 
 
+MAX_TRIPLES_PER_CHUNK = 50   # Safety cap per chunk (num_predict handles most cases)
+
+
 def _extract_one_pass(
     llm, base_messages: list, chunks: list[dict], pass_label: str, errors: list[dict]
 ) -> list[dict]:
@@ -640,7 +667,11 @@ def _extract_one_pass(
             response      = llm.invoke(messages)
             parsed        = _parse_json_list(response.content)
             chunk_triples = _parse_chunk_triples(parsed, chunk_id, source)
-            print(f"→ {len(chunk_triples)}")
+            if len(chunk_triples) > MAX_TRIPLES_PER_CHUNK:
+                print(f"→ {len(chunk_triples)} (capped to {MAX_TRIPLES_PER_CHUNK})")
+                chunk_triples = chunk_triples[:MAX_TRIPLES_PER_CHUNK]
+            else:
+                print(f"→ {len(chunk_triples)}")
             pass_triples.extend(chunk_triples)
         except Exception as e:
             print(f"✗ ERROR: {e}")
@@ -664,24 +695,42 @@ def extract_triples(state: Zone2State) -> dict:
     Triples from all passes are deduplicated by (subject, relation, object) before
     insertion. Expected uplift: ~1 triple/chunk → ~3-4 unique triples/chunk.
     """
-    model  = state.get("model", config.OLLAMA_MODEL)
-    vocab  = state.get("vocab", [])
-    chunks = state.get("chunks", [])
-    n_passes = len(PASS_FOCUS_INSTRUCTIONS)
-    print(f"\n[3/4] Extracting triples — {n_passes}-pass few-shot IE ({model})...")
-    print(f"  Vocab: {len(vocab)} types, {len(chunks)} chunks × {n_passes} passes")
+    model        = state.get("model", config.OLLAMA_MODEL)
+    vocab        = state.get("vocab", [])
+    entity_types = state.get("entity_types", [])
+    chunks       = state.get("chunks", [])
+    num_passes   = state.get("num_passes", 3)
 
     llm = get_llm(model, json_mode=True)
     all_raw_triples: list[dict] = []
     errors:          list[dict] = []
 
-    for pass_idx, focus in enumerate(PASS_FOCUS_INSTRUCTIONS):
-        label = _PASS_LABELS[pass_idx] if pass_idx < len(_PASS_LABELS) else f"pass{pass_idx+1}"
-        print(f"\n  Pass {pass_idx + 1}/{n_passes} ({label}):")
-        base_messages = _build_extraction_messages(vocab, focus=focus)
-        pass_triples  = _extract_one_pass(llm, base_messages, chunks, label, errors)
+    if num_passes == 1:
+        # Single combined pass covering all focus areas
+        print(f"\n[3/4] Extracting triples — 1-pass few-shot IE ({model})...")
+        print(f"  Vocab: {len(vocab)} relation types, {len(entity_types)} entity types, "
+              f"{len(chunks)} chunks × 1 pass (combined)")
+        base_messages = _build_extraction_messages(
+            vocab, focus=SINGLE_PASS_FOCUS, entity_types=entity_types
+        )
+        print(f"\n  Pass 1/1 (combined):")
+        pass_triples = _extract_one_pass(llm, base_messages, chunks, "combined", errors)
         all_raw_triples.extend(pass_triples)
-        print(f"  → Pass {pass_idx + 1} subtotal: {len(pass_triples)} triples")
+        print(f"  → Pass 1 subtotal: {len(pass_triples)} triples")
+    else:
+        # Multi-pass: use first num_passes entries from PASS_FOCUS_INSTRUCTIONS
+        focus_list = PASS_FOCUS_INSTRUCTIONS[:num_passes]
+        n = len(focus_list)
+        print(f"\n[3/4] Extracting triples — {n}-pass few-shot IE ({model})...")
+        print(f"  Vocab: {len(vocab)} relation types, {len(entity_types)} entity types, "
+              f"{len(chunks)} chunks × {n} passes")
+        for pass_idx, focus in enumerate(focus_list):
+            label = _PASS_LABELS[pass_idx] if pass_idx < len(_PASS_LABELS) else f"pass{pass_idx+1}"
+            print(f"\n  Pass {pass_idx + 1}/{n} ({label}):")
+            base_messages = _build_extraction_messages(vocab, focus=focus, entity_types=entity_types)
+            pass_triples  = _extract_one_pass(llm, base_messages, chunks, label, errors)
+            all_raw_triples.extend(pass_triples)
+            print(f"  → Pass {pass_idx + 1} subtotal: {len(pass_triples)} triples")
 
     # Regex numeric fallback (F-01 fix) — runs over ALL chunks regardless of LLM output
     print("\n  Regex numeric fallback (F-01 fix):")
@@ -729,12 +778,14 @@ def _group_triples_by_relation(triples: list[dict]) -> dict:
     by_relation: dict[str, list] = defaultdict(list)
     for t in triples:
         by_relation[t["relation"]].append({
-            "subject":    t["subject"],
-            "object":     t["object"],
-            "span":       t["span"],
-            "confidence": t.get("confidence", 1.0),
-            "chunk_id":   t["chunk_id"],
-            "source":     t["source"],
+            "subject":      t["subject"],
+            "subject_type": t.get("subject_type", "Unknown"),
+            "object":       t["object"],
+            "object_type":  t.get("object_type", "Unknown"),
+            "span":         t["span"],
+            "confidence":   t.get("confidence", 1.0),
+            "chunk_id":     t["chunk_id"],
+            "source":       t["source"],
         })
     return dict(by_relation)
 
@@ -748,7 +799,15 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
             f"""
             UNWIND $batch AS row
             MERGE (s:Entity {{id: row.subject}})
+            ON CREATE SET s.entity_type = row.subject_type
+            ON MATCH SET s.entity_type = CASE
+                WHEN s.entity_type IS NULL OR s.entity_type = 'Unknown' THEN row.subject_type
+                ELSE s.entity_type END
             MERGE (o:Entity {{id: row.object}})
+            ON CREATE SET o.entity_type = row.object_type
+            ON MATCH SET o.entity_type = CASE
+                WHEN o.entity_type IS NULL OR o.entity_type = 'Unknown' THEN row.object_type
+                ELSE o.entity_type END
             MERGE (s)-[r:{rel_type}]->(o)
             ON CREATE SET r.span       = row.span,
                           r.confidence = row.confidence,
@@ -773,24 +832,40 @@ def canonicalize_relations(state: Zone2State) -> dict:
         print("  ⚠ No triples or vocab — skipping canonicalization")
         return {}
 
-    llm = get_llm(model)
+    llm = get_llm(model, json_mode=True)
     prompt = (
         "Map each raw relation to the SINGLE closest relation from the vocabulary.\n"
-        "If no close match exists, keep the original unchanged.\n"
-        f"Vocabulary: {vocab}\n\n"
-        "Format — one mapping per line:  RAW_RELATION -> VOCAB_RELATION\n\n"
-        + "\n".join(raw_relations)
+        "If no close match exists, keep the original unchanged.\n\n"
+        f"Vocabulary: {json.dumps(vocab)}\n\n"
+        f"Raw relations to map: {json.dumps(raw_relations)}\n\n"
+        'Respond with a JSON object mapping each raw relation to its vocab match:\n'
+        '{"mappings": {"RAW_RELATION_1": "VOCAB_MATCH_1", "RAW_RELATION_2": "VOCAB_MATCH_2", ...}}'
     )
     try:
         response = llm.invoke([HumanMessage(content=prompt)])
-        # Parse: "RAW -> MAPPED" lines into dict
+        raw_text = response.content.strip()
         mapping: dict[str, str] = {}
-        for line in response.content.strip().splitlines():
-            parts = [p.strip() for p in line.split("->")]
-            if len(parts) == 2 and parts[0] in raw_relations:
-                mapped = parts[1].strip().upper().replace(" ", "_")
-                # Only accept the mapped name if it's actually in vocab; else keep original
-                mapping[parts[0]] = mapped if mapped in vocab else parts[0]
+
+        # Try JSON parsing first (preferred)
+        try:
+            parsed = json.loads(raw_text)
+            raw_mapping = parsed.get("mappings", parsed) if isinstance(parsed, dict) else {}
+            for raw_rel, mapped_rel in raw_mapping.items():
+                if not isinstance(mapped_rel, str):
+                    continue
+                mapped = mapped_rel.strip().upper().replace(" ", "_")
+                if raw_rel in raw_relations:
+                    mapping[raw_rel] = mapped if mapped in vocab else raw_rel
+        except (json.JSONDecodeError, ValueError):
+            # Fallback: try line-by-line parsing with multiple arrow formats
+            for line in raw_text.splitlines():
+                for sep in ["->", "→", "=>", "-->", ": "]:
+                    if sep in line:
+                        parts = [p.strip().strip('"').strip("'") for p in line.split(sep, 1)]
+                        if len(parts) == 2 and parts[0] in raw_relations:
+                            mapped = parts[1].strip().upper().replace(" ", "_")
+                            mapping[parts[0]] = mapped if mapped in vocab else parts[0]
+                        break
     except Exception as e:
         print(f"  ⚠ Canonicalization LLM call failed ({e}); keeping original relations")
         return {}
@@ -934,12 +1009,13 @@ def _save_run_summary(result: dict, model: str, elapsed: float) -> str:
     return out_path
 
 
-def run_zone2(model: str = config.OLLAMA_MODEL):
+def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3):
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
     print("=" * 60)
     print("CS584 Capstone — Zone 2 Pipeline [Domain-Agnostic Open IE]")
     print(f"Bootstrapped schema + few-shot extraction → Neo4j  (model: {model})")
+    print(f"Extraction passes: {num_passes}")
     print("=" * 60)
 
     pipeline = build_pipeline()
@@ -954,6 +1030,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL):
         "resolution_stats": {},
         "errors":           [],
         "model":            model,
+        "num_passes":       num_passes,
     })
     elapsed = time.time() - start
 
@@ -988,6 +1065,7 @@ if __name__ == "__main__":
 Examples:
   python3 zone2/pipeline.py
   python3 zone2/pipeline.py --model qwen2.5:7b
+  python3 zone2/pipeline.py --passes 1   # single combined pass (faster)
   # After running, evaluate with:
   python3 baseline/eval.py --suffix zone2 --riskine
   # Then run ontology induction:
@@ -998,5 +1076,10 @@ Examples:
         "--model", default=config.OLLAMA_MODEL,
         help=f"Ollama model name (default: {config.OLLAMA_MODEL})"
     )
+    parser.add_argument(
+        "--passes", type=int, default=3, choices=[1, 2, 3],
+        help="Number of extraction passes: 1=combined single pass, "
+             "2=general+numeric, 3=general+numeric+obligations (default: 3)"
+    )
     args = parser.parse_args()
-    run_zone2(model=args.model)
+    run_zone2(model=args.model, num_passes=args.passes)

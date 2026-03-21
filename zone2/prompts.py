@@ -70,6 +70,9 @@ Suggested relation types derived from this document (prefer these, but you MAY
 create other SNAKE_CASE types if they capture something not covered):
 {vocab_lines}
 
+Entity types identified in this document (assign one to each subject and object):
+{entity_type_lines}
+
 Do NOT use generic relations: HAS, IS, CONTAINS, INCLUDES, RELATES_TO.
 
 Rules:
@@ -81,12 +84,15 @@ Rules:
 - Sequential steps → use PRECEDES (step A PRECEDES step B)
 - MANDATORY LIST EXTRACTION: When a passage lists items "A, B, C are excluded/defined/required", extract EACH item as a separate triple — never collapse a list into one triple
 - Extract 3-5 triples per passage. Only return 1-2 if the passage is very short.
+- STRUCTURED DATA: When the passage contains records, tables, or key-value fields, extract EVERY field as a separate triple — dates, amounts, locations, codes, classifications. Each record should yield 5-10 triples.
+- SHORT CLAUSES: Even brief passages (1-2 sentences) usually contain 2-3 extractable facts — look for implicit relations (options, conditions, parties involved).
 - Include span: verbatim quote <=120 chars supporting the triple
 - Include confidence: 0.0–1.0
+- Include subject_type and object_type: assign one entity type from the list above to each (use "Unknown" if none fit)
 - Return [] only if the passage contains no factual insurance content
 
 Output format — JSON array only:
-[{{"subject": "...", "relation": "...", "object": "...", "span": "...", "confidence": 0.9}}]"""
+[{{"subject": "...", "subject_type": "...", "relation": "...", "object": "...", "object_type": "...", "span": "...", "confidence": 0.9}}]"""
 
 
 # ---------------------------------------------------------------------------
@@ -135,20 +141,33 @@ PASS_FOCUS_INSTRUCTIONS: list[str] = [
 ]
 
 
+SINGLE_PASS_FOCUS = (
+    "\n\n## Extraction Focus\n"
+    "Extract ALL of the following fact types from this passage:\n"
+    "1. **Coverage & definitions**: what is covered, excluded, or defined.\n"
+    "2. **Numeric facts**: dollar amounts (\"$500,000\"), time periods (\"30 days\"), "
+    "percentages (\"80%\"), counts, deductibles, limits.\n"
+    "3. **Obligations & procedures**: what parties MUST do (MUST_NOTIFY, MUST_FILE), "
+    "sequential steps (PRECEDES, FOLLOWED_BY), and conditional coverage "
+    "(HAS_CONDITION, APPLIES_WHEN, SUSPENDED_IF).\n"
+    "Do not omit any category — cover all three in this single pass."
+)
+
+
 FEW_SHOT_PAIRS: list[tuple[str, str]] = [
     # Pattern 1: Exclusion list — teaches list extraction + negation relation
     (
         "Text: This policy does not cover losses caused by: 1. War or military action; "
         "2. Nuclear hazard or radioactive contamination; 3. Intentional acts by the insured; "
         "4. Wear and tear or gradual deterioration.",
-        '[{"subject": "Policy", "relation": "EXCLUDED_FROM", "object": "War or Military Action", '
+        '[{"subject": "Policy", "subject_type": "InsurancePolicy", "relation": "EXCLUDED_FROM", "object": "War or Military Action", "object_type": "ExcludedPeril", '
         '"span": "This policy does not cover losses caused by: 1. War or military action", '
         '"confidence": 0.97}, '
-        '{"subject": "Policy", "relation": "EXCLUDED_FROM", "object": "Nuclear Hazard", '
+        '{"subject": "Policy", "subject_type": "InsurancePolicy", "relation": "EXCLUDED_FROM", "object": "Nuclear Hazard", "object_type": "ExcludedPeril", '
         '"span": "2. Nuclear hazard or radioactive contamination", "confidence": 0.96}, '
-        '{"subject": "Policy", "relation": "EXCLUDED_FROM", "object": "Intentional Acts", '
+        '{"subject": "Policy", "subject_type": "InsurancePolicy", "relation": "EXCLUDED_FROM", "object": "Intentional Acts", "object_type": "ExcludedPeril", '
         '"span": "3. Intentional acts by the insured", "confidence": 0.96}, '
-        '{"subject": "Policy", "relation": "EXCLUDED_FROM", "object": "Wear and Tear", '
+        '{"subject": "Policy", "subject_type": "InsurancePolicy", "relation": "EXCLUDED_FROM", "object": "Wear and Tear", "object_type": "ExcludedPeril", '
         '"span": "4. Wear and tear or gradual deterioration", "confidence": 0.95}]'
     ),
     # Pattern 2: Coverage with dollar limit — teaches numeric extraction
@@ -156,15 +175,15 @@ FEW_SHOT_PAIRS: list[tuple[str, str]] = [
         "Text: Coverage A provides protection for the insured dwelling up to a maximum "
         "of $350,000. Coverage B provides protection for personal property up to $100,000. "
         "A deductible of $1,000 applies to each claim.",
-        '[{"subject": "Coverage A", "relation": "COVERS", "object": "Insured Dwelling", '
+        '[{"subject": "Coverage A", "subject_type": "CoverageType", "relation": "COVERS", "object": "Insured Dwelling", "object_type": "InsuredProperty", '
         '"span": "Coverage A provides protection for the insured dwelling", "confidence": 0.98}, '
-        '{"subject": "Coverage A", "relation": "HAS_COVERAGE_LIMIT", "object": "$350,000", '
+        '{"subject": "Coverage A", "subject_type": "CoverageType", "relation": "HAS_COVERAGE_LIMIT", "object": "$350,000", "object_type": "FinancialAmount", '
         '"span": "insured dwelling up to a maximum of $350,000", "confidence": 0.99}, '
-        '{"subject": "Coverage B", "relation": "COVERS", "object": "Personal Property", '
+        '{"subject": "Coverage B", "subject_type": "CoverageType", "relation": "COVERS", "object": "Personal Property", "object_type": "InsuredProperty", '
         '"span": "Coverage B provides protection for personal property", "confidence": 0.98}, '
-        '{"subject": "Coverage B", "relation": "HAS_COVERAGE_LIMIT", "object": "$100,000", '
+        '{"subject": "Coverage B", "subject_type": "CoverageType", "relation": "HAS_COVERAGE_LIMIT", "object": "$100,000", "object_type": "FinancialAmount", '
         '"span": "personal property up to $100,000", "confidence": 0.99}, '
-        '{"subject": "Policy", "relation": "HAS_DEDUCTIBLE", "object": "$1,000", '
+        '{"subject": "Policy", "subject_type": "InsurancePolicy", "relation": "HAS_DEDUCTIBLE", "object": "$1,000", "object_type": "FinancialAmount", '
         '"span": "A deductible of $1,000 applies to each claim", "confidence": 0.98}]'
     ),
     # Pattern 3: Definition block — teaches multi-definition extraction
@@ -172,15 +191,15 @@ FEW_SHOT_PAIRS: list[tuple[str, str]] = [
         "Text: 1. Peril means any event that may cause a loss. "
         "2. Dwelling means a residential structure used as a primary residence. "
         "3. Personal property means movable items owned by the insured.",
-        '[{"subject": "Peril", "relation": "DEFINED_AS", '
-        '"object": "Event that may cause a loss", '
+        '[{"subject": "Peril", "subject_type": "RiskType", "relation": "DEFINED_AS", '
+        '"object": "Event that may cause a loss", "object_type": "Definition", '
         '"span": "Peril means any event that may cause a loss", "confidence": 0.98}, '
-        '{"subject": "Dwelling", "relation": "DEFINED_AS", '
-        '"object": "Residential structure used as primary residence", '
+        '{"subject": "Dwelling", "subject_type": "InsuredProperty", "relation": "DEFINED_AS", '
+        '"object": "Residential structure used as primary residence", "object_type": "Definition", '
         '"span": "Dwelling means a residential structure used as a primary residence", '
         '"confidence": 0.98}, '
-        '{"subject": "Personal Property", "relation": "DEFINED_AS", '
-        '"object": "Movable items owned by the insured", '
+        '{"subject": "Personal Property", "subject_type": "InsuredProperty", "relation": "DEFINED_AS", '
+        '"object": "Movable items owned by the insured", "object_type": "Definition", '
         '"span": "Personal property means movable items owned by the insured", '
         '"confidence": 0.98}]'
     ),
@@ -189,15 +208,15 @@ FEW_SHOT_PAIRS: list[tuple[str, str]] = [
         "Text: In the event of a loss, the insured must: (1) Notify the insurer within "
         "24 hours. (2) File a written proof of loss within 60 days. (3) Cooperate with "
         "the claims investigation and provide all requested documentation.",
-        '[{"subject": "Insured", "relation": "MUST_NOTIFY", "object": "Insurer", '
+        '[{"subject": "Insured", "subject_type": "Party", "relation": "MUST_NOTIFY", "object": "Insurer", "object_type": "Party", '
         '"span": "the insured must: (1) Notify the insurer within 24 hours", "confidence": 0.98}, '
-        '{"subject": "Loss Notification", "relation": "HAS_DEADLINE", "object": "24 hours", '
+        '{"subject": "Loss Notification", "subject_type": "Procedure", "relation": "HAS_DEADLINE", "object": "24 hours", "object_type": "TimePeriod", '
         '"span": "Notify the insurer within 24 hours", "confidence": 0.97}, '
-        '{"subject": "Insured", "relation": "MUST_FILE", "object": "Proof of Loss", '
+        '{"subject": "Insured", "subject_type": "Party", "relation": "MUST_FILE", "object": "Proof of Loss", "object_type": "Document", '
         '"span": "File a written proof of loss within 60 days", "confidence": 0.98}, '
-        '{"subject": "Proof of Loss", "relation": "HAS_DEADLINE", "object": "60 days", '
+        '{"subject": "Proof of Loss", "subject_type": "Document", "relation": "HAS_DEADLINE", "object": "60 days", "object_type": "TimePeriod", '
         '"span": "proof of loss within 60 days", "confidence": 0.98}, '
-        '{"subject": "Notify Insurer", "relation": "PRECEDES", "object": "File Proof of Loss", '
+        '{"subject": "Notify Insurer", "subject_type": "Procedure", "relation": "PRECEDES", "object": "File Proof of Loss", "object_type": "Procedure", '
         '"span": "Notify the insurer within 24 hours. (2) File a written proof of loss", '
         '"confidence": 0.95}]'
     ),
@@ -205,10 +224,43 @@ FEW_SHOT_PAIRS: list[tuple[str, str]] = [
     (
         "Text: There is a 30-day waiting period before coverage takes effect, unless "
         "the policy is purchased in connection with a new loan or property purchase.",
-        '[{"subject": "Policy", "relation": "HAS_WAITING_PERIOD", "object": "30 days", '
+        '[{"subject": "Policy", "subject_type": "InsurancePolicy", "relation": "HAS_WAITING_PERIOD", "object": "30 days", "object_type": "TimePeriod", '
         '"span": "30-day waiting period before coverage takes effect", "confidence": 0.98}, '
-        '{"subject": "Waiting Period", "relation": "HAS_EXCEPTION", "object": "New Loan Purchase", '
+        '{"subject": "Waiting Period", "subject_type": "Condition", "relation": "HAS_EXCEPTION", "object": "New Loan Purchase", "object_type": "Condition", '
         '"span": "unless the policy is purchased in connection with a new loan", '
         '"confidence": 0.95}]'
+    ),
+    # Pattern 6: Structured / tabular record — teaches extraction from key-value data
+    (
+        "Text: RECORD:\n"
+        "  [Policy] policy effective date: 2024-03-15 | policy termination date: 2025-03-15 | policy cost: 850\n"
+        "  [Coverage] total building insurance coverage: 250000 | building deductible code: A\n"
+        "  [Property] occupancy type: 11 | number of floors: 2 | original construction date: 1995-06-01\n"
+        "  [Location] rated flood zone: AE | property state: FL | reported zip code: 33019",
+        '[{"subject": "Policy-2024-03-15", "subject_type": "InsurancePolicy", "relation": "HAS_EFFECTIVE_DATE", "object": "2024-03-15", "object_type": "TimePeriod", '
+        '"span": "policy effective date: 2024-03-15", "confidence": 0.98}, '
+        '{"subject": "Policy-2024-03-15", "subject_type": "InsurancePolicy", "relation": "HAS_DEADLINE", "object": "2025-03-15", "object_type": "TimePeriod", '
+        '"span": "policy termination date: 2025-03-15", "confidence": 0.98}, '
+        '{"subject": "Policy-2024-03-15", "subject_type": "InsurancePolicy", "relation": "HAS_COVERAGE_LIMIT", "object": "$250,000", "object_type": "FinancialAmount", '
+        '"span": "total building insurance coverage: 250000", "confidence": 0.99}, '
+        '{"subject": "Policy-2024-03-15", "subject_type": "InsurancePolicy", "relation": "HAS_DEDUCTIBLE", "object": "Code A", "object_type": "FinancialAmount", '
+        '"span": "building deductible code: A", "confidence": 0.95}, '
+        '{"subject": "Policy-2024-03-15", "subject_type": "InsurancePolicy", "relation": "COVERS", "object": "2-Story Residential Building", "object_type": "InsuredProperty", '
+        '"span": "occupancy type: 11 | number of floors: 2", "confidence": 0.93}, '
+        '{"subject": "Policy-2024-03-15", "subject_type": "InsurancePolicy", "relation": "IS_CLASSIFIED_AS", "object": "Flood Zone AE", "object_type": "RiskType", '
+        '"span": "rated flood zone: AE", "confidence": 0.97}, '
+        '{"subject": "Insured Property", "subject_type": "InsuredProperty", "relation": "IS_CLASSIFIED_AS", "object": "FL-33019", "object_type": "Location", '
+        '"span": "property state: FL | reported zip code: 33019", "confidence": 0.95}]'
+    ),
+    # Pattern 7: Short clause — teaches extracting 2-3 triples even from brief text
+    (
+        "Text: The insurer may repair, rebuild, or replace the damaged property with "
+        "material of like kind and quality within a reasonable time.",
+        '[{"subject": "Insurer", "subject_type": "Party", "relation": "HAS_OPTION", "object": "Repair Property", "object_type": "Procedure", '
+        '"span": "The insurer may repair, rebuild, or replace the damaged property", "confidence": 0.96}, '
+        '{"subject": "Insurer", "subject_type": "Party", "relation": "HAS_OPTION", "object": "Rebuild Property", "object_type": "Procedure", '
+        '"span": "The insurer may repair, rebuild, or replace the damaged property", "confidence": 0.96}, '
+        '{"subject": "Insurer", "subject_type": "Party", "relation": "HAS_OPTION", "object": "Replace Property", "object_type": "Procedure", '
+        '"span": "The insurer may repair, rebuild, or replace the damaged property", "confidence": 0.96}]'
     ),
 ]

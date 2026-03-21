@@ -63,6 +63,7 @@ import config
 
 class Zone3State(TypedDict):
     entities:          list[dict]          # {id, relations_out, relations_in, chunks}
+    entity_map:        dict                # {entity_id: entity_dict} — for quick lookup
     similarity_edges:  list[dict]          # {source, target, weight}
     entity_embeddings: dict                # {ids: [...], embs: [[...]]} — L2-normalized
     clusters:          list[dict]          # {cluster_id, members: [entity_ids], coherence}
@@ -79,13 +80,14 @@ class Zone3State(TypedDict):
 # Constants
 # ---------------------------------------------------------------------------
 
-# Composite similarity weights
-W_EMBEDDING  = 0.5
-W_STRUCTURAL = 0.3
-W_COOCCUR    = 0.2
+# Composite similarity weights (4 dimensions — entity type added in Phase A)
+W_EMBEDDING  = 0.40
+W_STRUCTURAL = 0.25
+W_COOCCUR    = 0.15
+W_TYPE       = 0.20    # NEW: entity type agreement (Jaccard on bootstrapped types)
 
 # Minimum composite similarity to create an edge in the similarity graph
-SIMILARITY_THRESHOLD = 0.40
+SIMILARITY_THRESHOLD = 0.50  # raised from 0.40 — reduces noisy edges
 
 # Leiden resolution parameter (higher = more clusters) — kept for backward compat
 LEIDEN_RESOLUTION = 0.6
@@ -94,6 +96,10 @@ LEIDEN_RESOLUTION = 0.6
 # Higher resolution → more / smaller clusters (finer granularity)
 LEIDEN_RESOLUTIONS       = [0.3, 0.6, 1.2]   # [coarse, medium, fine]
 HIERARCHY_OVERLAP_THRESH = 0.6                # min fraction of fine members inside parent
+
+# Post-clustering: filter singletons and merge similar clusters
+MIN_CLUSTER_SIZE         = 2                  # drop singletons (noise entities)
+CLUSTER_MERGE_THRESHOLD  = 0.70               # merge clusters whose centroids are this similar
 
 
 # ---------------------------------------------------------------------------
@@ -153,48 +159,55 @@ def load_entities(state: Zone3State) -> dict:
     print("\n[1/5] Loading entities from Neo4j...")
     graph = get_neo4j_graph()
 
-    # Get all entities
-    rows = graph.query("MATCH (n:Entity) RETURN n.id AS id")
+    # Get all entities with their types (single batch query — was O(n) round-trips)
+    rows = graph.query("""
+        MATCH (n:Entity)
+        OPTIONAL MATCH (n)-[r]->(m:Entity)
+        OPTIONAL MATCH (p:Entity)-[s]->(n)
+        RETURN n.id AS id,
+               n.entity_type AS entity_type,
+               collect(DISTINCT {rel: type(r), target: m.id, chunk: r.chunk_id}) AS out_rels,
+               collect(DISTINCT {rel: type(s), source: p.id, chunk: s.chunk_id}) AS in_rels
+    """)
     if not rows:
         print("  ✗ No Entity nodes found. Run zone2/pipeline.py first.")
         return {"entities": []}
 
     entities: list[dict] = []
+    type_counts: dict[str, int] = defaultdict(int)
     for row in rows:
         eid = row["id"]
+        etype = row.get("entity_type") or "Unknown"
+        type_counts[etype] += 1
 
-        # Outgoing relation types
-        out_rels = graph.query(
-            "MATCH (n:Entity {id: $id})-[r]->(m:Entity) "
-            "RETURN type(r) AS rel, m.id AS target, r.chunk_id AS chunk",
-            params={"id": eid},
-        )
-        # Incoming relation types
-        in_rels = graph.query(
-            "MATCH (m:Entity)-[r]->(n:Entity {id: $id}) "
-            "RETURN type(r) AS rel, m.id AS source, r.chunk_id AS chunk",
-            params={"id": eid},
-        )
+        # Filter out null rels from OPTIONAL MATCH
+        out_rels = [r for r in row.get("out_rels", []) if r.get("rel")]
+        in_rels  = [r for r in row.get("in_rels", []) if r.get("rel")]
 
         rel_types_out = [r["rel"] for r in out_rels]
         rel_types_in  = [r["rel"] for r in in_rels]
         chunks = list(set(
-            [r.get("chunk", "") for r in out_rels + in_rels if r.get("chunk")]
+            r.get("chunk", "") for r in out_rels + in_rels if r.get("chunk")
         ))
 
         entities.append({
             "id": eid,
+            "entity_type": etype,
             "relations_out": rel_types_out,
             "relations_in": rel_types_in,
             "all_relation_types": list(set(rel_types_out + rel_types_in)),
             "neighbors": list(set(
-                [r["target"] for r in out_rels] + [r["source"] for r in in_rels]
+                [r["target"] for r in out_rels if r.get("target")] +
+                [r["source"] for r in in_rels if r.get("source")]
             )),
             "chunks": chunks,
         })
 
-    print(f"  ✓ {len(entities)} entities loaded with structural context")
-    return {"entities": entities}
+    entity_map = {e["id"]: e for e in entities}
+    typed = sum(1 for e in entities if e["entity_type"] != "Unknown")
+    print(f"  ✓ {len(entities)} entities loaded ({typed} typed, "
+          f"{len(type_counts)} distinct types)")
+    return {"entities": entities, "entity_map": entity_map}
 
 
 def build_similarity_graph(state: Zone3State) -> dict:
@@ -244,10 +257,19 @@ def build_similarity_graph(state: Zone3State) -> dict:
             else:
                 cooccur = 0.0
 
-            # Composite score
+            # Component 4: Entity type agreement (Phase A — bootstrapped types)
+            type_i = ei.get("entity_type", "Unknown")
+            type_j = ej.get("entity_type", "Unknown")
+            if type_i != "Unknown" and type_j != "Unknown":
+                type_sim = 1.0 if type_i == type_j else 0.0
+            else:
+                type_sim = 0.0  # no signal if either is untyped
+
+            # Composite score (4 dimensions)
             weight = (W_EMBEDDING * sem_sim +
                       W_STRUCTURAL * struct_sim +
-                      W_COOCCUR * cooccur)
+                      W_COOCCUR * cooccur +
+                      W_TYPE * type_sim)
 
             if weight >= SIMILARITY_THRESHOLD:
                 edges.append({
@@ -257,6 +279,7 @@ def build_similarity_graph(state: Zone3State) -> dict:
                     "sem": round(sem_sim, 3),
                     "struct": round(struct_sim, 3),
                     "cooccur": round(cooccur, 3),
+                    "type": round(type_sim, 3),
                 })
 
     print(f"  ✓ {len(edges)} similarity edges (threshold ≥ {SIMILARITY_THRESHOLD})")
@@ -360,8 +383,44 @@ def leiden_cluster(state: Zone3State) -> dict:
     return {"clusters": primary, "cluster_levels": cluster_levels}
 
 
-def _name_cluster_list(clusters: list[dict], llm) -> list[dict]:
-    """Name a single list of clusters using the LLM. Returns named cluster list."""
+def _build_cluster_context(members: list[str], entity_map: dict) -> str:
+    """Build a rich context string for cluster naming: members + their relationships."""
+    lines: list[str] = []
+    rel_summary: dict[str, int] = defaultdict(int)
+    neighbor_sample: set[str] = set()
+    members_set = set(members)
+
+    for mid in members[:10]:  # limit to 10 members for prompt size
+        ent = entity_map.get(mid, {})
+        for r in ent.get("relations_out", []):
+            rel_summary[r] += 1
+        for r in ent.get("relations_in", []):
+            rel_summary[f"(incoming) {r}"] += 1
+        for n in ent.get("neighbors", [])[:3]:
+            if n not in members_set:
+                neighbor_sample.add(n)
+
+    lines.append(f"Members ({len(members)}): {json.dumps(members[:15])}")
+    if rel_summary:
+        top_rels = sorted(rel_summary.items(), key=lambda x: -x[1])[:8]
+        rel_str = ", ".join(f"{r}({c})" for r, c in top_rels)
+        lines.append(f"Relationship types: {rel_str}")
+    if neighbor_sample:
+        lines.append(f"Connected to: {list(neighbor_sample)[:8]}")
+    return "\n".join(lines)
+
+
+def _name_cluster_list(clusters: list[dict], llm, entity_map: dict | None = None) -> list[dict]:
+    """Name a single list of clusters using the LLM with rich relationship context.
+
+    Improved naming strategy (Round 1 fix):
+    - Provides relationship context so LLM understands cluster semantics
+    - Instructs LLM to prefer SHORT, ABSTRACT ontology class names (1-2 words)
+    - Avoids compound/descriptive names that embed poorly against reference ontology
+    """
+    if entity_map is None:
+        entity_map = {}
+
     named: list[dict] = []
     for cluster in clusters:
         members = cluster["members"]
@@ -370,15 +429,21 @@ def _name_cluster_list(clusters: list[dict], llm) -> list[dict]:
             named.append({**cluster, "class_name": name})
             continue
 
+        # Build rich context including relationships
+        context = _build_cluster_context(members, entity_map)
+
         prompt = (
             "You are an ontology engineer building an insurance domain ontology.\n"
-            "These entity names all belong to the same semantic cluster:\n"
-            f"  {json.dumps(members)}\n\n"
-            "Propose ONE canonical PascalCase ontology class name that best describes "
-            "the abstract concept shared by all these entities.\n"
-            "The name should be general enough to cover all members but specific enough "
-            "to be meaningful in an insurance ontology.\n\n"
-            "Respond with ONLY the class name (one word or compound word, PascalCase):"
+            "The following entities were grouped into one semantic cluster:\n\n"
+            f"{context}\n\n"
+            "Propose ONE canonical PascalCase ontology class name.\n\n"
+            "RULES:\n"
+            "- Use SHORT names: 1-2 words maximum\n"
+            "- Prefer ABSTRACT concepts over specific compound names\n"
+            "- Think: what broad ontology category do ALL these entities belong to?\n"
+            "- BAD examples: InsuranceLossEvent, FloodInsuranceConcepts, PropertyCoverageComponent, RiskReductionMechanism\n"
+            "- GOOD examples: Agent, Event, Artifact, Obligation, Location, Temporal, Process, Agreement, Asset, Hazard\n\n"
+            "Respond with ONLY the class name (PascalCase, 1-2 words max):"
         )
         try:
             response = llm.invoke([HumanMessage(content=prompt)])
@@ -398,6 +463,7 @@ def name_clusters(state: Zone3State) -> dict:
     print("\n[4/5] Naming clusters with LLM (all resolution levels)...")
     cluster_levels = state.get("cluster_levels", {})
     model_name     = state.get("model", config.OLLAMA_MODEL)
+    entity_map     = state.get("entity_map", {})
     llm            = get_llm(model_name)
 
     # If no multi-level data (e.g. no edges edge-case), fall back to primary clusters
@@ -409,7 +475,7 @@ def name_clusters(state: Zone3State) -> dict:
 
     for res_str, clusters in cluster_levels.items():
         print(f"  Naming resolution={res_str} ({len(clusters)} clusters)...")
-        named_at_res = _name_cluster_list(clusters, llm)
+        named_at_res = _name_cluster_list(clusters, llm, entity_map=entity_map)
         named_levels[res_str] = named_at_res
         for nc in named_at_res:
             members = nc["members"]
@@ -424,6 +490,129 @@ def name_clusters(state: Zone3State) -> dict:
     print(f"\n  ✓ {sum(len(v) for v in named_levels.values())} clusters named across "
           f"{len(named_levels)} resolution levels")
     return {"named_clusters": primary_named, "named_levels": named_levels, "errors": errors}
+
+
+def filter_and_merge_clusters(state: Zone3State) -> dict:
+    """Post-naming cleanup: filter singletons and merge semantically similar clusters.
+
+    Round 1 fixes:
+    - Fix 2: Remove singleton clusters (size < MIN_CLUSTER_SIZE) — these are noise
+      entities like "You", "12:01 a.m." that dilute precision.
+    - Fix 3: Merge clusters whose member centroids are very similar (> CLUSTER_MERGE_THRESHOLD).
+      Reduces fragmentation (e.g., "InsuranceLossEvent" + "FloodLoss" → single merged cluster).
+    """
+    print("\n[4.5/5] Filtering singletons and merging similar clusters...")
+    named_clusters = state.get("named_clusters", [])
+    named_levels   = state.get("named_levels", {})
+    entity_embs    = state.get("entity_embeddings", {})
+
+    if not named_clusters:
+        return {"named_clusters": [], "named_levels": {}}
+
+    # --- Fix 2: Filter singletons from primary level ---
+    before_count = len(named_clusters)
+    filtered = [c for c in named_clusters if len(c["members"]) >= MIN_CLUSTER_SIZE]
+    singleton_removed = before_count - len(filtered)
+    if singleton_removed:
+        removed_names = [c["class_name"] for c in named_clusters
+                         if len(c["members"]) < MIN_CLUSTER_SIZE]
+        print(f"  Removed {singleton_removed} singleton clusters: {removed_names[:10]}")
+
+    # --- Fix 3: Merge clusters with highly similar member centroids ---
+    merged_into: dict[int, int] = {}   # defined before if-block (code review fix)
+    name_remapping: dict[str, str] = {}  # absorbed_name → keeper_name
+
+    emb_ids  = entity_embs.get("ids", [])
+    emb_data = entity_embs.get("embs", [])
+    if emb_ids and emb_data and len(filtered) >= 2:
+        emb_matrix = np.array(emb_data, dtype=np.float32)
+        id_to_idx  = {eid: i for i, eid in enumerate(emb_ids)}
+
+        # Compute cluster centroids
+        centroids: list[np.ndarray] = []
+        for c in filtered:
+            idxs = [id_to_idx[m] for m in c["members"] if m in id_to_idx]
+            if idxs:
+                centroid = emb_matrix[idxs].mean(axis=0)
+                norm = np.linalg.norm(centroid)
+                centroids.append(centroid / (norm + 1e-9))
+            else:
+                centroids.append(np.zeros(emb_matrix.shape[1]))
+
+        # Find pairs to merge (greedy: highest similarity first)
+        merge_pairs: list[tuple[int, int, float]] = []
+        for i in range(len(centroids)):
+            for j in range(i + 1, len(centroids)):
+                sim = float(np.dot(centroids[i], centroids[j]))
+                if sim >= CLUSTER_MERGE_THRESHOLD:
+                    merge_pairs.append((i, j, sim))
+        merge_pairs.sort(key=lambda x: -x[2])
+
+        # Apply merges (union-find style)
+        def find_canonical(idx: int) -> int:
+            while idx in merged_into:
+                idx = merged_into[idx]
+            return idx
+
+        for i, j, sim in merge_pairs:
+            ci, cj = find_canonical(i), find_canonical(j)
+            if ci != cj:
+                # Merge smaller into larger
+                if len(filtered[ci]["members"]) >= len(filtered[cj]["members"]):
+                    keeper, absorbed = ci, cj
+                else:
+                    keeper, absorbed = cj, ci
+                merged_into[absorbed] = keeper
+                # Track name remapping for propagation to named_levels
+                name_remapping[filtered[absorbed]["class_name"]] = filtered[keeper]["class_name"]
+                # Merge members
+                new_members = list(dict.fromkeys(
+                    filtered[keeper]["members"] + filtered[absorbed]["members"]
+                ))
+                filtered[keeper] = {
+                    **filtered[keeper],
+                    "members": new_members,
+                    "merged_from": filtered[keeper].get("merged_from", [filtered[keeper]["class_name"]])
+                                   + [filtered[absorbed]["class_name"]],
+                }
+                print(f"    Merged '{filtered[absorbed]['class_name']}' into "
+                      f"'{filtered[keeper]['class_name']}' (sim={sim:.3f})")
+
+                # Recompute centroid for keeper after absorbing new members
+                # (code review fix: stale centroid bug)
+                new_idxs = [id_to_idx[m] for m in new_members if m in id_to_idx]
+                if new_idxs:
+                    new_centroid = emb_matrix[new_idxs].mean(axis=0)
+                    norm = np.linalg.norm(new_centroid)
+                    centroids[keeper] = new_centroid / (norm + 1e-9)
+
+        # Remove absorbed clusters
+        absorbed_indices = set(merged_into.keys())
+        filtered = [c for i, c in enumerate(filtered) if i not in absorbed_indices]
+
+    # Filter singletons from other resolution levels AND propagate merge remapping
+    # (code review fix: derive_hierarchy sees orphaned class names without this)
+    updated_levels: dict[str, list[dict]] = {}
+    for res_str, clusters in named_levels.items():
+        remapped: list[dict] = []
+        for c in clusters:
+            if len(c["members"]) < MIN_CLUSTER_SIZE:
+                continue
+            new_name = name_remapping.get(c["class_name"], c["class_name"])
+            remapped.append({**c, "class_name": new_name})
+        updated_levels[res_str] = remapped
+
+    # Renumber cluster IDs
+    for i, c in enumerate(filtered):
+        c["cluster_id"] = i
+
+    print(f"  ✓ {before_count} → {len(filtered)} clusters "
+          f"(removed {singleton_removed} singletons, "
+          f"merged {len(merged_into)} similar)")
+    return {
+        "named_clusters": filtered,
+        "named_levels": updated_levels,
+    }
 
 
 def derive_hierarchy(state: Zone3State) -> dict:
@@ -682,19 +871,21 @@ def write_ontology(state: Zone3State) -> dict:
 
 def build_pipeline():
     builder = StateGraph(Zone3State)
-    builder.add_node("load_entities",           load_entities)
-    builder.add_node("build_similarity_graph",  build_similarity_graph)
-    builder.add_node("leiden_cluster",          leiden_cluster)
-    builder.add_node("name_clusters",           name_clusters)
-    builder.add_node("derive_hierarchy",        derive_hierarchy)
-    builder.add_node("write_ontology",          write_ontology)
+    builder.add_node("load_entities",              load_entities)
+    builder.add_node("build_similarity_graph",     build_similarity_graph)
+    builder.add_node("leiden_cluster",             leiden_cluster)
+    builder.add_node("name_clusters",              name_clusters)
+    builder.add_node("filter_and_merge_clusters",  filter_and_merge_clusters)
+    builder.add_node("derive_hierarchy",           derive_hierarchy)
+    builder.add_node("write_ontology",             write_ontology)
     builder.set_entry_point("load_entities")
-    builder.add_edge("load_entities",           "build_similarity_graph")
-    builder.add_edge("build_similarity_graph",  "leiden_cluster")
-    builder.add_edge("leiden_cluster",          "name_clusters")
-    builder.add_edge("name_clusters",           "derive_hierarchy")
-    builder.add_edge("derive_hierarchy",        "write_ontology")
-    builder.add_edge("write_ontology",          END)
+    builder.add_edge("load_entities",              "build_similarity_graph")
+    builder.add_edge("build_similarity_graph",     "leiden_cluster")
+    builder.add_edge("leiden_cluster",             "name_clusters")
+    builder.add_edge("name_clusters",              "filter_and_merge_clusters")
+    builder.add_edge("filter_and_merge_clusters",  "derive_hierarchy")
+    builder.add_edge("derive_hierarchy",           "write_ontology")
+    builder.add_edge("write_ontology",             END)
     return builder.compile()
 
 
@@ -714,6 +905,7 @@ def run_zone3(model: str = config.OLLAMA_MODEL):
     start    = time.time()
     result   = pipeline.invoke({
         "entities":          [],
+        "entity_map":        {},
         "similarity_edges":  [],
         "entity_embeddings": {},
         "clusters":          [],
