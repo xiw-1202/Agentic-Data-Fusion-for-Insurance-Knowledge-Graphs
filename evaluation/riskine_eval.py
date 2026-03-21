@@ -78,7 +78,7 @@ EXCLUDED_LABELS = {"__Entity__", "Document", "OntologyClass", "Entity"}
 # Embedding
 # ---------------------------------------------------------------------------
 
-_model_cache: SentenceTransformer | None = None
+_model_cache = None  # type: Optional[SentenceTransformer]
 
 
 def embed_labels(labels: list[str]) -> np.ndarray:
