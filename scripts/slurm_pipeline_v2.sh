@@ -30,7 +30,7 @@
 #SBATCH --output=/local/scratch/%u/logs/%j.out
 #SBATCH --error=/local/scratch/%u/logs/%j.err
 
-set -e
+set -euo pipefail
 
 SCRATCH=/local/scratch/$USER
 PROJECT=$SCRATCH/project
@@ -102,19 +102,26 @@ echo "[setup] Starting Ollama server (multi-GPU)..."
 ollama serve &>$SCRATCH/logs/ollama_$SLURM_JOB_ID.log &
 OLLAMA_PID=$!
 
+OLLAMA_READY=0
 for i in $(seq 1 30); do
     if curl -s http://localhost:11434/api/tags &>/dev/null; then
         echo "[setup] Ollama ready (${i}s)"
+        OLLAMA_READY=1
         break
     fi
     sleep 1
 done
+if [ "$OLLAMA_READY" -eq 0 ]; then
+    echo "ERROR: Ollama did not become ready within 30s. Check ollama log:" >&2
+    tail -20 "$SCRATCH/logs/ollama_$SLURM_JOB_ID.log" 2>/dev/null || true
+    exit 1
+fi
 
 # Warm up — load model into GPU VRAM
 echo "[setup] Loading $MODEL into GPU..."
-timeout 300 ollama run $MODEL "Hello, respond with one word." --nowordwrap 2>&1 | head -5 || true
+timeout 300 ollama run "$MODEL" "Hello, respond with one word." --nowordwrap 2>&1 | head -5 || true
 echo "[setup] Model loaded — check Ollama log for GPU layer allocation:"
-grep -i "layer" $SCRATCH/logs/ollama_$SLURM_JOB_ID.log 2>/dev/null | tail -3 || true
+grep -i "layer" "$SCRATCH/logs/ollama_$SLURM_JOB_ID.log" 2>/dev/null | tail -3 || true
 echo ""
 
 # ---------------------------------------------------------------------------

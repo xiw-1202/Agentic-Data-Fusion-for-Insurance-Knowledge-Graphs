@@ -12,6 +12,8 @@
 #   - Use -J flag (this script does) — never stage through /home
 # =============================================================================
 
+set -euo pipefail
+
 NETID=${1:-$USER}
 MODE=${2:-""}
 REMOTE="$NETID@turinglogin.mathcs.emory.edu"

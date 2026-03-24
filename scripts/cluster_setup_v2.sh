@@ -16,7 +16,7 @@
 #   bash scripts/sync_to_cluster.sh xwa2284
 # =============================================================================
 
-set -e
+set -euo pipefail
 NETID=${USER:-xwa2284}
 SCRATCH=/local/scratch/$NETID
 PROJECT=$SCRATCH/project

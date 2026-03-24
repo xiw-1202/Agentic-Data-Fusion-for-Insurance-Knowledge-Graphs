@@ -23,7 +23,7 @@
 #SBATCH --output=/local/scratch/%u/logs/%j.out
 #SBATCH --error=/local/scratch/%u/logs/%j.err
 
-set -e
+set -euo pipefail
 
 SCRATCH=/local/scratch/$USER
 PROJECT=$SCRATCH/project

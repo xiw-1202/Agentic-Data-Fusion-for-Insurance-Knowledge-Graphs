@@ -16,7 +16,7 @@
 #   scp -r ~/path/to/CS584_AI_Capstone turinglogin:/local/scratch/$USER/project
 # =============================================================================
 
-set -e
+set -euo pipefail
 NETID=$USER
 SCRATCH=/local/scratch/$NETID
 PROJECT=$SCRATCH/project

@@ -13,7 +13,9 @@
 #   - SSH key configured for lab0z.mathcs.emory.edu jump host
 # =============================================================================
 
-NETID=xwa2284
+set -euo pipefail
+
+NETID=${NETID:-xwa2284}
 MODEL=${1:-qwen2.5:72b}
 MODE=${2:-""}
 REMOTE="$NETID@turinglogin.mathcs.emory.edu"
