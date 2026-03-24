@@ -69,12 +69,20 @@ MAX_MEMBERS_IN_PROMPT = 15
 MIN_CLASS_SIZE = 3       # classes with fewer members get merged into nearest
 DEVIATION_THRESHOLD = 2.0  # σ threshold for structural flagging
 MAX_ARBITRATION_BATCH = 10  # entities per arbitration prompt
-MAX_CLASS_FRACTION = 0.30  # no single class should exceed 30% of entities
-ENTITY_SAMPLES_PER_TYPE = 8  # entity name examples shown in discovery prompt
+MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
 
 # Target class count range (guide for class discovery)
 TARGET_CLASSES_MIN = 10
-TARGET_CLASSES_MAX = 25
+TARGET_CLASSES_MAX = 20
+
+# Forbidden class names — data types masquerading as ontology classes
+FORBIDDEN_CLASS_NAMES = {
+    "financialamount", "timperiod", "timeperiod", "measurement", "amount",
+    "number", "date", "text", "quantity", "value", "metric", "event",
+    "condition", "location", "data", "record", "entry", "item", "type",
+    "category", "group", "class", "entity", "thing", "other",
+    "excludedperil", "coveragetype", "insuredproperty",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -201,30 +209,19 @@ def load_entities(graph: Neo4jGraph) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def discover_class_vocabulary(entities: list[dict], llm: ChatOllama) -> list[str]:
-    """Discover ontology classes by showing LLM actual entity examples + relations.
+    """Two-stage class discovery: detect domain → propose domain-role classes.
 
-    Key improvement over v1: shows entity NAME examples (not just type stats)
-    and explicitly steers toward domain concepts over data types.
+    Stage 1: Ask LLM what domain this KG is about.
+    Stage 2: Given domain, propose classes for real-world ROLES, not data types.
+    Post-process: Filter out any forbidden data-type class names.
     """
-    print("\n[Phase 1a] Discovering class vocabulary from entity examples...", flush=True)
+    print("\n[Phase 1a] Discovering class vocabulary (two-stage)...", flush=True)
 
-    # Group entities by type and collect name samples
-    type_groups: dict[str, list[str]] = defaultdict(list)
-    for e in entities:
-        type_groups[e["entity_type"]].append(e["id"])
-
-    # Build rich entity type descriptions with NAME examples
-    type_descriptions = []
-    for etype, members in sorted(type_groups.items(), key=lambda x: -len(x[1])):
-        if etype in ("Unknown", "unknown"):
-            continue
-        # Sample diverse entity names (not just first N — sample from spread)
-        sample_size = min(ENTITY_SAMPLES_PER_TYPE, len(members))
-        indices = np.linspace(0, len(members) - 1, sample_size, dtype=int)
-        samples = [members[i] for i in indices]
-        type_descriptions.append(
-            f"  {etype} ({len(members)} entities): {', '.join(samples)}"
-        )
+    # Collect entity name samples (ungrouped — raw names)
+    import random
+    random.seed(42)
+    all_names = [e["id"] for e in entities]
+    name_sample = random.sample(all_names, min(80, len(all_names)))
 
     # Collect relation types
     rel_counts: Counter = Counter()
@@ -233,56 +230,71 @@ def discover_class_vocabulary(entities: list[dict], llm: ChatOllama) -> list[str
             rel_counts[r] += 1
         for r in e.get("in_rel_counts", {}):
             rel_counts[r] += 1
-    top_rels = rel_counts.most_common(25)
+    top_rels = rel_counts.most_common(20)
 
-    # Sample concrete triples (with real entity names, not just types)
-    import random
-    random.seed(42)
+    # Sample concrete triples with real entity names
     triple_examples = []
-    sampled = random.sample(entities, min(100, len(entities)))
-    for e in sampled:
+    sampled_ents = random.sample(entities, min(100, len(entities)))
+    for e in sampled_ents:
         for r in e.get("out_rels", [])[:3]:
             target = r.get("target", "?")
             triple_examples.append(f"  {e['id']} --{r['rel']}--> {target}")
-            if len(triple_examples) >= 30:
+            if len(triple_examples) >= 25:
                 break
-        if len(triple_examples) >= 30:
+        if len(triple_examples) >= 25:
             break
 
-    prompt = f"""You are an ontology engineer designing a DOMAIN ontology for a knowledge graph \
-extracted from insurance documents.
+    # ---- Stage 1: Detect domain ----
+    print("  Stage 1: Detecting domain...", flush=True)
+    domain_prompt = f"""Look at these entity names from a knowledge graph:
+{', '.join(name_sample[:40])}
 
-IMPORTANT: Ignore the "entity type" labels shown below — they are noisy extraction artifacts \
-(data types like "FinancialAmount"). Focus ONLY on the entity NAMES and RELATIONSHIPS to \
-determine what real-world concepts exist.
+And these relationship types:
+{', '.join(r for r, _ in top_rels[:15])}
 
-ENTITY NAMES grouped by extraction type (ignore the type names, look at the entity names):
-{chr(10).join(type_descriptions[:20])}
+What industry/domain is this knowledge graph about? Answer in 1-3 words."""
 
-RELATION TYPES (most common):
+    domain_raw = _invoke_llm(llm, domain_prompt)
+    domain = domain_raw.strip().strip('"').strip("'").strip(".")
+    print(f"  Detected domain: {domain}", flush=True)
+
+    # ---- Stage 2: Propose classes ----
+    print("  Stage 2: Proposing ontology classes...", flush=True)
+
+    prompt = f"""You are designing a DOMAIN ONTOLOGY for a {domain} knowledge graph.
+
+Here are 80 entity names from the graph:
+{chr(10).join(f'  {n}' for n in name_sample)}
+
+Relationship types:
 {chr(10).join(f'  {r} ({c}x)' for r, c in top_rels)}
 
-EXAMPLE TRIPLES (entity --relation--> entity):
+Example triples:
 {chr(10).join(triple_examples)}
 
-Based on the entity NAMES and their RELATIONSHIPS, propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} \
-ontology classes. Think about what each entity IS in the real world:
-- "Deductible" = a feature of an insurance product, not an amount
-- "Flood zone A" = a geographic risk zone, not a location
-- "Coverage B" = a type of insurance coverage
-- "NFIP" = an organization
-- "Basement" = a structural component of a building
+Propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes that categorize these \
+entities by their REAL-WORLD ROLE in {domain}.
+
+For each entity, ask: "WHAT IS this thing in the real world?"
+- "Coverage B" → it IS a type of insurance coverage → Coverage
+- "$250,000" → it IS a financial limit on a policy → Limit
+- "Flood Zone A" → it IS a hazard/risk category → Risk
+- "NFIP" → it IS an organization → Organization
+- "Basement" → it IS part of a building → Structure
+- "John Smith" → it IS a person → Person
+- "123 Main St" → it IS an address → Address
+- "Water damage" → it IS a type of damage/peril → Damage
 
 RULES:
-- Classes must represent DOMAIN CONCEPTS: what role does this entity play in insurance?
-  Good: Coverage, Product, Risk, Structure, Person, Organization, Property, Damage, Address, Peril
-  Bad: Amount, Number, Date, Text, Measurement, FinancialAmount, TimePeriod
-- Use single PascalCase words (Coverage, Person, Risk — NOT InsuredProperty, CoverageType)
-- Aim for {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} classes, balanced (no class > 25% of entities)
-- Think: if a human insurance expert organized these entities into folders, what would the folder names be?
+1. Classes = real-world roles, NOT data types
+2. FORBIDDEN names: FinancialAmount, TimePeriod, Measurement, Amount, Number,
+   Date, Text, Quantity, Value, Metric, Event, Condition, Location
+3. Use SINGLE PascalCase words: Coverage, Person, Risk, Structure, Property
+4. No class should contain >25% of entities — split large categories
+5. Target {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} classes
 
-Output as JSON array:
-[{{"name": "ClassName", "definition": "one-line definition"}}, ...]
+Output ONLY a JSON array:
+[{{"name": "ClassName", "definition": "what entities belong here"}}]
 """
     raw = _invoke_llm(llm, prompt)
     parsed = _parse_json_safely(raw)
@@ -297,6 +309,10 @@ Output as JSON array:
     # Sanitize
     classes = [_sanitize_label(c) for c in classes if c]
 
+    # Filter out forbidden data-type names
+    classes = [c for c in classes if c.lower() not in FORBIDDEN_CLASS_NAMES]
+    print(f"  After forbidden filter: {classes}", flush=True)
+
     # Deduplicate (case-insensitive)
     seen_lower: set[str] = set()
     deduped = []
@@ -306,11 +322,49 @@ Output as JSON array:
             seen_lower.add(c.lower())
     classes = deduped
 
-    # Ensure minimum set — fallback to entity type names
+    # If LLM still produced too few valid classes, re-prompt with harder steering
     if len(classes) < TARGET_CLASSES_MIN:
-        for t, _ in sorted(type_groups.items(), key=lambda x: -len(x[1])):
-            if t not in ("Unknown", "unknown") and _sanitize_label(t) not in classes:
-                classes.append(_sanitize_label(t))
+        print(f"  Only {len(classes)} valid classes — re-prompting with stronger steering...", flush=True)
+        retry_prompt = f"""The previous attempt produced data-type classes that were rejected.
+
+I need {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes for a {domain} domain.
+
+These entities exist in the graph:
+{chr(10).join(f'  {n}' for n in name_sample[:50])}
+
+Propose classes that answer "what real-world thing IS this?" for each entity.
+Think of chapter titles in a {domain} reference manual.
+
+MANDATORY: Every class must be a real-world concept like:
+Coverage, Product, Risk, Structure, Person, Organization, Property, Damage,
+Address, Peril, Limit, Obligation, Exclusion, Document, Regulation, Claim, Zone
+
+FORBIDDEN: Amount, Date, Number, Measurement, Event, Condition, Location, Text, Value
+
+Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
+        raw2 = _invoke_llm(llm, retry_prompt)
+        parsed2 = _parse_json_safely(raw2)
+        if isinstance(parsed2, list):
+            extra = [item["name"] for item in parsed2 if isinstance(item, dict) and "name" in item]
+            extra = [_sanitize_label(c) for c in extra if c]
+            extra = [c for c in extra if c.lower() not in FORBIDDEN_CLASS_NAMES and c.lower() not in seen_lower]
+            classes.extend(extra)
+            for c in extra:
+                seen_lower.add(c.lower())
+        print(f"  After retry: {classes}", flush=True)
+
+    # Last resort fallback — generic class names if LLM completely fails
+    if len(classes) < TARGET_CLASSES_MIN:
+        print(f"  WARNING: Only {len(classes)} classes after retry. Adding generic fallbacks.", flush=True)
+        generic_fallbacks = [
+            "Coverage", "Product", "Risk", "Structure", "Person",
+            "Organization", "Property", "Damage", "Address", "Peril",
+            "Limit", "Obligation", "Exclusion", "Document", "Regulation",
+        ]
+        for fb in generic_fallbacks:
+            if fb.lower() not in seen_lower:
+                classes.append(fb)
+                seen_lower.add(fb.lower())
             if len(classes) >= TARGET_CLASSES_MIN:
                 break
 
