@@ -1,0 +1,8 @@
+{
+  "round": 1,
+  "status": "in_progress",
+  "last_score": 3.0,
+  "last_verdict": "not ready",
+  "pending_experiments": ["slurm_sv_loi"],
+  "timestamp": "2026-03-24T22:00:00"
+}

@@ -64,15 +64,17 @@ import config
 # Constants
 # ---------------------------------------------------------------------------
 
-BATCH_SIZE = 20          # entities per LLM typing prompt
+BATCH_SIZE = 15          # entities per LLM typing prompt (smaller = more context per entity)
 MAX_MEMBERS_IN_PROMPT = 15
-MIN_CLASS_SIZE = 2       # classes with fewer members get merged into nearest
+MIN_CLASS_SIZE = 3       # classes with fewer members get merged into nearest
 DEVIATION_THRESHOLD = 2.0  # σ threshold for structural flagging
 MAX_ARBITRATION_BATCH = 10  # entities per arbitration prompt
+MAX_CLASS_FRACTION = 0.30  # no single class should exceed 30% of entities
+ENTITY_SAMPLES_PER_TYPE = 8  # entity name examples shown in discovery prompt
 
 # Target class count range (guide for class discovery)
-TARGET_CLASSES_MIN = 8
-TARGET_CLASSES_MAX = 20
+TARGET_CLASSES_MIN = 10
+TARGET_CLASSES_MAX = 25
 
 
 # ---------------------------------------------------------------------------
@@ -199,52 +201,81 @@ def load_entities(graph: Neo4jGraph) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def discover_class_vocabulary(entities: list[dict], llm: ChatOllama) -> list[str]:
-    """Ask LLM to propose ontology classes based on entity type + relation statistics."""
-    print("\n[Phase 1a] Discovering class vocabulary from graph schema...")
+    """Discover ontology classes by showing LLM actual entity examples + relations.
 
-    # Collect entity type distribution
-    type_counts = Counter(e["entity_type"] for e in entities)
-    # Collect relation type distribution
+    Key improvement over v1: shows entity NAME examples (not just type stats)
+    and explicitly steers toward domain concepts over data types.
+    """
+    print("\n[Phase 1a] Discovering class vocabulary from entity examples...", flush=True)
+
+    # Group entities by type and collect name samples
+    type_groups: dict[str, list[str]] = defaultdict(list)
+    for e in entities:
+        type_groups[e["entity_type"]].append(e["id"])
+
+    # Build rich entity type descriptions with NAME examples
+    type_descriptions = []
+    for etype, members in sorted(type_groups.items(), key=lambda x: -len(x[1])):
+        if etype in ("Unknown", "unknown"):
+            continue
+        # Sample diverse entity names (not just first N — sample from spread)
+        sample_size = min(ENTITY_SAMPLES_PER_TYPE, len(members))
+        indices = np.linspace(0, len(members) - 1, sample_size, dtype=int)
+        samples = [members[i] for i in indices]
+        type_descriptions.append(
+            f"  {etype} ({len(members)} entities): {', '.join(samples)}"
+        )
+
+    # Collect relation types
     rel_counts: Counter = Counter()
     for e in entities:
         for r in e.get("out_rel_counts", {}):
             rel_counts[r] += 1
         for r in e.get("in_rel_counts", {}):
             rel_counts[r] += 1
+    top_rels = rel_counts.most_common(25)
 
-    # Top (entity_type, relation_type, entity_type) triples
-    triple_patterns: Counter = Counter()
-    for e in entities:
-        for r in e.get("out_rels", [])[:10]:
-            pattern = f"{e['entity_type']} --{r['rel']}--> {r.get('target_type', '?')}"
-            triple_patterns[pattern] += 1
+    # Sample concrete triples (with real entity names, not just types)
+    import random
+    random.seed(42)
+    triple_examples = []
+    sampled = random.sample(entities, min(100, len(entities)))
+    for e in sampled:
+        for r in e.get("out_rels", [])[:3]:
+            target = r.get("target", "?")
+            triple_examples.append(f"  {e['id']} --{r['rel']}--> {target}")
+            if len(triple_examples) >= 30:
+                break
+        if len(triple_examples) >= 30:
+            break
 
-    top_types = type_counts.most_common(25)
-    top_rels = rel_counts.most_common(30)
-    top_triples = triple_patterns.most_common(30)
+    prompt = f"""You are an ontology engineer designing a domain ontology for a knowledge graph.
 
-    prompt = f"""You are an ontology engineer. Given a knowledge graph's schema statistics, propose ontology classes.
-
-ENTITY TYPES (from extraction, with counts):
-{chr(10).join(f'  {t}: {c} entities' for t, c in top_types)}
+ENTITY TYPES with example entity names:
+{chr(10).join(type_descriptions[:20])}
 
 RELATION TYPES (most common):
-{chr(10).join(f'  {r}: {c} occurrences' for r, c in top_rels)}
+{chr(10).join(f'  {r} ({c}x)' for r, c in top_rels)}
 
-COMMON TRIPLE PATTERNS (subject_type --relation--> object_type):
-{chr(10).join(f'  {p}: {c}x' for p, c in top_triples)}
+EXAMPLE TRIPLES (entity --relation--> entity):
+{chr(10).join(triple_examples)}
 
-Propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes that would organize these entities.
-For each class, give a one-line definition.
+Based on these REAL entities and their relationships, propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} \
+ontology classes that capture the DOMAIN CONCEPTS represented by these entities.
 
-RULES:
-- Use PascalCase single-word names (e.g., Coverage, Person, Risk, Structure)
-- Prefer simple, generic names over compound names
-- Each class should correspond to a distinct conceptual role
-- Do NOT use the relation types as class names
+CRITICAL RULES:
+- Propose classes for WHAT entities ARE in the real world (e.g., Person, Organization, \
+Product, Coverage, Risk, Location, Document, Event) — NOT data types (e.g., Amount, \
+Number, Date, Text, Measurement, String)
+- Each class = a distinct real-world concept with a clear role in the domain
+- Use single-word PascalCase names (e.g., Coverage, Person, Risk, Structure, Product)
+- Avoid compound names like "InsuredProperty" or "FinancialAmount" — prefer the simpler \
+word that captures the core concept (Property, Amount)
+- Every entity in the graph should fit into exactly one class
+- Aim for balanced classes — no class should contain more than 30% of all entities
 
 Output as JSON array:
-[{{"name": "ClassName", "definition": "one line definition"}}, ...]
+[{{"name": "ClassName", "definition": "one-line definition of what entities belong here"}}, ...]
 """
     raw = _invoke_llm(llm, prompt)
     parsed = _parse_json_safely(raw)
@@ -259,10 +290,18 @@ Output as JSON array:
     # Sanitize
     classes = [_sanitize_label(c) for c in classes if c]
 
-    # Ensure minimum set
+    # Deduplicate (case-insensitive)
+    seen_lower: set[str] = set()
+    deduped = []
+    for c in classes:
+        if c.lower() not in seen_lower:
+            deduped.append(c)
+            seen_lower.add(c.lower())
+    classes = deduped
+
+    # Ensure minimum set — fallback to entity type names
     if len(classes) < TARGET_CLASSES_MIN:
-        # Fallback: use top entity types
-        for t, _ in top_types:
+        for t, _ in sorted(type_groups.items(), key=lambda x: -len(x[1])):
             if t not in ("Unknown", "unknown") and _sanitize_label(t) not in classes:
                 classes.append(_sanitize_label(t))
             if len(classes) >= TARGET_CLASSES_MIN:
@@ -272,7 +311,9 @@ Output as JSON array:
     if "Other" not in classes:
         classes.append("Other")
 
-    print(f"  ✓ Discovered {len(classes) - 1} classes + Other: {classes}")
+    print(f"  ✓ Discovered {len(classes) - 1} classes + Other:", flush=True)
+    for c in classes:
+        print(f"    - {c}", flush=True)
     return classes
 
 
@@ -298,22 +339,27 @@ def batch_type_entities(
 
         entity_descriptions = []
         for e in batch:
-            desc = f"- {e['id']} (type: {e['entity_type']})"
+            desc = f"- {e['id']} (extracted type: {e['entity_type']})"
             if e["out_summary"]:
-                desc += f"  rels: {'; '.join(e['out_summary'][:3])}"
+                desc += f"\n    outgoing: {'; '.join(e['out_summary'][:5])}"
             if e["in_summary"]:
-                desc += f"  incoming: {'; '.join(e['in_summary'][:2])}"
+                desc += f"\n    incoming: {'; '.join(e['in_summary'][:3])}"
             entity_descriptions.append(desc)
 
-        prompt = f"""Assign each entity to the most appropriate ontology class.
+        prompt = f"""Classify each entity into the ontology class that best describes \
+WHAT IT IS in the real world.
 
-CLASSES: {class_list}, Other
+AVAILABLE CLASSES: {class_list}, Other
+
+Think about each entity: Is it a person? An organization? A type of coverage or product? \
+A physical structure or location? A risk or peril? Classify by the entity's ROLE in the \
+domain, not by its data format.
 
 ENTITIES:
 {chr(10).join(entity_descriptions)}
 
-For each entity, output one line: entity_id -> ClassName
-Use "Other" only if no class fits at all.
+For each entity, output exactly one line: entity_name -> ClassName
+Use "Other" only if the entity truly does not fit any class.
 """
         raw = _invoke_llm(llm, prompt)
 
@@ -345,11 +391,140 @@ Use "Other" only if no class fits at all.
 
     # Distribution
     dist = Counter(assignments.values())
-    print(f"  ✓ Typed {len(assignments)} entities across {len(dist)} classes")
+    print(f"  ✓ Typed {len(assignments)} entities across {len(dist)} classes", flush=True)
     for cls, cnt in dist.most_common():
-        print(f"    {cls}: {cnt}")
+        print(f"    {cls}: {cnt}", flush=True)
 
     return assignments
+
+
+def rebalance_mega_classes(
+    assignments: dict[str, str],
+    entities: list[dict],
+    class_vocab: list[str],
+    llm: ChatOllama,
+    max_fraction: float = MAX_CLASS_FRACTION,
+) -> tuple[dict[str, str], list[str]]:
+    """Split any class that exceeds max_fraction of total entities.
+
+    Uses LLM to propose sub-classes for the mega-class members.
+    Returns updated assignments and updated class vocabulary.
+    """
+    total = len(assignments)
+    threshold = int(total * max_fraction)
+    dist = Counter(assignments.values())
+    updated_vocab = list(class_vocab)
+
+    mega_classes = [(cls, cnt) for cls, cnt in dist.items()
+                    if cnt > threshold and cls != "Other"]
+
+    if not mega_classes:
+        print("\n[Phase 1c] No mega-classes detected — skipping rebalance.", flush=True)
+        return assignments, updated_vocab
+
+    print(f"\n[Phase 1c] Rebalancing {len(mega_classes)} mega-classes (threshold={threshold})...", flush=True)
+    entity_map = {e["id"]: e for e in entities}
+    updated = dict(assignments)
+
+    for mega_cls, mega_cnt in mega_classes:
+        print(f"  Splitting {mega_cls} ({mega_cnt} members)...", flush=True)
+
+        # Get members with context
+        members = [eid for eid, c in updated.items() if c == mega_cls]
+        # Sample for the LLM
+        import random
+        random.seed(42)
+        sample = random.sample(members, min(40, len(members)))
+        sample_descs = []
+        for eid in sample:
+            e = entity_map.get(eid, {})
+            desc = f"  {eid}"
+            if e.get("out_summary"):
+                desc += f" (rels: {'; '.join(e['out_summary'][:2])})"
+            sample_descs.append(desc)
+
+        other_classes = [c for c in updated_vocab if c != mega_cls and c != "Other"]
+
+        prompt = f"""The ontology class "{mega_cls}" contains {mega_cnt} entities — too many for a single class.
+
+Here are example members:
+{chr(10).join(sample_descs)}
+
+Other existing classes: {', '.join(other_classes)}
+
+These entities probably represent DIFFERENT real-world concepts that were lumped together. \
+Propose 2-4 sub-classes to replace "{mega_cls}". Each sub-class should capture a distinct \
+domain concept.
+
+RULES:
+- Use PascalCase single-word names
+- Propose concepts for WHAT these entities ARE (e.g., Person, Product, Coverage, Risk, \
+Structure, Document, Event) — not data types
+- Some members might actually belong to existing classes listed above — that's fine
+- Output JSON: [{{"name": "SubClass1", "definition": "...", "example_members": ["entity1", "entity2"]}}]
+"""
+        raw = _invoke_llm(llm, prompt)
+        parsed = _parse_json_safely(raw)
+
+        if not isinstance(parsed, list) or len(parsed) < 2:
+            print(f"    ✗ Could not split {mega_cls} — LLM did not propose sub-classes", flush=True)
+            continue
+
+        new_classes = []
+        for item in parsed:
+            if isinstance(item, dict) and "name" in item:
+                name = _sanitize_label(item["name"])
+                if name and name != mega_cls and name not in updated_vocab:
+                    new_classes.append(name)
+                    updated_vocab.append(name)
+
+        if not new_classes:
+            print(f"    ✗ No valid new classes proposed for {mega_cls}", flush=True)
+            continue
+
+        # Remove mega_cls from vocab, replace with new classes
+        if mega_cls in updated_vocab:
+            updated_vocab.remove(mega_cls)
+
+        # Re-type the mega-class members using new sub-classes + existing classes
+        all_target_classes = new_classes + other_classes
+        retype_vocab = all_target_classes + ["Other"]
+
+        # Re-type in batches
+        n_batches = (len(members) + BATCH_SIZE - 1) // BATCH_SIZE
+        retype_class_list = ", ".join(all_target_classes)
+
+        for bi in range(n_batches):
+            batch = members[bi * BATCH_SIZE:(bi + 1) * BATCH_SIZE]
+            batch_descs = []
+            for eid in batch:
+                e = entity_map.get(eid, {})
+                desc = f"- {eid} (type: {e.get('entity_type', '?')})"
+                if e.get("out_summary"):
+                    desc += f"\n    rels: {'; '.join(e['out_summary'][:4])}"
+                batch_descs.append(desc)
+
+            rprompt = f"""Classify each entity by WHAT IT IS in the real world.
+
+CLASSES: {retype_class_list}, Other
+
+ENTITIES:
+{chr(10).join(batch_descs)}
+
+Output: entity_name -> ClassName
+"""
+            raw2 = _invoke_llm(llm, rprompt)
+            line_re = re.compile(r'^[- ]*(.+?)\s*->\s*(\w+)\s*$', re.MULTILINE)
+            for m in line_re.finditer(raw2):
+                eid = m.group(1).strip().strip('"').strip("'")
+                cls = _sanitize_label(m.group(2).strip())
+                if eid in updated and (cls in updated_vocab or cls == "Other"):
+                    updated[eid] = cls
+
+        new_dist = Counter(updated[m] for m in members)
+        print(f"    ✓ Split into: {dict(new_dist.most_common())}", flush=True)
+
+    return updated, updated_vocab
 
 
 # ---------------------------------------------------------------------------
@@ -841,6 +1016,11 @@ def run_sv_loi(
 
     # Phase 1b: Batch LLM entity typing
     assignments = batch_type_entities(entities, class_vocab, llm)
+
+    # Phase 1c: Rebalance mega-classes (split any class > 30% of entities)
+    assignments, class_vocab = rebalance_mega_classes(
+        assignments, entities, class_vocab, llm,
+    )
 
     # Phase 2: Build structural signatures + consensus check
     features, entity_ids, feature_names = build_structural_signatures(entities)
