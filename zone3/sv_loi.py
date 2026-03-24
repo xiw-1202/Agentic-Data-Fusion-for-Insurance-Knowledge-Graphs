@@ -249,9 +249,14 @@ def discover_class_vocabulary(entities: list[dict], llm: ChatOllama) -> list[str
         if len(triple_examples) >= 30:
             break
 
-    prompt = f"""You are an ontology engineer designing a domain ontology for a knowledge graph.
+    prompt = f"""You are an ontology engineer designing a DOMAIN ontology for a knowledge graph \
+extracted from insurance documents.
 
-ENTITY TYPES with example entity names:
+IMPORTANT: Ignore the "entity type" labels shown below — they are noisy extraction artifacts \
+(data types like "FinancialAmount"). Focus ONLY on the entity NAMES and RELATIONSHIPS to \
+determine what real-world concepts exist.
+
+ENTITY NAMES grouped by extraction type (ignore the type names, look at the entity names):
 {chr(10).join(type_descriptions[:20])}
 
 RELATION TYPES (most common):
@@ -260,22 +265,24 @@ RELATION TYPES (most common):
 EXAMPLE TRIPLES (entity --relation--> entity):
 {chr(10).join(triple_examples)}
 
-Based on these REAL entities and their relationships, propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} \
-ontology classes that capture the DOMAIN CONCEPTS represented by these entities.
+Based on the entity NAMES and their RELATIONSHIPS, propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} \
+ontology classes. Think about what each entity IS in the real world:
+- "Deductible" = a feature of an insurance product, not an amount
+- "Flood zone A" = a geographic risk zone, not a location
+- "Coverage B" = a type of insurance coverage
+- "NFIP" = an organization
+- "Basement" = a structural component of a building
 
-CRITICAL RULES:
-- Propose classes for WHAT entities ARE in the real world (e.g., Person, Organization, \
-Product, Coverage, Risk, Location, Document, Event) — NOT data types (e.g., Amount, \
-Number, Date, Text, Measurement, String)
-- Each class = a distinct real-world concept with a clear role in the domain
-- Use single-word PascalCase names (e.g., Coverage, Person, Risk, Structure, Product)
-- Avoid compound names like "InsuredProperty" or "FinancialAmount" — prefer the simpler \
-word that captures the core concept (Property, Amount)
-- Every entity in the graph should fit into exactly one class
-- Aim for balanced classes — no class should contain more than 30% of all entities
+RULES:
+- Classes must represent DOMAIN CONCEPTS: what role does this entity play in insurance?
+  Good: Coverage, Product, Risk, Structure, Person, Organization, Property, Damage, Address, Peril
+  Bad: Amount, Number, Date, Text, Measurement, FinancialAmount, TimePeriod
+- Use single PascalCase words (Coverage, Person, Risk — NOT InsuredProperty, CoverageType)
+- Aim for {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} classes, balanced (no class > 25% of entities)
+- Think: if a human insurance expert organized these entities into folders, what would the folder names be?
 
 Output as JSON array:
-[{{"name": "ClassName", "definition": "one-line definition of what entities belong here"}}, ...]
+[{{"name": "ClassName", "definition": "one-line definition"}}, ...]
 """
     raw = _invoke_llm(llm, prompt)
     parsed = _parse_json_safely(raw)
@@ -339,27 +346,31 @@ def batch_type_entities(
 
         entity_descriptions = []
         for e in batch:
-            desc = f"- {e['id']} (extracted type: {e['entity_type']})"
+            # Lead with entity name, de-emphasize noisy extraction type
+            desc = f"- {e['id']}"
             if e["out_summary"]:
-                desc += f"\n    outgoing: {'; '.join(e['out_summary'][:5])}"
+                desc += f"\n    connects to: {'; '.join(e['out_summary'][:5])}"
             if e["in_summary"]:
-                desc += f"\n    incoming: {'; '.join(e['in_summary'][:3])}"
+                desc += f"\n    connected from: {'; '.join(e['in_summary'][:3])}"
             entity_descriptions.append(desc)
 
-        prompt = f"""Classify each entity into the ontology class that best describes \
-WHAT IT IS in the real world.
+        prompt = f"""Classify each entity into the ontology class that describes WHAT IT IS \
+in the real world — its domain role, not its data type.
 
 AVAILABLE CLASSES: {class_list}, Other
 
-Think about each entity: Is it a person? An organization? A type of coverage or product? \
-A physical structure or location? A risk or peril? Classify by the entity's ROLE in the \
-domain, not by its data format.
+For each entity, ask: "What IS this thing in the insurance domain?"
+- A deductible is a feature of a product/coverage, not a financial amount
+- A flood zone is a risk classification, not just a location
+- A building is a physical structure
+- "NFIP" is an organization
+- "Coverage B" is a type of coverage
 
 ENTITIES:
 {chr(10).join(entity_descriptions)}
 
 For each entity, output exactly one line: entity_name -> ClassName
-Use "Other" only if the entity truly does not fit any class.
+Classify by DOMAIN ROLE. Use "Other" only if truly unclassifiable.
 """
         raw = _invoke_llm(llm, prompt)
 
