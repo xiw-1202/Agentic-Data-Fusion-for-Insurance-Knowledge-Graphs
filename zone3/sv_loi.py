@@ -138,7 +138,7 @@ def _invoke_llm(llm: ChatOllama, prompt: str) -> str:
 
 def load_entities(graph: Neo4jGraph) -> list[dict]:
     """Load all Entity nodes with structural context."""
-    print("\n[Phase 0] Loading entities from Neo4j...")
+    print("\n[Phase 0] Loading entities from Neo4j...", flush=True)
 
     rows = graph.query("""
         MATCH (n:Entity)
@@ -799,6 +799,11 @@ def write_ontology(
 # Main Pipeline
 # ---------------------------------------------------------------------------
 
+def _flush_print(msg: str) -> None:
+    """Print with immediate flush for Slurm log visibility."""
+    print(msg, flush=True)
+
+
 def run_sv_loi(
     model: str = config.OLLAMA_MODEL,
     suffix: str = "zone3_svloi",
@@ -806,14 +811,23 @@ def run_sv_loi(
     """Run the full SV-LOI pipeline."""
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
-    print("=" * 70)
-    print("CS584 Capstone — Zone 3: SV-LOI")
-    print("Structurally-Verified LLM Ontology Induction")
-    print(f"Model: {model} | Suffix: {suffix}")
-    print("=" * 70)
+    _flush_print("=" * 70)
+    _flush_print("CS584 Capstone — Zone 3: SV-LOI")
+    _flush_print("Structurally-Verified LLM Ontology Induction")
+    _flush_print(f"Model: {model} | Suffix: {suffix}")
+    _flush_print("=" * 70)
 
     start = time.time()
-    graph = get_neo4j_graph()
+
+    # Test Neo4j connection first
+    _flush_print("\n[Pre-check] Testing Neo4j connection...")
+    try:
+        graph = get_neo4j_graph()
+        test = graph.query("RETURN 1 AS ok")
+        _flush_print(f"  ✓ Neo4j connected ({config.NEO4J_URI})")
+    except Exception as e:
+        _flush_print(f"  ✗ Neo4j connection FAILED: {e}")
+        return {"error": f"Neo4j connection failed: {e}"}
 
     # Phase 0: Load entities
     entities = load_entities(graph)
