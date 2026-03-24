@@ -1,5 +1,4 @@
-"""
-baseline/ontology_induction.py
+"""baseline/ontology_induction.py
 ================================
 LLM-based ontology induction for the improved baseline.
 
@@ -13,8 +12,13 @@ This mirrors what Zone 3 does (Leiden community detection + ontology mapping)
 but uses a simpler LLM-only approach — a fair comparison baseline.
 """
 
+from __future__ import annotations
+
 import re
 from langchain_core.messages import HumanMessage
+
+# Strict identifier pattern for Neo4j labels — reject anything else
+_SAFE_LABEL_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 RISKINE_CLASSES = [
     "Coverage", "Product", "Damage", "Risk", "Structure",
@@ -110,9 +114,14 @@ def apply_ontology_labels(graph, mapping: dict[str, str]) -> int:
     for original_label, riskine_class in mapping.items():
         if riskine_class == "Other":
             continue
-        # Strip backticks defensively before interpolating into Cypher
-        safe_original = original_label.replace("`", "")
+        # Validate labels as safe Neo4j identifiers (no Cypher injection)
+        safe_original = original_label.replace("`", "").replace(" ", "_")
         safe_class    = riskine_class.replace("`", "")
+        if not _SAFE_LABEL_RE.match(safe_original):
+            print(f"  [ontology] Skipping unsafe label: {original_label!r}")
+            continue
+        if not _SAFE_LABEL_RE.match(safe_class):
+            continue
         try:
             result = graph.query(
                 f"MATCH (n:`{safe_original}`) "

@@ -1,5 +1,4 @@
-"""
-Zone 1: Multimodal Ingestion — Novel Pipeline
+"""Zone 1: Multimodal Ingestion — Novel Pipeline
 =============================================
 Hybrid chunking strategy (per project plan §3.2):
   1. Title-based splitting at document section boundaries
@@ -16,6 +15,8 @@ Supports:
   - CSV: OpenFEMA policies + claims (token-capped dynamic batching with field grouping)
 """
 
+from __future__ import annotations
+
 import json
 import re
 import os
@@ -29,7 +30,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from langchain_community.document_loaders import PyPDFLoader
 from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 
 try:
     import pdfplumber
@@ -48,7 +48,6 @@ import config
 SEMANTIC_MERGE_THRESHOLD = 0.85   # τ from plan §3.2
 EMBED_MODEL = "all-MiniLM-L6-v2"  # matches plan stack
 MAX_CHUNK_TOKENS = 1200            # hard ceiling; sections exceeding this are sub-chunked
-PARAGRAPH_OVERLAP_TOKENS = 50      # header repeated in each sub-chunk for context
 
 # SFIP section header patterns (Roman numerals + lettered sub-sections).
 # Major sections use ALL-CAPS titles (e.g. "IV. PROPERTY NOT INSURED").
@@ -328,18 +327,28 @@ def _semantic_merge(sections: list[dict], model: SentenceTransformer,
     print(f"  Embedding {len(texts)} sections with {EMBED_MODEL}...")
     embeddings = model.encode(texts, show_progress_bar=False, normalize_embeddings=True)
 
+    # Precompute all adjacent similarities in one vectorised pass.
+    # Embeddings are L2-normalized, so dot product = cosine similarity.
+    adjacent_sims = (embeddings[:-1] * embeddings[1:]).sum(axis=1) if len(embeddings) > 1 else np.array([])
+
     merged: list[dict] = []
     i = 0
     while i < len(sections):
         current = dict(sections[i])
         current["merged_from"] = [i]
+        # Anchor embedding: always compare next candidate against the FIRST
+        # section in this merge group (not the last-absorbed one).
+        anchor_idx = i
 
         # Try to absorb the next section if similar enough AND within token ceiling
         while i + 1 < len(sections):
-            sim = float(cosine_similarity(
-                embeddings[i].reshape(1, -1),
-                embeddings[i + 1].reshape(1, -1)
-            )[0][0])
+            # Use anchor similarity: compare first section of group to candidate.
+            # For the first candidate (i == anchor_idx) this equals adjacent_sims[i].
+            # For subsequent candidates, recompute against the anchor.
+            if i == anchor_idx:
+                sim = float(adjacent_sims[i])
+            else:
+                sim = float(np.dot(embeddings[anchor_idx], embeddings[i + 1]))
 
             if sim >= threshold:
                 next_sec = sections[i + 1]
@@ -530,6 +539,7 @@ def _chunk_csv_records(
         current_batch = []
         current_tokens = 0
         current_temporal = []
+        batch_start_idx = end_idx + 1
 
     for rec_idx, rec in enumerate(records):
         # Extract temporal markers before formatting
@@ -544,7 +554,6 @@ def _chunk_csv_records(
 
         if current_tokens + tok > max_tokens and current_batch:
             flush_batch(rec_idx - 1)
-            batch_start_idx = rec_idx  # reset after flush
 
         current_batch.append(formatted)
         current_tokens += tok

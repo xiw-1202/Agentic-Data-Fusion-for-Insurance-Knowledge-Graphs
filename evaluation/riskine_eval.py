@@ -1,5 +1,4 @@
-"""
-evaluation/riskine_eval.py
+"""evaluation/riskine_eval.py
 ==========================
 Riskine Insurance Ontology Alignment Evaluation.
 
@@ -21,12 +20,14 @@ Saves: data/results/riskine_eval_{suffix}.json
 CLI:   python3 evaluation/riskine_eval.py --suffix zone1
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 import argparse
-
 import re
+from typing import Optional
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -61,6 +62,7 @@ from langchain_ollama import ChatOllama
 
 import config
 import riskine_loader
+import ontology_metrics
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +80,7 @@ EXCLUDED_LABELS = {"__Entity__", "Document", "OntologyClass", "Entity"}
 # Embedding
 # ---------------------------------------------------------------------------
 
-_model_cache = None  # type: Optional[SentenceTransformer]
+_model_cache: Optional[SentenceTransformer] = None
 
 
 def embed_labels(labels: list[str]) -> np.ndarray:
@@ -112,13 +114,14 @@ def _llm_judge(llm: ChatOllama, induced: str, riskine_class: str, properties: li
     try:
         response = llm.invoke(prompt)
         text = response.content.strip().upper()
-        # Parse carefully — "NO_MATCH" contains "MATCH", check it first
-        if "NO_MATCH" in text or ("NO" in text.split() and "MATCH" in text.split()):
+        # Parse order matters: NO_MATCH first (contains "MATCH"), then PARTIAL
+        # (a response like "PARTIAL MATCH" must → PARTIAL, not MATCH)
+        if "NO_MATCH" in text:
             return "NO_MATCH"
-        elif "MATCH" in text:
-            return "MATCH"
         elif "PARTIAL" in text:
             return "PARTIAL"
+        elif "MATCH" in text:
+            return "MATCH"
         else:
             return "NO_MATCH"
     except Exception as e:
@@ -144,31 +147,32 @@ def _get_label_members(graph: Neo4jGraph, label: str) -> list[str]:
         return []
 
 
-def measure_riskine_alignment_members(
+def measure_entity_assignment(
     graph: Neo4jGraph,
     riskine_classes: list[dict],
     induced_labels: list[str],
 ) -> dict:
     """
-    Member-based Riskine alignment evaluation — removes naming-convention bias (F-07).
+    Entity Assignment F1 — evaluates whether entities are placed in the correct
+    ontological class by comparing member centroids to Riskine class descriptions.
 
-    Problem with name-based F1:
-        'InsuranceParty' embeds far from 'Person' even though its members
-        {Insured, Insurer, FEMA, Bailee} are clearly person/org concepts.
+    Unlike BERTScore/Graph F1 (which compare class *names* and *structure*),
+    this metric evaluates the actual *entity-to-class assignments* — the primary
+    output of ontology induction.
 
-    Fix:
+    Method:
         For each induced class, embed its member entity IDs and average them
         into a cluster centroid. Compare centroids to Riskine class descriptions
-        (class name + property names) rather than just the class name.
+        (class name + property names) via cosine similarity.
 
     Returns:
-        member_precision, member_recall, member_f1,
-        member_riskine_covered, member_alignment_table
+        entity_assignment_precision, entity_assignment_recall, entity_assignment_f1,
+        entity_assignment_riskine_covered, entity_assignment_table
     """
     MEMBER_CANDIDATE_THRESHOLD = 0.42   # centroid cosines are denser — lower threshold
     MEMBER_MATCH_THRESHOLD     = 0.58   # above this → MATCH (score 1.0), else PARTIAL (0.5)
 
-    print("\n  [member-eval] Building member-centroid embeddings...")
+    print("\n  [entity-assignment] Building member-centroid embeddings...")
     centroids: list[np.ndarray] = []
     descriptions: list[str] = []
 
@@ -178,7 +182,9 @@ def measure_riskine_alignment_members(
             embs = embed_labels(members)                          # (M, 384)
             centroid = embs.mean(axis=0)
             norm = np.linalg.norm(centroid)
-            centroid = centroid / (norm + 1e-9)
+            if norm > 0:
+                centroid = centroid / norm
+            # else: zero vector → ~0 similarity, which is correct
         else:
             centroid = embed_labels([_humanize_label(label)])[0]  # fallback: class name
         centroids.append(centroid)
@@ -234,15 +240,15 @@ def measure_riskine_alignment_members(
     recall    = len(riskine_covered) / len(riskine_names) if riskine_names else 0.0
     f1        = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-    print(f"  [member-eval] Member-based P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}")
-    print(f"  [member-eval] Riskine classes covered: {sorted(riskine_covered)}")
+    print(f"  [entity-assignment] P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}")
+    print(f"  [entity-assignment] Riskine classes covered: {sorted(riskine_covered)}")
 
     return {
-        "member_precision":       round(precision, 4),
-        "member_recall":          round(recall,    4),
-        "member_f1":              round(f1,        4),
-        "member_riskine_covered": sorted(riskine_covered),
-        "member_alignment_table": member_table,
+        "entity_assignment_precision":       round(precision, 4),
+        "entity_assignment_recall":          round(recall,    4),
+        "entity_assignment_f1":              round(f1,        4),
+        "entity_assignment_riskine_covered": sorted(riskine_covered),
+        "entity_assignment_table":           member_table,
     }
 
 
@@ -380,27 +386,34 @@ def measure_riskine_alignment(
         "unmatched_riskine": unmatched_riskine,
     }
 
-    # Member-based alignment (F-07 fix) — embed cluster members, not class name strings.
-    # This removes naming-convention bias: a cluster named "InsuranceParty" whose members
-    # are {Insured, Insurer, FEMA} should embed close to Person/Organization regardless
-    # of what the cluster was named.
+    # Entity Assignment F1 — evaluates entity-to-class placement quality.
+    # Embeds cluster members (not class names) to remove naming-convention bias (F-07).
     try:
-        member_results = measure_riskine_alignment_members(graph, riskine_classes, induced_labels)
-        result.update(member_results)
+        ea_results = measure_entity_assignment(graph, riskine_classes, induced_labels)
+        result.update(ea_results)
     except Exception as exc:
-        print(f"  [member-eval] WARNING: member-based eval failed: {exc}")
+        print(f"  [entity-assignment] WARNING: entity assignment eval failed: {exc}")
+
+    # Standard ontology metrics (OLLM NeurIPS'24, AutoSchemaKG'25)
+    # Fuzzy F1, Continuous F1, Graph F1, BERTScore, Taxonomy Edge F1, Wu-Palmer
+    try:
+        schemas = riskine_loader.fetch_and_cache()
+        std_metrics = ontology_metrics.evaluate_ontology(graph, schemas, riskine_classes)
+        result["standard_metrics"] = std_metrics
+    except Exception as exc:
+        print(f"  [ontology-metrics] WARNING: standard metrics failed: {exc}")
 
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
     out_path = os.path.join(config.RESULTS_DIR, f"riskine_eval_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
     print(f"\n  ✓ Riskine alignment saved → {out_path}")
-    print(f"  Name-based  P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}")
-    if "member_f1" in result:
-        mp = result["member_precision"]
-        mr = result["member_recall"]
-        mf = result["member_f1"]
-        print(f"  Member-based P={mp:.3f}  R={mr:.3f}  F1={mf:.3f}  (F-07 fix)")
+    if "entity_assignment_f1" in result:
+        ep = result["entity_assignment_precision"]
+        er = result["entity_assignment_recall"]
+        ef = result["entity_assignment_f1"]
+        print(f"  Entity Assignment P={ep:.3f}  R={er:.3f}  F1={ef:.3f}")
+    print(f"  (Legacy name F1={f1:.3f} — deprecated, see F-07)")
 
     return result
 
@@ -443,13 +456,19 @@ if __name__ == "__main__":
     print(f"  Induced labels:    {result['induced_label_count']}")
     print(f"  Riskine classes:   {result['riskine_class_count']}")
     print(f"  Riskine covered:   {result['riskine_covered_count']}")
-    print(f"  Name-based:")
-    print(f"    Precision:       {result['precision']:.3f}")
-    print(f"    Recall:          {result['recall']:.3f}")
-    print(f"    F1:              {result['f1']:.3f}")
-    if "member_f1" in result:
-        print(f"  Member-based (F-07 fix — embeds cluster members, not class names):")
-        print(f"    Precision:       {result['member_precision']:.3f}")
-        print(f"    Recall:          {result['member_recall']:.3f}")
-        print(f"    F1:              {result['member_f1']:.3f}")
-        print(f"    Riskine covered: {result['member_riskine_covered']}")
+    if "entity_assignment_f1" in result:
+        print(f"  Entity Assignment (primary — evaluates entity-to-class placement):")
+        print(f"    Precision:       {result['entity_assignment_precision']:.3f}")
+        print(f"    Recall:          {result['entity_assignment_recall']:.3f}")
+        print(f"    F1:              {result['entity_assignment_f1']:.3f}")
+        print(f"    Riskine covered: {result['entity_assignment_riskine_covered']}")
+    if "standard_metrics" in result:
+        sm = result["standard_metrics"]
+        print(f"  Standard ontology metrics (OLLM NeurIPS'24 / AutoSchemaKG'25):")
+        print(f"    BERTScore F1:    {sm.get('bertscore_f1', 0):.3f}")
+        print(f"    Graph F1:        {sm.get('graph_f1', 0):.3f}")
+        print(f"    Continuous F1:   {sm.get('continuous_f1', 0):.3f}")
+        print(f"    Fuzzy F1:        {sm.get('fuzzy_f1', 0):.3f}")
+        print(f"    Wu-Palmer:       {sm.get('avg_wu_palmer', 0):.3f}")
+    # Legacy name-based F1 still computed for backward compat but not highlighted
+    print(f"  (Legacy name-based F1: {result['f1']:.3f} — deprecated, see F-07)")

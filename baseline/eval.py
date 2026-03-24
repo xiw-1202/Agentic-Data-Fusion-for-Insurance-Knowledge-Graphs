@@ -10,10 +10,13 @@ Metrics (per project plan Section 4 / Appendix D):
 Run AFTER baseline/pipeline.py has populated Neo4j.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 import re
+from collections import defaultdict
 from dataclasses import dataclass, asdict
 
 # Allow imports from project root (config.py lives there)
@@ -264,7 +267,6 @@ def measure_type_consistency(graph: Neo4jGraph) -> dict:
 
     # Group labels by their first meaningful token as a proxy for concept.
     # Split on underscore, space, or camelCase boundary (but strip leading empty strings).
-    from collections import defaultdict
     root_groups: dict = defaultdict(list)
     for label in labels:
         tokens = [t for t in re.split(r'_| |(?<=[a-z])(?=[A-Z])', label) if t]
@@ -383,7 +385,10 @@ def run_evaluation(suffix: str = "original", run_riskine: bool = False, model: s
     metrics.tasks_total = len(task_results)
     metrics.tasks_with_results = sum(1 for t in task_results if t["has_results"])
     metrics.tasks_keyword_match = sum(1 for t in task_results if t["keyword_match"])
-    metrics.query_accuracy = metrics.tasks_keyword_match / metrics.tasks_total
+    metrics.query_accuracy = (
+        metrics.tasks_keyword_match / metrics.tasks_total
+        if metrics.tasks_total > 0 else 0.0
+    )
 
     print(f"\n  {'ID':>3}  {'Cat':<12}  {'Results':>7}  {'Match':>5}  Question")
     print(f"  {'-'*3}  {'-'*12}  {'-'*7}  {'-'*5}  {'-'*40}")

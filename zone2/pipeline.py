@@ -32,7 +32,7 @@ import time
 import os
 import sys
 import argparse
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Optional
 from collections import defaultdict
 import operator
 
@@ -465,7 +465,7 @@ def _parse_chunk_triples(parsed: list, chunk_id: str, source: str) -> list[dict]
 
 
 def _build_extraction_messages(vocab: list[str], focus: str = "",
-                               entity_types: list[str] | None = None) -> list:
+                               entity_types: "Optional[list[str]]" = None) -> list:
     """Build [SystemMessage, *few-shot pairs] used as the base for each chunk call.
 
     Args:

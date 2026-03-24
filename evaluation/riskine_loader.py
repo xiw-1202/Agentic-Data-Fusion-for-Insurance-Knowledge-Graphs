@@ -1,5 +1,4 @@
-"""
-evaluation/riskine_loader.py
+"""evaluation/riskine_loader.py
 ============================
 Fetch and cache Riskine insurance ontology schemas from GitHub.
 Used by riskine_eval.py to build ground-truth class list for P/R/F1 scoring.
@@ -8,8 +7,11 @@ Riskine ontology: https://github.com/riskine/ontology/tree/master/schemas/core
 10 flood-relevant schemas are fetched; all 27 are cached for completeness.
 """
 
+from __future__ import annotations
+
 import json
 import os
+import re
 import urllib.request
 from typing import Optional
 
@@ -137,8 +139,6 @@ def extract_riskine_classes(schemas: dict[str, dict]) -> list[dict]:
 
 def _to_pascal_case(s: str) -> str:
     """'some-hyphen-name' or 'snake_case' or 'lowercase' → PascalCase."""
-    # Split on hyphens, underscores, or spaces
-    import re
     parts = re.split(r'[-_\s]+', s)
     return "".join(p.capitalize() for p in parts if p)
 

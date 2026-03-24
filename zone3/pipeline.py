@@ -1,5 +1,4 @@
-"""
-Zone 3 Pipeline — Bottom-Up Ontology Induction via Leiden Community Detection
+"""Zone 3 Pipeline — Bottom-Up Ontology Induction via Leiden Community Detection
 
 Core research contribution: automatically discovers ontology classes from the
 raw entity graph produced by Zone 2, without any reference ontology.
@@ -35,13 +34,15 @@ Evaluation (run AFTER this pipeline):
   python3 baseline/eval.py --suffix zone3 --riskine
 """
 
+from __future__ import annotations
+
 import json
 import re
 import time
 import os
 import sys
 import argparse
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Optional, Union
 from collections import defaultdict
 import operator
 
@@ -765,7 +766,7 @@ def write_ontology(state: Zone3State) -> dict:
             "MATCH (c:OntologyClass) RETURN c.name AS name"
         )
         for row in existing_oc:
-            old_cls = row["name"]
+            old_cls = _sanitize_label(row["name"]) if row["name"] else None
             if old_cls:
                 try:
                     graph.query(
@@ -984,5 +985,32 @@ Examples:
         "--model", default=config.OLLAMA_MODEL,
         help=f"Ollama model name (default: {config.OLLAMA_MODEL})"
     )
+    parser.add_argument(
+        "--method", choices=["leiden", "rsi"], default="leiden",
+        help="Induction method: leiden (baseline) or rsi (RSI-LCR novel method)"
+    )
+    parser.add_argument(
+        "--suffix", default=None,
+        help="Suffix for result files (default: zone3 for leiden, zone3_rsi for rsi)"
+    )
+    parser.add_argument(
+        "--k", type=int, default=None,
+        help="Force cluster count for RSI method (default: silhouette-guided)"
+    )
+    parser.add_argument(
+        "--refinement-rounds", type=int, default=2,
+        help="LLM coherence refinement rounds for RSI method (default: 2)"
+    )
     args = parser.parse_args()
-    run_zone3(model=args.model)
+
+    if args.method == "rsi":
+        from zone3.rsi_lcr import run_rsi_lcr
+        suffix = args.suffix or "zone3_rsi"
+        run_rsi_lcr(
+            model=args.model,
+            suffix=suffix,
+            k_override=args.k,
+            refinement_rounds=args.refinement_rounds,
+        )
+    else:
+        run_zone3(model=args.model)

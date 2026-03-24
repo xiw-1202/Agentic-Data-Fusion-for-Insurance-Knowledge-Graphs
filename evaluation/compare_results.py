@@ -1,5 +1,4 @@
-"""
-Compare Evaluation Results — Ablation Study
+"""Compare Evaluation Results — Ablation Study
 ============================================
 Prints a side-by-side comparison of:
   - Baseline (original 512-token chunks) + LLMGraphTransformer
@@ -13,11 +12,14 @@ Usage:
   python3 evaluation/compare_results.py --add zone2   # after Zone 2 is built
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 import argparse
 from pathlib import Path
+from typing import Optional
 
 # Allow imports from project root (config.py lives there)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
