@@ -1311,12 +1311,24 @@ def run_sv_loi(
     # Phase 1d: Rescue "Other" entities with targeted re-typing
     assignments = rescue_other_entities(assignments, entities, llm)
 
-    # Phase 2: Build structural signatures + consensus check
+    # Phase 2+3: Iterative structural verification + arbitration
+    # Run verify→arbitrate twice — second pass catches entities that were
+    # mistyped by arbitration or uncovered by class distribution shifts.
     features, entity_ids, feature_names = build_structural_signatures(entities)
-    class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
+    total_flagged = 0
 
-    # Phase 3: Arbitrate disagreements
-    assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
+    for verify_round in range(2):
+        round_label = f"(round {verify_round + 1}/2)"
+        _flush_print(f"\n--- Structural verification {round_label} ---")
+
+        class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
+        total_flagged += len(flagged)
+
+        if not flagged:
+            _flush_print(f"  No disagreements in {round_label} — skipping arbitration.")
+            break
+
+        assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
 
     # Phase 4a: LLM-guided class consolidation (merge semantically similar classes)
     assignments = consolidate_classes(assignments, entities, llm)
@@ -1342,7 +1354,7 @@ def run_sv_loi(
     print(f"  Entities:          {len(entities)}")
     print(f"  Classes:           {len(final_dist)}")
     print(f"  SUBCLASS_OF:       {len(hierarchy)}")
-    print(f"  Flagged/Arbitrated:{len(flagged)}")
+    print(f"  Flagged/Arbitrated:{total_flagged}")
     print(f"  Distribution:")
     for cls, cnt in final_dist.most_common():
         print(f"    {cls}: {cnt}")
@@ -1357,7 +1369,7 @@ def run_sv_loi(
         "class_vocab_discovered": class_vocab,
         "classes_final": sorted(final_dist.keys()),
         "class_distribution": dict(final_dist),
-        "flagged_count": len(flagged),
+        "flagged_count": total_flagged,
         "flagged_entities": flagged[:50],
         "hierarchy": [{"child": c, "parent": p} for c, p in hierarchy],
         "neo4j_stats": neo4j_stats,
