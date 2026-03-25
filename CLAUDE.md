@@ -41,25 +41,25 @@ All scripts must be run from the **project root** (`~/Documents/School/Emory/CS5
 ## Key Commands
 
 ```bash
-# Baseline pipeline (comparison — uses LLMGraphTransformer, unconstrained)
-python3 baseline/pipeline.py --zone1
-python3 baseline/eval.py --suffix zone1 --riskine
-
-# Zone 2 pipeline — domain-agnostic Open IE (bootstrapped schema, no hardcoding)
-python3 zone2/pipeline.py
-python3 zone2/pipeline.py --model qwen2.5:7b
-
-# Zone 3 pipeline — ontology induction (3 methods)
-python3 zone3/pipeline.py                          # Leiden (default)
-python3 zone3/pipeline.py --method rsi-lcr         # RSI-LCR
-python3 zone3/pipeline.py --method sv-loi          # SV-LOI (novel)
-
-# Evaluate any zone
-python3 baseline/eval.py --suffix zone2 --riskine
-python3 baseline/eval.py --suffix zone3 --riskine
-
-# Zone 1 chunking (re-chunk any PDF/CSV)
+# Zone 1 — chunking
 python3 zone1/ingestion.py
+
+# Zone 2 — domain-agnostic Open IE extraction
+python3 zone2/pipeline.py --model qwen2.5:72b
+
+# Zone 3 — ontology induction (3 separate scripts)
+python3 zone3/pipeline.py                                    # Leiden (baseline)
+python3 zone3/rsi_lcr.py --model qwen2.5:72b --suffix zone3_rsi      # RSI-LCR
+python3 zone3/sv_loi.py --model qwen2.5:72b --suffix zone3_svloi     # SV-LOI (novel)
+
+# Evaluation (run AFTER any Zone 3 method)
+python3 baseline/eval.py --suffix zone3_svloi --riskine --model qwen2.5:72b
+
+# Re-run all 3 Zone 3 methods + eval (cluster)
+sbatch scripts/slurm_eval_all.sh
+
+# Baseline (comparison only — uses LLMGraphTransformer)
+python3 baseline/pipeline.py --zone1
 
 # Download FEMA data
 python3 scripts/data_download.py
@@ -73,16 +73,17 @@ python3 scripts/data_download.py
 baseline/          pipeline.py, eval.py, ontology_induction.py, pdf_loader.py
 zone1/             ingestion.py — section-aware hybrid chunking (general)
 zone2/             Domain-agnostic Open IE (pipeline.py, prompts.py, entity_resolution.py)
-zone3/             Ontology induction — Leiden (baseline), RSI-LCR, SV-LOI (novel)
-zone4/             Structured Neo4j storage with SUBCLASS_OF hierarchy (upcoming)
-evaluation/        riskine_eval.py, riskine_loader.py, visualize_results.py, compare_results.py
-scripts/           data_download.py
+zone3/             pipeline.py (Leiden), rsi_lcr.py (RSI-LCR), sv_loi.py (SV-LOI — novel)
+zone4/             Structured Neo4j storage (upcoming)
+evaluation/        riskine_eval.py, ontology_metrics.py, riskine_loader.py, compare_results.py, visualize_results.py
+scripts/           cluster_setup_v2.sh, slurm_pipeline_v2.sh, slurm_rsi_lcr.sh, slurm_sv_loi.sh, slurm_eval_all.sh, run_on_cluster.sh, sync_to_cluster.sh
 config.py          all paths + credentials (loaded from .env)
+docs/              FINDINGS.md (F-01–F-18), GENERALIZATION_PLAN.md, IDEA_REPORT.md, refine-logs/
 
 data/flood/        NFIP flood insurance data (primary LOB)
 data/auto/         Auto insurance data (cross-domain transfer LOB)
 data/riskine/      Reference ontology (EVALUATION ONLY — never imported by pipeline)
-data/results/      All eval output JSONs + HTML
+data/results/      All eval output JSONs
 ```
 
 ---
@@ -95,7 +96,7 @@ data/results/      All eval output JSONs + HTML
 |-----|:---------:|:-----------:|:----------:|------|-------|
 | Baseline (512-tok) | 35% | 8.0% | — | `baseline_eval_results_original.json` | |
 | Zone 1 (llama3.1:8b) | **50%** | 15.2% | **0.250** | `baseline_eval_results_zone1.json` | |
-| Zone 1 (qwen2.5:7b) | 35% | 7.9% | 0.11 | `baseline_eval_results_zone1_qwen.json` | |
+| Zone 1 (qwen2.5:7b) | 35% | 7.9% | 0.11 | *(removed — early exploration)* | |
 | Zone 2 v1 (domain-coupled) | 50% | 0.0% | 0.874 | `baseline_eval_results_zone2.json` | ⚠️ Inflated — had ANCHORS + RELATION_ROLE_MAP |
 | Zone 2 v2 (domain-agnostic) | 35% | 0.0% | ~0.000 | `baseline_eval_results_zone2.json` | Honest baseline — no anchors |
 | Zone 3 (Leiden, 8b) | 35% | 17.4% | **0.171** | `baseline_eval_results_zone3.json` | P=0.120, R=0.300; threshold=0.40, resolution=0.6 |
