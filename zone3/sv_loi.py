@@ -463,6 +463,122 @@ Classify by DOMAIN ROLE. Use "Other" only if truly unclassifiable.
     return assignments
 
 
+def rescue_other_entities(
+    assignments: dict[str, str],
+    entities: list[dict],
+    llm: ChatOllama,
+    max_other_frac: float = 0.05,
+) -> dict[str, str]:
+    """Re-type "Other" entities using class examples as context.
+
+    Shows the LLM what each discovered class looks like (name + example
+    members + typical relations), then asks it to classify the remaining
+    "Other" entities. Fully self-referential — uses only the pipeline's
+    own induced classes and entities, no external ontology.
+    """
+    other_ids = [eid for eid, cls in assignments.items() if cls == "Other"]
+    total = len(assignments)
+    target_max = int(total * max_other_frac)
+
+    if len(other_ids) <= target_max:
+        print(f"\n[Phase 1d] Other={len(other_ids)} ({100*len(other_ids)/total:.1f}%) — below threshold, skipping rescue.", flush=True)
+        return assignments
+
+    print(f"\n[Phase 1d] Rescuing {len(other_ids)} 'Other' entities ({100*len(other_ids)/total:.1f}%)...", flush=True)
+
+    entity_map = {e["id"]: e for e in entities}
+
+    # Build class descriptions from current assignments
+    dist = Counter(v for v in assignments.values() if v != "Other")
+    class_descriptions = []
+    for cls, cnt in dist.most_common():
+        members = [eid for eid, c in assignments.items() if c == cls]
+        # Sample up to 8 member names
+        import random
+        random.seed(42)
+        sample = random.sample(members, min(8, len(members)))
+        # Get typical relations for this class
+        rel_types: set[str] = set()
+        for eid in members[:20]:
+            e = entity_map.get(eid, {})
+            rel_types.update(e.get("out_rel_counts", {}).keys())
+            rel_types.update(e.get("in_rel_counts", {}).keys())
+        top_rels = sorted(rel_types)[:5]
+
+        class_descriptions.append(
+            f"  {cls} ({cnt} members): {', '.join(sample)}\n"
+            f"    Typical relations: {', '.join(top_rels) if top_rels else 'none'}"
+        )
+
+    class_list = ", ".join(c for c, _ in dist.most_common())
+
+    # Re-type in batches
+    updated = dict(assignments)
+    rescued = 0
+    n_batches = (len(other_ids) + BATCH_SIZE - 1) // BATCH_SIZE
+
+    for batch_idx in range(n_batches):
+        start = batch_idx * BATCH_SIZE
+        batch = other_ids[start:start + BATCH_SIZE]
+
+        entity_descs = []
+        for eid in batch:
+            e = entity_map.get(eid, {})
+            desc = f"- {eid}"
+            if e.get("out_summary"):
+                desc += f"\n    connects to: {'; '.join(e['out_summary'][:4])}"
+            if e.get("in_summary"):
+                desc += f"\n    connected from: {'; '.join(e['in_summary'][:3])}"
+            entity_descs.append(desc)
+
+        prompt = f"""These entities were not classified in the first pass. Using the class descriptions \
+below, assign each entity to the BEST matching class.
+
+DISCOVERED CLASSES (with examples and typical relations):
+{chr(10).join(class_descriptions)}
+
+UNCLASSIFIED ENTITIES:
+{chr(10).join(entity_descs)}
+
+For each entity, decide WHAT IT IS based on its name and relationships.
+Match it to the class whose members it most resembles.
+Only use "Other" if the entity truly does not fit ANY class.
+
+Output one line per entity: entity_name -> ClassName
+"""
+        raw = _invoke_llm(llm, prompt)
+
+        line_re = re.compile(r'^[- ]*(.+?)\s*->\s*(\w+)\s*$', re.MULTILINE)
+        for m in line_re.finditer(raw):
+            eid = m.group(1).strip().strip('"').strip("'")
+            cls = _sanitize_label(m.group(2).strip())
+            if eid in updated and updated[eid] == "Other":
+                if cls in dist or cls == "Other":
+                    if cls != "Other":
+                        updated[eid] = cls
+                        rescued += 1
+                else:
+                    # Try case-insensitive match
+                    for known_cls in dist:
+                        if known_cls.lower() == cls.lower():
+                            updated[eid] = known_cls
+                            rescued += 1
+                            break
+
+        if (batch_idx + 1) % 5 == 0 or batch_idx == n_batches - 1:
+            remaining = sum(1 for v in updated.values() if v == "Other")
+            print(f"    Batch {batch_idx + 1}/{n_batches}: rescued {rescued} so far, {remaining} Other remaining", flush=True)
+
+    remaining_other = sum(1 for v in updated.values() if v == "Other")
+    print(f"  ✓ Rescued {rescued} entities. Other: {len(other_ids)} → {remaining_other} ({100*remaining_other/total:.1f}%)", flush=True)
+
+    new_dist = Counter(updated.values())
+    for cls, cnt in new_dist.most_common():
+        print(f"    {cls}: {cnt}", flush=True)
+
+    return updated
+
+
 def rebalance_mega_classes(
     assignments: dict[str, str],
     entities: list[dict],
@@ -1191,6 +1307,9 @@ def run_sv_loi(
     assignments, class_vocab = rebalance_mega_classes(
         assignments, entities, class_vocab, llm,
     )
+
+    # Phase 1d: Rescue "Other" entities with targeted re-typing
+    assignments = rescue_other_entities(assignments, entities, llm)
 
     # Phase 2: Build structural signatures + consensus check
     features, entity_ids, feature_names = build_structural_signatures(entities)
