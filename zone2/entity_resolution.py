@@ -20,6 +20,7 @@ Usage (called from zone2/pipeline.py as pipeline node zone25_entity_resolution):
 import re
 from collections import defaultdict
 import numpy as np
+from typing import List, Tuple, Dict, Set
 
 SIMILARITY_THRESHOLD = 0.90  # conservative: only merge near-identical node names
 
@@ -33,9 +34,9 @@ def _sanitize_rel(rel: str) -> str:
     return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
 
 
-def _union_find_components(pairs: list[tuple[str, str]]) -> list[list[str]]:
+def _union_find_components(pairs: List[Tuple[str, str]]) -> List[List[str]]:
     """Build connected components from (a, b) similar-node pairs via union-find."""
-    parent: dict[str, str] = {}
+    parent: Dict[str, str] = {}
 
     def find(x: str) -> str:
         if x not in parent:
@@ -49,7 +50,7 @@ def _union_find_components(pairs: list[tuple[str, str]]) -> list[list[str]]:
         if ra != rb:
             parent[ra] = rb
 
-    groups: dict[str, list[str]] = defaultdict(list)
+    groups: Dict[str, List[str]] = defaultdict(list)
     for node in {n for pair in pairs for n in pair}:
         groups[find(node)].append(node)
     return [grp for grp in groups.values() if len(grp) > 1]
@@ -122,14 +123,60 @@ def resolve_entities(graph, threshold: float = SIMILARITY_THRESHOLD, node_label:
     if n_before < 2:
         return {"merged": 0, "nodes_before": n_before, "nodes_after": n_before}
 
+    def _get_significant_tokens(s: str) -> Set[str]:
+        """Extract alphanumeric tokens, ignoring leading articles."""
+        # Normalize: strip leading articles
+        s = re.sub(r'^(the|a|an)\s+', '', s, flags=re.IGNORECASE)
+        tokens = re.findall(r'\b[A-Za-z0-9]+\b', s)
+        return set(tokens)
+
+    def _extract_number_sequence(s: str) -> List[str]:
+        """Extract the exact sequence of numbers in a string."""
+        return re.findall(r'\d+', s)
+
+    def _is_structural_identifier(token: str) -> bool:
+        """Check if a token represents a potentially distinct structural variant."""
+        # Contains any digit (dates, IDs, amounts)
+        if any(c.isdigit() for c in token):
+            return True
+        # Single uppercase letter (Zone A, Part B)
+        if len(token) == 1 and token.isupper():
+            return True
+        # Short uppercase acronym/roman numeral (AH, III, SFIP)
+        if 1 < len(token) <= 4 and token.isupper():
+            return True
+        return False
+
     print(f"  Embedding {n_before} node IDs with all-MiniLM-L6-v2...")
     model = SentenceTransformer("all-MiniLM-L6-v2")
     embs = model.encode(ids, normalize_embeddings=True)  # L2-norm → dot = cosine
 
-    sim_pairs: list[tuple[str, str]] = []
+    # Pre-calculate token sets and number sequences for all IDs
+    token_sets = [_get_significant_tokens(id_str) for id_str in ids]
+    num_seqs   = [_extract_number_sequence(id_str) for id_str in ids]
+
+    sim_pairs: List[Tuple[str, str]] = []
     for i in range(n_before):
+        seq_i, set_i = num_seqs[i], token_sets[i]
         for j in range(i + 1, n_before):
-            if float(np.dot(embs[i], embs[j])) >= threshold:
+            # 1. Standard cosine similarity check
+            similarity = float(np.dot(embs[i], embs[j]))
+            
+            if similarity >= threshold:
+                # 2. STRICT Numerical Sequence Check (F-01/F-02 protection)
+                # If either has numbers, their exact digit sequences must match
+                seq_j = num_seqs[j]
+                if (seq_i or seq_j) and seq_i != seq_j:
+                    continue  # Block: e.g. 10-05 vs 05-10 or 10,000 vs 10,000,000
+
+                # 3. Semantic Token Difference Check (Structural Identifier protection)
+                set_j = token_sets[j]
+                diff = set_i ^ set_j
+                
+                # Block if any differing token is a "Structural Identifier" (Zone A vs B, Part AH vs A)
+                if any(_is_structural_identifier(t) for t in diff):
+                    continue
+
                 sim_pairs.append((ids[i], ids[j]))
 
     print(f"  Near-duplicate pairs (cosine ≥ {threshold}): {len(sim_pairs)}")
