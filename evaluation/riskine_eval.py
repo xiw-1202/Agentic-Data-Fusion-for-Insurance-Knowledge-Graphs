@@ -240,8 +240,32 @@ def measure_entity_assignment(
     recall    = len(riskine_covered) / len(riskine_names) if riskine_names else 0.0
     f1        = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-    print(f"  [entity-assignment] P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}")
+    # --- Present-class metrics ---
+    # Determine which Riskine classes have ANY matching entities in the graph.
+    # Compute a separate F1 only against those "evidenced" classes.
+    # This gives an honest metric when the source data doesn't cover all classes.
+    evidenced_riskine = set()
+    for entry in member_table:
+        if entry["riskine"] is not None and entry["score"] > 0:
+            evidenced_riskine.add(entry["riskine"])
+    # Also check: does ANY induced class centroid exceed candidate threshold
+    # against a Riskine class? If so, that class is "present in data"
+    for j, rname in enumerate(riskine_names):
+        col_sims = sim_matrix[:, j]
+        if col_sims.max() >= MEMBER_CANDIDATE_THRESHOLD:
+            evidenced_riskine.add(rname)
+
+    n_evidenced = len(evidenced_riskine)
+    recall_present = len(riskine_covered & evidenced_riskine) / n_evidenced if n_evidenced > 0 else 0.0
+    f1_present = (
+        2 * precision * recall_present / (precision + recall_present)
+        if (precision + recall_present) > 0 else 0.0
+    )
+
+    print(f"  [entity-assignment] P={precision:.3f}  R={recall:.3f}  F1={f1:.3f}  (full {len(riskine_names)}-class)")
+    print(f"  [entity-assignment] P={precision:.3f}  R={recall_present:.3f}  F1={f1_present:.3f}  (present {n_evidenced}-class)")
     print(f"  [entity-assignment] Riskine classes covered: {sorted(riskine_covered)}")
+    print(f"  [entity-assignment] Evidenced classes: {sorted(evidenced_riskine)}")
 
     return {
         "entity_assignment_precision":       round(precision, 4),
@@ -249,6 +273,11 @@ def measure_entity_assignment(
         "entity_assignment_f1":              round(f1,        4),
         "entity_assignment_riskine_covered": sorted(riskine_covered),
         "entity_assignment_table":           member_table,
+        # Present-class metrics (only classes evidenced in source data)
+        "entity_assignment_evidenced_classes": sorted(evidenced_riskine),
+        "entity_assignment_evidenced_count":  n_evidenced,
+        "entity_assignment_recall_present":   round(recall_present, 4),
+        "entity_assignment_f1_present":       round(f1_present, 4),
     }
 
 
@@ -457,11 +486,17 @@ if __name__ == "__main__":
     print(f"  Riskine classes:   {result['riskine_class_count']}")
     print(f"  Riskine covered:   {result['riskine_covered_count']}")
     if "entity_assignment_f1" in result:
-        print(f"  Entity Assignment (primary — evaluates entity-to-class placement):")
+        print(f"  Entity Assignment (full {result['riskine_class_count']}-class Riskine):")
         print(f"    Precision:       {result['entity_assignment_precision']:.3f}")
         print(f"    Recall:          {result['entity_assignment_recall']:.3f}")
         print(f"    F1:              {result['entity_assignment_f1']:.3f}")
         print(f"    Riskine covered: {result['entity_assignment_riskine_covered']}")
+        if "entity_assignment_f1_present" in result:
+            n_ev = result.get('entity_assignment_evidenced_count', '?')
+            print(f"  Entity Assignment (present {n_ev}-class — classes evidenced in data):")
+            print(f"    Recall:          {result['entity_assignment_recall_present']:.3f}")
+            print(f"    F1:              {result['entity_assignment_f1_present']:.3f}")
+            print(f"    Evidenced:       {result['entity_assignment_evidenced_classes']}")
     if "standard_metrics" in result:
         sm = result["standard_metrics"]
         print(f"  Standard ontology metrics (OLLM NeurIPS'24 / AutoSchemaKG'25):")

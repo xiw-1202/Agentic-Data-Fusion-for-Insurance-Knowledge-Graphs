@@ -820,8 +820,113 @@ Output one line per entity: entity_id -> CorrectClass
 
 
 # ---------------------------------------------------------------------------
-# Phase 4: Post-processing — merge small classes, derive hierarchy
+# Phase 4: Post-processing — consolidate, merge small, derive hierarchy
 # ---------------------------------------------------------------------------
+
+def consolidate_classes(
+    assignments: dict[str, str],
+    entities: list[dict],
+    llm: ChatOllama,
+) -> dict[str, str]:
+    """LLM-guided consolidation: merge semantically similar fine-grained classes.
+
+    Examples: City+County+State → Address, Premium+Limit+Deductible → Coverage
+    Also renames classes to standard ontology terms where appropriate.
+    """
+    print("\n[Phase 4a] LLM-guided class consolidation...", flush=True)
+
+    dist = Counter(v for v in assignments.values() if v != "Other")
+    class_names = sorted(dist.keys())
+
+    if len(class_names) < 3:
+        print("  ✓ Too few classes to consolidate")
+        return assignments
+
+    # Build class descriptions with member examples
+    entity_map = {e["id"]: e for e in entities}
+    class_descs = []
+    for cls in class_names:
+        members = [eid for eid, c in assignments.items() if c == cls]
+        sample = members[:8]
+        class_descs.append(f"  {cls} ({dist[cls]} members): {', '.join(sample)}")
+
+    prompt = f"""You have {len(class_names)} ontology classes from a knowledge graph. Some are too \
+fine-grained and should be merged.
+
+CURRENT CLASSES:
+{chr(10).join(class_descs)}
+
+YOUR TASK: Propose merges for classes that represent the SAME real-world concept.
+Also rename classes to standard ontology terms where appropriate.
+
+MERGE GUIDELINES:
+- City + County + State + similar geographic classes → Address
+- If "Policy" exists, it represents insurance products → rename to Product
+- Premium + Limit + Deductible could stay separate OR merge into Coverage (your judgment)
+- Code + Year + Deadline are data artifacts → merge into the nearest domain class OR mark as Other
+- Keep classes that represent genuinely different domain concepts separate
+
+OUTPUT FORMAT (JSON):
+{{
+  "merges": [
+    {{"from": ["City", "County", "State"], "to": "Address", "reason": "all represent geographic locations"}},
+    {{"from": ["Policy"], "to": "Product", "reason": "insurance policies are products"}}
+  ],
+  "keep_as_is": ["Coverage", "Risk", "Property"],
+  "mark_other": ["Code", "Year"]
+}}
+
+Only propose merges you are confident about. It's better to keep classes separate than to merge incorrectly.
+"""
+    raw = _invoke_llm(llm, prompt)
+    result = _parse_json_safely(raw)
+
+    if not isinstance(result, dict):
+        print("  ✗ Could not parse consolidation response — skipping")
+        return assignments
+
+    updated = dict(assignments)
+    changes = 0
+
+    # Apply merges
+    merges = result.get("merges", [])
+    for merge in merges:
+        if not isinstance(merge, dict):
+            continue
+        from_classes = merge.get("from", [])
+        to_class = merge.get("to", "")
+        if not from_classes or not to_class:
+            continue
+        to_class = _sanitize_label(to_class)
+        reason = merge.get("reason", "")
+        merged_count = 0
+        for eid in list(updated.keys()):
+            if updated[eid] in from_classes:
+                updated[eid] = to_class
+                merged_count += 1
+        if merged_count > 0:
+            print(f"  ✓ {' + '.join(from_classes)} → {to_class} ({merged_count} entities) — {reason}", flush=True)
+            changes += merged_count
+
+    # Mark classes as Other
+    mark_other = result.get("mark_other", [])
+    for cls in mark_other:
+        other_count = 0
+        for eid in list(updated.keys()):
+            if updated[eid] == cls:
+                updated[eid] = "Other"
+                other_count += 1
+        if other_count > 0:
+            print(f"  ✓ {cls} → Other ({other_count} entities)", flush=True)
+            changes += other_count
+
+    new_dist = Counter(v for v in updated.values() if v != "Other")
+    print(f"  ✓ Consolidation complete: {changes} entities moved, {len(new_dist)} classes remain", flush=True)
+    for cls, cnt in new_dist.most_common():
+        print(f"    {cls}: {cnt}", flush=True)
+
+    return updated
+
 
 def merge_small_classes(
     assignments: dict[str, str],
@@ -1094,10 +1199,13 @@ def run_sv_loi(
     # Phase 3: Arbitrate disagreements
     assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
 
-    # Phase 4a: Merge small classes
+    # Phase 4a: LLM-guided class consolidation (merge semantically similar classes)
+    assignments = consolidate_classes(assignments, entities, llm)
+
+    # Phase 4b: Merge remaining small classes structurally
     assignments = merge_small_classes(assignments, features, entity_ids)
 
-    # Phase 4b: Derive hierarchy
+    # Phase 4c: Derive hierarchy
     hierarchy = derive_hierarchy(assignments, llm)
 
     # Phase 5: Write to Neo4j
