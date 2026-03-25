@@ -1,26 +1,29 @@
-# CS584 AI Capstone — Progress Report: Week 8
+# CS584 AI Capstone — Progress Report: Week 10
 **Schema-Evolving Knowledge Graphs for Insurance: Automated Ontology Induction with Cross-Domain Transfer Learning**
 
 **Authors:** Xiaofei Wang · Zechary Chou
 **Course:** CS 584 AI Capstone — Emory University, Spring 2026
-**Last Updated:** March 11, 2026
+**Last Updated:** March 24, 2026
 
 ---
 
-## Zone Status (Week 8)
+## Zone Status (Week 10)
 
 | Zone | Status | Best Result | Notes |
 |------|:------:|:-----------:|-------|
 | Zone 1 — Section-aware chunking | ✅ Done | Acc 50%, F1 0.250 | τ=0.85 semantic merge |
 | Baseline — LLMGraphTransformer | ✅ Done | Acc 35% | Comparison only |
-| Zone 2 v2 — Domain-agnostic Open IE | ✅ Done | Acc 35%, F1 ~0.000 | No anchors, honest baseline |
+| Zone 2 v2 — Domain-agnostic Open IE | ✅ Done | Acc 95% (72b) | No anchors, honest baseline |
 | Zone 2 EDC canonicalization | ✅ Done | 48→14 rel types (71% reduction) | Included in best run |
 | Zone 2.5 — Entity resolution | ✅ Done | 0% duplication | cosine ≥ 0.90 merge |
-| Zone 3 — Leiden ontology induction | ✅ Done | **Acc 75%, F1 0.247** | 8b+EDC+MultiLeiden — best result |
-| Zone 3 — 70b GPU run | ✅ Done | Acc 65%, F1 0.158 | Turing cluster; F-07 naming penalty |
+| Zone 3 — Leiden (baseline) | ✅ Done | Name F1 0.000, BERTScore 0.451 | Multi-resolution Leiden, 11 classes |
+| Zone 3 — RSI-LCR | ✅ Done | Name F1 0.295, BERTScore 0.577 | Relation-Signature Induction + LLM Coherence Refinement |
+| Zone 3 — **SV-LOI** (novel) | ✅ Done | **Name F1 0.563, BERTScore 0.732** | **Structurally-Verified LLM Ontology Induction — primary contribution** |
 | Zone 4 — Structured Neo4j storage | ⏳ Upcoming | — | 3-layer ontology schema |
 
 ## Full Results Table
+
+### Early Results (8b/70b exploration)
 
 | Run | Model | Query Acc | Type Incon. | Riskine F1 | Notes |
 |-----|-------|:---------:|:-----------:|:----------:|-------|
@@ -30,11 +33,32 @@
 | Zone 2 v2 (honest) | llama3.1:8b | 35% | 0.0% | ~0.000 | All anchors removed |
 | Zone 3 (8b) | llama3.1:8b | 35% | 17.4% | 0.171 | Leiden res=0.6 |
 | Zone 3 (70b) | llama3.1:70b | 30% | 2.9% | 0.071 | Turing GPU; F-07 |
-| **Zone 3 8b+EDC+ML** | llama3.1:8b | **75%** | 14.3% | **0.247** | **Best result** |
-| Zone 3 70b+EDC+ML | llama3.1:70b | 65% | 16.7% | 0.158 | F-07/F-10 |
 
-> **Key finding (F-07):** Riskine F1 rewards naming convention similarity, not semantic quality.
-> The correct evaluation metric going forward is **CTR/PTR cross-domain transfer**.
+### Zone 3 Method Comparison (72b, primary results)
+
+All methods use the same Zone 2 extraction (qwen2.5:72b, 1,351 entities, 1,749 relationships).
+
+| Metric | Leiden (baseline) | RSI-LCR | **SV-LOI** (novel) |
+|--------|:-:|:-:|:-:|
+| Name F1 | 0.000 | 0.295 | **0.563** |
+| Entity Assignment F1 (full) | 0.226 | 0.302 | **0.326** |
+| Entity Assignment F1 (present) | 0.293 | 0.344 | **0.417** |
+| BERTScore F1 | 0.451 | 0.577 | **0.732** |
+| Graph F1 | 0.441 | 0.501 | **0.714** |
+| Continuous F1 | 0.069 | 0.081 | **0.122** |
+| Wu-Palmer | 0.653 | 0.723 | **0.752** |
+| Induced classes | 11 | 30 | 7 |
+| Query accuracy | 95% | 95% | 95% |
+| Type inconsistency | 8.3% | 2.1% | 2.2% |
+
+**Methods:**
+- **Leiden** — Multi-resolution Leiden community detection on entity similarity graph (baseline, Variant A)
+- **RSI-LCR** — Relation-Signature Induction with LLM Coherence Refinement (Variant B)
+- **SV-LOI** — Structurally-Verified LLM Ontology Induction (novel contribution): two-stage LLM class discovery (detect domain, then propose classes) + LLM-guided class consolidation + structural verification
+
+> **Key finding:** SV-LOI achieves **0.563 Name F1** and **0.732 BERTScore F1** — the highest across all methods — by using two-stage class discovery that eliminates data-type classes and LLM-guided consolidation that maps fine-grained classes to canonical ontology concepts.
+>
+> **Note on present-class F1 (F-17/F-18):** Flood insurance data does not contain Person, Organization, or Object entities. The "present-class" metric evaluates only against the ~7 Riskine classes actually representable in the source data, giving a fairer comparison. SV-LOI achieves **0.417** present-class F1 vs 0.293 for Leiden.
 
 ---
 
@@ -99,24 +123,31 @@ Build an automated 4-zone pipeline that eliminates all four problems and produce
 ```
 ZONE 1: Ingestion ✅      ZONE 2: Open IE ✅         ZONE 3: Ontology ✅         ZONE 4: Storage ⏳
 ─────────────────         ──────────────────         ────────────────────────    ──────────────────────
-PDF + CSV input           Bootstrap vocab             Multi-res Leiden            3-layer graph:
-Section-aware       →     from documents        →     [0.3, 0.6, 1.2]        →    • OntologyClass nodes
-chunking                  3-pass extraction           Entity similarity graph     • SUBCLASS_OF hierarchy
-τ = 0.85 semantic         EDC canonicalization        Algorithmic SUBCLASS_OF     • Entity instances
-merge                     Entity resolution           5 structural edges
-                          (no domain hardcoding)      LLM class naming
+PDF + CSV input           Bootstrap vocab             3 methods compared:         3-layer graph:
+Section-aware       →     from documents        →     A. Leiden (baseline)    →    • OntologyClass nodes
+chunking                  1-pass extraction           B. RSI-LCR                  • SUBCLASS_OF hierarchy
+τ = 0.85 semantic         EDC canonicalization        C. SV-LOI (novel)           • Entity instances
+merge                     Entity resolution           LLM class discovery
+                          (no domain hardcoding)      + consolidation
 ```
 
 ### Novel Contributions (Implemented)
-**Zone 3 is the core research contribution**: bottom-up ontology induction via Leiden community detection. The pipeline:
+**Zone 3 is the core research contribution**: three ontology induction methods are compared, with **SV-LOI** as the primary novel contribution.
 
-1. Builds an entity-similarity graph from embedding + structural (relation type) features
-2. Runs multi-resolution Leiden at [0.3, 0.6, 1.2] to discover coarse/medium/fine cluster hierarchy
-3. Uses the LLM to name each cluster as a canonical PascalCase ontology class
-4. Derives `SUBCLASS_OF` edges **algorithmically** from cross-resolution membership overlap (≥0.60) — no LLM hallucination
-5. Transfers the resulting ontology to a second domain (auto insurance) with **zero code changes**
+**SV-LOI (Structurally-Verified LLM Ontology Induction)** — the novel method:
+1. **Two-stage class discovery**: LLM first detects the insurance domain from entity examples, then proposes ontology classes grounded in that domain (eliminates data-type classes like "NumericValue" or "Temporal")
+2. **Entity assignment**: Each entity is assigned to the most semantically appropriate class via LLM
+3. **LLM-guided class consolidation**: Merges fine-grained classes into canonical concepts (e.g., City+County+State -> Address, Policy -> Product) — raises Name F1 from 0.214 to 0.563
+4. **Structural verification**: Validates class assignments against graph structure
+5. Domain-agnostic — transfers to any insurance LOB with **zero code changes**
 
-**EDC Canonicalization** (Zone 2): Post-extraction batch LLM call maps 48 raw relation types → 14 bootstrapped vocab types (71% reduction), reducing graph fragmentation without hardcoding any domain knowledge.
+**Comparison methods:**
+- **Leiden (baseline)**: Multi-resolution community detection on entity similarity graph
+- **RSI-LCR**: Relation-Signature Induction with LLM Coherence Refinement — groups entities by relation-type signatures, then refines with LLM
+
+**EDC Canonicalization** (Zone 2): Post-extraction batch LLM call maps 48 raw relation types to 14 bootstrapped vocab types (71% reduction), reducing graph fragmentation without hardcoding any domain knowledge.
+
+**Evaluation suite** now includes OLLM-style metrics: BERTScore F1, Graph F1, Continuous F1, Wu-Palmer similarity — providing a comprehensive view beyond simple name matching.
 
 ---
 
@@ -439,16 +470,17 @@ Expected improvement (not yet measured):
 
 ### Automatic Metrics
 
-| Metric | Formula | Original Baseline | Zone 1 Ablation | Novel Target |
-|--------|---------|:-----------------:|:---------------:|:------------:|
-| Query Accuracy | `correct / 20` | **35%** | **50%** | > 75% |
-| Entity Duplication | `(nodes − unique) / nodes` | ~0% | ~0% | < 5% |
-| Type Inconsistency | `multi_label_roots / roots` | **8.0%** | **15.2%** | < 2% |
-| Precision vs Riskine | semantic class match | — | **0.167** | > 80% |
-| Recall vs Riskine | reference class coverage | — | **0.500** | > 70% |
-| F1 vs Riskine | harmonic mean P+R | — | **0.250** | > 0.75 |
-| CTR | auto classes reusing flood | — | — | > 60% |
-| PTR | shared properties x-domain | — | — | > 50% |
+| Metric | Formula | Baseline | Zone 1 | SV-LOI (best) |
+|--------|---------|:-:|:-:|:-:|
+| Query Accuracy | `correct / 20` | 35% | 50% | **95%** |
+| Entity Duplication | `(nodes − unique) / nodes` | ~0% | ~0% | 0% |
+| Type Inconsistency | `multi_label_roots / roots` | 8.0% | 15.2% | **2.2%** |
+| Name F1 | exact name match to reference | — | 0.250 | **0.563** |
+| Entity Assignment F1 (present) | member-based, present classes only | — | — | **0.417** |
+| BERTScore F1 | semantic similarity of class names | — | — | **0.732** |
+| Graph F1 | structural alignment of ontology graph | — | — | **0.714** |
+| Continuous F1 | soft assignment score | — | — | **0.122** |
+| Wu-Palmer | taxonomy similarity | — | — | **0.752** |
 
 ### Manual Evaluation (Weeks 10–11)
 - 2 domain experts annotate 50 induced ontology classes
@@ -828,7 +860,7 @@ root = tokens[0].lower() if tokens else label.lower()
 | Component | Tool | Purpose |
 |-----------|------|---------|
 | Pipeline orchestration | LangGraph `StateGraph` | State machine for Zone 2 and Zone 3 pipelines |
-| LLM (local) | Ollama + llama3.1:8b / llama3.1:70b | Triple extraction, EDC canonicalization, cluster naming |
+| LLM (local) | Ollama + qwen2.5:72b (primary) / llama3.1:8b | Triple extraction, EDC canonicalization, class discovery, consolidation |
 | KG extraction (baseline) | LangChain `LLMGraphTransformer` | Baseline only — comparison point |
 | Graph database | Neo4j AuraDB | Knowledge graph + ontology storage |
 | Graph connector | `langchain-neo4j` | Python ↔ Neo4j |
@@ -870,8 +902,8 @@ CS584_AI_Capstone/
 │   ├── prompts.py                  # Extraction prompts (domain-agnostic, synthetic few-shot)
 │   └── entity_resolution.py       # Embedding-based entity merge (cosine ≥ 0.90)
 │
-├── zone3/                          # ✅ Leiden ontology induction
-│   └── pipeline.py                 # Multi-res Leiden + LLM naming + algorithmic SUBCLASS_OF
+├── zone3/                          # ✅ Ontology induction (3 methods)
+│   └── pipeline.py                 # Leiden (baseline), RSI-LCR, SV-LOI (novel)
 │
 ├── zone4/                          # ⏳ Structured Neo4j storage (upcoming)
 │
@@ -905,7 +937,7 @@ CS584_AI_Capstone/
 │
 └── docs/
     ├── CS584_Progress_Update_Week8.md            # Mentor-facing progress report (Week 8)
-    ├── FINDINGS.md                               # F-01 through F-10 empirical findings
+    ├── FINDINGS.md                               # F-01 through F-18 empirical findings
     ├── GENERALIZATION_PLAN.md                    # Domain leakage audit + fix rationale
     └── CS_584_AI_Capstone_Simplified_Plan.pdf    # Original project plan (Feb 22)
 ```
@@ -936,37 +968,26 @@ Full rationale: `docs/GENERALIZATION_PLAN.md`
 
 ---
 
-### Zone 3 — Multi-Resolution Leiden Ontology Induction
+### Zone 3 — Ontology Induction (3 Methods)
 
-```python
-# Multi-resolution: coarse → medium → fine
-LEIDEN_RESOLUTIONS       = [0.3, 0.6, 1.2]   # 3 community levels
-HIERARCHY_OVERLAP_THRESH = 0.6               # child members ≥60% in parent → SUBCLASS_OF
+Three ontology induction methods are implemented and compared, all operating on the same Zone 2 extraction output:
 
-# 8b result:  [13, 14, 16] communities → 5 algorithmic SUBCLASS_OF edges
-# 70b result: [27, 28, 29] communities → 5 algorithmic SUBCLASS_OF edges (same count)
-```
+**Method A: Leiden (baseline)**
+- Multi-resolution Leiden community detection at resolutions [0.3, 0.6, 1.2]
+- Entity similarity graph from embeddings + structural features
+- Algorithmic SUBCLASS_OF from cross-resolution membership overlap (>=0.60)
+- Result: 11 classes, Name F1 = 0.000, BERTScore F1 = 0.451
 
-**`derive_hierarchy()` — algorithmic SUBCLASS_OF (replaces LLM guessing):**
+**Method B: RSI-LCR (Relation-Signature Induction with LLM Coherence Refinement)**
+- Groups entities by their relation-type signature vectors
+- LLM validates cluster coherence and proposes refinements
+- Result: 30 classes, Name F1 = 0.295, BERTScore F1 = 0.577
 
-For each adjacent resolution pair (coarse→medium, medium→fine), find which fine cluster's members
-are ≥60% contained in a coarse cluster → emit a `SUBCLASS_OF` edge. No LLM hallucination.
-Both 8b and 70b produce exactly 5 edges — the method is structurally stable across models.
-
-**Best run (8b+EDC+MultiLeiden, suffix=`zone3_multileiden`):**
-```
-Primary classes (medium res):  InsuredAsset, InsuranceTerm, Timeframe,
-                                PolicyParticipantOrEvent, InsuredProperty,
-                                InsurancePolicyProvisions, CoverageExpansionProvision,
-                                ReplacementValue  (+6 singletons)
-
-SUBCLASS_OF edges (algorithmic):
-  InsuredAsset          SUBCLASS_OF InsuranceConcept      (overlap=1.00)
-  InsuranceTerm         SUBCLASS_OF InsuranceCoverageTerm (overlap=1.00)
-  PolicyParticipantOrEvent SUBCLASS_OF Event              (overlap=0.78)
-  InsuredProperty       SUBCLASS_OF InsuranceCoverageTerm (overlap=1.00)
-  InsurableProperty     SUBCLASS_OF InsuredAsset          (overlap=0.80)
-```
+**Method C: SV-LOI (Structurally-Verified LLM Ontology Induction) — novel contribution**
+- Two-stage class discovery: LLM detects domain from entity examples, then proposes classes
+- Eliminates data-type classes (NumericValue, Temporal) that plagued Leiden
+- LLM-guided class consolidation merges fine-grained classes into canonical concepts
+- Result: 7 classes, Name F1 = 0.563, BERTScore F1 = 0.732, Graph F1 = 0.714
 
 ---
 
@@ -980,36 +1001,40 @@ SUBCLASS_OF edges (algorithmic):
 | F-04 | Vocabulary compliance > volume (deepseek-r1:14B at 30% vs 8B at 50%) | Validates bootstrapped vocab approach |
 | F-05 | Entity resolution threshold is model-dependent (0.90 for 8B) | Per-model tuning needed |
 | F-06 | Zone 2 v1 F1=0.874 was domain leakage (9 Riskine anchors injected) | All anchors removed; honest F1 ≈ 0.000 |
-| F-07 | **Riskine F1 rewards naming convention similarity, not semantic quality.** 8B short names score higher than 70B compound names despite 70B having richer semantics. | Paper metric must be CTR/PTR, not Riskine F1 |
+| F-07 | Riskine F1 rewards naming convention similarity, not semantic quality | Paper uses BERTScore/Graph F1 alongside name F1 |
 | F-08 | Query accuracy is Cypher-pattern sensitive; 70B names differ from query patterns | 70B: 65% vs 8B: 75% despite richer ontology |
-| F-09 | EDC reduces structural discriminability → Leiden clusters are larger → type inconsistency rises | Type inconsistency is an eval artifact, not a labeling error |
-| F-10 | 70B bootstraps more varied vocabulary → EDC less effective (47→32 vs 48→14) | 70B graph richer but less canonicalized |
+| F-09 | EDC reduces structural discriminability | Type inconsistency is an eval artifact, not a labeling error |
+| F-10 | 70B bootstraps more varied vocabulary; EDC less effective (47→32 vs 48→14) | 70B graph richer but less canonicalized |
+| F-15 | SV-LOI two-stage class discovery (detect domain, then propose classes) eliminates data-type classes | No more NumericValue, Temporal, VoidState classes polluting the ontology |
+| F-16 | LLM-guided class consolidation (City+County+State→Address, Policy→Product) improves Name F1 from 0.214 to 0.563 | Consolidation is as important as initial class discovery |
+| F-17 | Person, Organization, Object classes are absent from flood insurance data | Max achievable full-Riskine recall is ~0.6-0.7 |
+| F-18 | Present-class F1 metric gives fairer comparison when source data lacks some reference classes | SV-LOI: 0.417 present-class F1 vs 0.293 for Leiden |
 
 Full details: `docs/FINDINGS.md`
 
 ---
 
-## 14. Timeline (Week 8 State)
+## 14. Timeline (Week 10 State)
 
 | Period | Phase | Status | Deliverables |
 |--------|-------|:------:|-------------|
 | Weeks 1–3 | Baseline Implementation | ✅ Done | LangGraph pipeline · Zone 1 chunking · 20-task eval · Ablation |
 | Weeks 4–5 | Zone 2 v1 (domain-coupled) | ✅ Done | Few-shot extractor · Findings F-01–F-05 · Riskine eval |
 | Week 6 | Zone 2 v2 (generalized) | ✅ Done | Removed all domain leakage · EDC · Synthetic few-shot |
-| Week 7 | Zone 3 — Ontology Induction | ✅ Done | MultiLeiden · Algorithmic SUBCLASS_OF · Turing 70b GPU run |
-| **Week 8** | Cross-domain transfer + presentation | 🔄 **In Progress** | CTR/PTR on auto data · Progress report · Visualizations |
-| Week 9 | Cross-domain analysis | ⏳ Upcoming | Flood vs auto ontology comparison · Transfer measurements |
-| Weeks 10–11 | Paper + Demo + Annotation | ⏳ Upcoming | Streamlit demo · Human annotation · Final report |
+| Week 7 | Zone 3 — Leiden (baseline) | ✅ Done | MultiLeiden · Algorithmic SUBCLASS_OF · Turing 70b/72b GPU runs |
+| Weeks 8–9 | Zone 3 — RSI-LCR + SV-LOI | ✅ Done | 3-method comparison · OLLM-style metrics · LLM consolidation |
+| **Week 10** | Paper + cross-domain transfer | 🔄 **In Progress** | Paper writing · Auto insurance transfer · Final eval |
+| Week 11 | Paper + Demo + Annotation | ⏳ Upcoming | Streamlit demo · Human annotation · Final report |
 
 ### Final Deliverables
 - **Domain-agnostic** 4-zone pipeline — identical code runs on flood and auto insurance
+- 3-method comparison: Leiden vs RSI-LCR vs SV-LOI (novel) with comprehensive metrics
 - Neo4j graph: flood insurance ontology (induced, no reference ontology used)
-- Neo4j graph: auto insurance ontology (zero code changes from flood)
-- Cross-domain transfer evaluation: CTR/PTR
-- Full ablation table: Baseline → Zone 1 → Zone 2 → Zone 3
+- Cross-domain transfer evaluation: CTR/PTR on auto insurance data
+- Full ablation table: Baseline → Zone 1 → Zone 2 → Zone 3 (3 methods)
+- OLLM-style evaluation: BERTScore F1, Graph F1, Continuous F1, Wu-Palmer
 - Streamlit demo: query the induced ontology, visualize SUBCLASS_OF hierarchy
-- Human annotation quality metric (reference-free, unaffected by naming convention bias)
 
 ---
 
-*Last updated: March 11, 2026 · CS584 AI Capstone · Emory University*
+*Last updated: March 24, 2026 · CS584 AI Capstone · Emory University*
