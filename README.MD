@@ -903,21 +903,27 @@ CS584_AI_Capstone/
 │   └── entity_resolution.py       # Embedding-based entity merge (cosine ≥ 0.90)
 │
 ├── zone3/                          # ✅ Ontology induction (3 methods)
-│   └── pipeline.py                 # Leiden (baseline), RSI-LCR, SV-LOI (novel)
+│   ├── pipeline.py                 # Leiden community detection (baseline)
+│   ├── rsi_lcr.py                  # RSI-LCR: Relation-Signature Induction + LLM Coherence Refinement
+│   └── sv_loi.py                   # SV-LOI: Structurally-Verified LLM Ontology Induction (novel)
 │
 ├── zone4/                          # ⏳ Structured Neo4j storage (upcoming)
 │
 ├── evaluation/
-│   ├── riskine_eval.py             # Member-based Riskine F1 (PascalCase humanization, LLM judge)
+│   ├── riskine_eval.py             # Entity Assignment F1, Name F1, present-class F1
+│   ├── ontology_metrics.py         # BERTScore F1, Graph F1, Continuous F1, Wu-Palmer
 │   ├── riskine_loader.py           # Loads Riskine schema JSONs
-│   ├── visualize_eval_examples.py  # Presentation figures (eval Q&A, prompts, KG subgraph)
 │   ├── visualize_results.py        # HTML report generation (--suffix, --html flags)
 │   └── compare_results.py          # Side-by-side terminal table
 │
 ├── scripts/
 │   ├── data_download.py            # OpenFEMA policy + claims data download
-│   ├── cluster_setup.sh            # Emory Turing one-time setup (Ollama + 70b + venv)
-│   ├── slurm_zone2_zone3.sh        # Slurm GPU job (gres=gpu:1, mem=64G, 4h)
+│   ├── cluster_setup_v2.sh         # Emory Turing one-time setup (Ollama + qwen2.5:72b + venv)
+│   ├── slurm_pipeline_v2.sh        # Full Zone 2+3 GPU job (2× GPU, 96GB, 12h)
+│   ├── slurm_rsi_lcr.sh            # Zone 3 RSI-LCR only (no re-extraction)
+│   ├── slurm_sv_loi.sh             # Zone 3 SV-LOI only (no re-extraction)
+│   ├── slurm_eval_all.sh           # Re-run all 3 Zone 3 methods + eval
+│   ├── run_on_cluster.sh           # Push + submit convenience wrapper
 │   └── sync_to_cluster.sh          # rsync via jump host lab0z.mathcs.emory.edu
 │
 ├── data/
@@ -936,10 +942,13 @@ CS584_AI_Capstone/
 │       └── presentation_kg_subgraph.png          # KG visualization
 │
 └── docs/
-    ├── CS584_Progress_Update_Week8.md            # Mentor-facing progress report (Week 8)
     ├── FINDINGS.md                               # F-01 through F-18 empirical findings
     ├── GENERALIZATION_PLAN.md                    # Domain leakage audit + fix rationale
-    └── CS_584_AI_Capstone_Simplified_Plan.pdf    # Original project plan (Feb 22)
+    ├── IDEA_REPORT.md                            # SV-LOI idea discovery + novelty check
+    ├── CS_584_AI_Capstone.pdf                    # Main capstone report
+    ├── CS_584_AI_Capstone_Simplified_Plan_v2.pdf # Current project plan
+    ├── Automated_Insurance_Ontology_Induction.pptx # Presentation slides
+    └── refine-logs/                              # Method refinement + experiment plan
 ```
 
 ---
