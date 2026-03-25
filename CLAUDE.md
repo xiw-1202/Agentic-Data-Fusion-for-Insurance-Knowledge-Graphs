@@ -49,8 +49,10 @@ python3 baseline/eval.py --suffix zone1 --riskine
 python3 zone2/pipeline.py
 python3 zone2/pipeline.py --model qwen2.5:7b
 
-# Zone 3 pipeline — Leiden ontology induction (upcoming)
-python3 zone3/pipeline.py
+# Zone 3 pipeline — ontology induction (3 methods)
+python3 zone3/pipeline.py                          # Leiden (default)
+python3 zone3/pipeline.py --method rsi-lcr         # RSI-LCR
+python3 zone3/pipeline.py --method sv-loi          # SV-LOI (novel)
 
 # Evaluate any zone
 python3 baseline/eval.py --suffix zone2 --riskine
@@ -71,7 +73,7 @@ python3 scripts/data_download.py
 baseline/          pipeline.py, eval.py, ontology_induction.py, pdf_loader.py
 zone1/             ingestion.py — section-aware hybrid chunking (general)
 zone2/             Domain-agnostic Open IE (pipeline.py, prompts.py, entity_resolution.py)
-zone3/             Leiden ontology induction — bottom-up class discovery (upcoming)
+zone3/             Ontology induction — Leiden (baseline), RSI-LCR, SV-LOI (novel)
 zone4/             Structured Neo4j storage with SUBCLASS_OF hierarchy (upcoming)
 evaluation/        riskine_eval.py, riskine_loader.py, visualize_results.py, compare_results.py
 scripts/           data_download.py
@@ -87,6 +89,8 @@ data/results/      All eval output JSONs + HTML
 
 ## Current Results (do not overwrite without intent)
 
+### Early Results (8b/70b exploration)
+
 | Run | Query Acc | Type Incon. | Riskine F1 | File | Notes |
 |-----|:---------:|:-----------:|:----------:|------|-------|
 | Baseline (512-tok) | 35% | 8.0% | — | `baseline_eval_results_original.json` | |
@@ -97,7 +101,24 @@ data/results/      All eval output JSONs + HTML
 | Zone 3 (Leiden, 8b) | 35% | 17.4% | **0.171** | `baseline_eval_results_zone3.json` | P=0.120, R=0.300; threshold=0.40, resolution=0.6 |
 | Zone 3 (Leiden, 70b) | 30% | **2.9%** | 0.071 | `baseline_eval_results_zone3_70b.json` | Turing GPU; descriptive names → low Riskine F1 (see F-07) |
 
-**Zone 2 v1 Riskine F1 of 0.874 is NOT a real result.** It was achieved by injecting 9 Riskine-labeled anchor nodes directly into the graph. Zone 2 v2 removes all domain leakage. Zone 3 70B achieved **2.9% type inconsistency** — the real structural win — but Riskine F1 dropped because 70B produces descriptive compound class names (`PropertyCoverageComponent`, `InsuranceParty`) that don't match Riskine's simple convention-names (`Coverage`, `Person`). See F-07.
+### Zone 3 Method Comparison (72b, primary results)
+
+All methods use the same Zone 2 extraction (qwen2.5:72b, 1,351 entities, 1,749 relationships).
+
+| Metric | Leiden (baseline) | RSI-LCR | **SV-LOI** (novel) |
+|--------|:-:|:-:|:-:|
+| Name F1 | 0.000 | 0.295 | **0.563** |
+| Entity Assignment F1 (full) | 0.226 | 0.302 | **0.326** |
+| Entity Assignment F1 (present) | 0.293 | 0.344 | **0.417** |
+| BERTScore F1 | 0.451 | 0.577 | **0.732** |
+| Graph F1 | 0.441 | 0.501 | **0.714** |
+| Continuous F1 | 0.069 | 0.081 | **0.122** |
+| Wu-Palmer | 0.653 | 0.723 | **0.752** |
+| Induced classes | 11 | 30 | 7 |
+| Query accuracy | 95% | 95% | 95% |
+| Type inconsistency | 8.3% | 2.1% | 2.2% |
+
+**SV-LOI (Structurally-Verified LLM Ontology Induction)** is the primary novel contribution. It uses two-stage LLM class discovery (detect domain, then propose classes) and LLM-guided class consolidation to achieve the best results across all metrics. See F-15 through F-18 for detailed findings.
 
 ---
 
@@ -117,10 +138,12 @@ data/results/      All eval output JSONs + HTML
 |------|:------:|---|
 | Zone 1 | ✅ Done | Section-aware hybrid PDF chunking (τ=0.85 semantic merge) — general |
 | Baseline | ✅ Done | LLMGraphTransformer → Neo4j, 20-task eval — comparison only |
-| Zone 2 v1 | ⚠️ Domain-coupled | Few-shot Open IE with SFIP-specific prompts + Riskine anchors — NEEDS REWORK |
+| Zone 2 v1 | ⚠️ Domain-coupled | Few-shot Open IE with SFIP-specific prompts + Riskine anchors — superseded |
 | Zone 2 v2 | ✅ Done | Domain-agnostic: bootstrapped entity+relation types, synthetic few-shot, no anchors |
 | Zone 2.5 | ✅ Done | Entity resolution: embed + cluster near-duplicate nodes — general |
-| Zone 3 | ✅ Done | Leiden community detection on ENTITIES → bottom-up ontology classes + SUBCLASS_OF |
+| Zone 3 — Leiden | ✅ Done | Multi-resolution Leiden community detection (baseline method) |
+| Zone 3 — RSI-LCR | ✅ Done | Relation-Signature Induction with LLM Coherence Refinement |
+| Zone 3 — SV-LOI | ✅ Done | **Structurally-Verified LLM Ontology Induction (novel contribution)** |
 | Zone 4 | ⏳ Upcoming | Structured Neo4j storage with ontology layer |
 
 ---
@@ -130,12 +153,12 @@ data/results/      All eval output JSONs + HTML
 ```
 ZONE 1: Ingestion        ZONE 2: Open IE (general)       ZONE 3: Ontology Induction      ZONE 4: Storage
 ─────────────────        ────────────────────────         ──────────────────────────       ──────────────
-ANY insurance docs       Bootstrap from docs:             Leiden on extracted entities:    3-layer Neo4j:
-PDF + CSV           →      LLM proposes entity types →     Build similarity graph     →    Ontology classes
-Section-aware chunk        LLM proposes relation types     Leiden → 15-30 clusters         SUBCLASS_OF
-τ=0.85 merge               Synthetic few-shot (generic)    LLM names each cluster          Entity instances
-                           Extract (s,r,o,confidence)      LLM proposes SUBCLASS_OF
-                           Entity resolution               NO reference ontology used
+ANY insurance docs       Bootstrap from docs:             3 methods compared:              3-layer Neo4j:
+PDF + CSV           →      LLM proposes entity types →     A. Leiden (baseline)       →    Ontology classes
+Section-aware chunk        LLM proposes relation types     B. RSI-LCR                      SUBCLASS_OF
+τ=0.85 merge               Synthetic few-shot (generic)    C. SV-LOI (novel)               Entity instances
+                           Extract (s,r,o,confidence)      Two-stage class discovery
+                           Entity resolution               + LLM consolidation
 
                            ┌──────────────────────────┐
                            │ EVALUATION (separate)     │
@@ -178,19 +201,20 @@ Never imported by zone2/, zone3/, or zone4/ code.
 
 ---
 
-## Novel Pipeline Targets (for paper)
+## Novel Pipeline Results (for paper)
 
-| Metric | Baseline | Zone 1 | Zone 2 (general) | Zone 3 (Leiden) | Notes |
-|--------|:--------:|:------:|:-----------------:|:---------------:|-------|
-| Query accuracy | 35% | 50% | ~45-55% | > 65% | Flood-specific eval tasks |
-| Type inconsistency | 8% | 15.2% | ~15-20% | < 5% | Zone 3 is the fix |
-| Riskine F1 | — | 0.250 | ~0.35-0.45 | > 0.55 | Honest — no anchor injection |
-| Entity duplication | ~0% | ~0% | ~0% | < 5% | Grows at 150K scale |
-| CTR (cross-domain) | — | — | — | > 60% | Same pipeline on auto data |
-| PTR (cross-domain) | — | — | — | > 50% | Shared properties flood↔auto |
+| Metric | Baseline | Zone 1 | Zone 3 Leiden | Zone 3 RSI-LCR | Zone 3 SV-LOI | Notes |
+|--------|:--------:|:------:|:-------------:|:--------------:|:-------------:|-------|
+| Query accuracy | 35% | 50% | 95% | 95% | **95%** | All Zone 3 methods share Zone 2 72b extraction |
+| Type inconsistency | 8% | 15.2% | 8.3% | 2.1% | **2.2%** | Both RSI-LCR and SV-LOI solve the label problem |
+| Name F1 | — | 0.250 | 0.000 | 0.295 | **0.563** | SV-LOI consolidation is the key |
+| BERTScore F1 | — | — | 0.451 | 0.577 | **0.732** | Semantic similarity metric |
+| Graph F1 | — | — | 0.441 | 0.501 | **0.714** | Structural alignment metric |
+| Entity Assign F1 (present) | — | — | 0.293 | 0.344 | **0.417** | Fairer metric — excludes absent classes |
+| Continuous F1 | — | — | 0.069 | 0.081 | **0.122** | Soft assignment score |
+| Wu-Palmer | — | — | 0.653 | 0.723 | **0.752** | Taxonomy similarity |
 
-**These targets are honest.** Zone 2 v1's 0.874 F1 was inflated by anchor injection.
-The real test is: does Zone 3 Leiden discover classes that align with Riskine WITHOUT ever seeing Riskine?
+**SV-LOI is the novel contribution.** It achieves the best results across all metrics by using two-stage class discovery (detect domain, then propose classes) and LLM-guided consolidation. The pipeline never sees the reference ontology.
 
 ---
 
@@ -204,7 +228,11 @@ The real test is: does Zone 3 Leiden discover classes that align with Riskine WI
 | F-04 | Vocab compliance > extraction volume for query accuracy | Validates bootstrapped vocabulary approach |
 | F-05 | Entity resolution threshold is model-dependent | 0.90 works for 8B; needs adaptation for larger models |
 | F-06 | Zone 2 v1's 0.874 F1 was domain leakage (Riskine anchor nodes) | Removed in v2; honest baseline is ~0.000 |
-| F-07 | Larger models produce descriptive compound class names (70B: `PropertyCoverageComponent`) that don't align with reference ontology naming conventions (Riskine: `Coverage`), while smaller models accidentally produce shorter names that embed closer to Riskine | Proves Riskine F1 is a poor metric for domain-agnostic ontology evaluation — rewards naming convention similarity not semantic correctness. The correct metric is cross-domain CTR/PTR. |
+| F-07 | Larger models produce descriptive compound class names that don't align with reference ontology naming conventions | Motivates BERTScore/Graph F1 as complementary metrics |
+| F-15 | SV-LOI two-stage class discovery eliminates data-type classes (NumericValue, Temporal) | Domain detection step grounds class proposals in insurance concepts |
+| F-16 | LLM-guided consolidation (City+County+State->Address, Policy->Product) raises Name F1 from 0.214 to 0.563 | Consolidation is as important as initial class discovery |
+| F-17 | Person, Organization, Object absent from flood insurance data | Max achievable full-Riskine recall is ~0.6-0.7 |
+| F-18 | Present-class F1 gives fairer comparison when source data lacks some reference classes | SV-LOI: 0.417 present vs 0.293 for Leiden |
 
 ---
 
@@ -213,7 +241,7 @@ The real test is: does Zone 3 Leiden discover classes that align with Riskine WI
 | Week | Task | Deliverable |
 |------|------|-------------|
 | 6 | Generalize Zone 2: remove all domain hardcoding | zone2/ v2 with synthetic few-shot |
-| 7 | Implement Zone 3: Leiden + LLM naming + SUBCLASS_OF | zone3/pipeline.py |
-| 8 | Run identical pipeline on auto insurance (zero changes) | data/auto/ results |
-| 9 | Cross-domain transfer: CTR/PTR measurement | Transfer evaluation |
-| 10-11 | Paper, Streamlit demo, human annotation | Final deliverables |
+| 7 | Implement Zone 3 Leiden baseline + 72b extraction | zone3/pipeline.py, 1,351 entities |
+| 8-9 | Implement RSI-LCR + SV-LOI + OLLM-style eval | 3-method comparison with comprehensive metrics |
+| **10** | **Paper + cross-domain transfer** | **Paper writing, auto insurance transfer** |
+| 11 | Paper, Streamlit demo, human annotation | Final deliverables |

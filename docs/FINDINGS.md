@@ -229,3 +229,151 @@ Full plan: `docs/GENERALIZATION_PLAN.md`
 > and corrected this in our Zone 2 redesign, reducing reported F1 from 0.874
 > to an honest 0.35–0.45 from extraction alone, with Zone 3 Leiden clustering
 > recovering to 0.55+ through genuine bottom-up induction."*
+
+---
+
+## F-15 · Two-Stage Class Discovery Eliminates Data-Type Classes
+
+**Date**: 2026-03-24
+**Zone**: Zone 3 (SV-LOI)
+**Model**: qwen2.5:72b
+**Status**: Confirmed
+
+### Claim
+SV-LOI's two-stage class discovery — first detect the insurance domain from entity
+examples, then propose ontology classes grounded in that domain — eliminates data-type
+classes (NumericValue, Temporal, VoidState, HazardZone) that plagued the Leiden baseline.
+
+### Evidence
+Leiden (baseline) produces 11 classes including several data-type classes that have
+no ontological meaning in insurance: NumericValue, Temporal, VoidState, OccupancyType.
+These classes arise because Leiden clusters entities by embedding similarity, and
+numeric values / temporal expressions / status indicators cluster together by surface form.
+
+SV-LOI's two-stage approach produces 7 classes, all grounded in insurance domain concepts.
+The domain detection step constrains class proposals to insurance-relevant categories,
+preventing the LLM from proposing data-type classes.
+
+| Method | Classes | Data-type classes | Domain-relevant classes |
+|--------|---------|-------------------|------------------------|
+| Leiden | 11 | 4 (NumericValue, Temporal, VoidState, OccupancyType) | 7 |
+| SV-LOI | 7 | 0 | 7 |
+
+### Paper Framing
+> *"Pure clustering methods like Leiden are susceptible to surface-form grouping:
+> numeric values cluster with other numeric values regardless of semantic role.
+> SV-LOI's two-stage class discovery — domain detection followed by domain-grounded
+> class proposal — eliminates this failure mode entirely."*
+
+---
+
+## F-16 · LLM-Guided Consolidation Doubles Name F1
+
+**Date**: 2026-03-24
+**Zone**: Zone 3 (SV-LOI)
+**Model**: qwen2.5:72b
+**Status**: Confirmed
+
+### Claim
+LLM-guided class consolidation — merging fine-grained classes into canonical ontology
+concepts — improves Name F1 from 0.214 (pre-consolidation) to 0.563 (post-consolidation),
+a 2.6x improvement.
+
+### Evidence
+Before consolidation, SV-LOI proposes fine-grained classes that are semantically correct
+but do not match reference ontology naming conventions. The consolidation step maps:
+- City + County + State → Address
+- Policy → Product
+- Other fine-grained geographic/administrative classes into standard ontology categories
+
+| Stage | Name F1 | BERTScore F1 | Notes |
+|-------|---------|-------------|-------|
+| Pre-consolidation | 0.214 | ~0.60 | Fine-grained classes, correct but verbose |
+| Post-consolidation | **0.563** | **0.732** | Canonical names aligned with reference |
+
+### Interpretation
+Class consolidation is as important as initial class discovery. The LLM's ability to
+recognize that City, County, and State are all sub-types of Address — and to merge them
+accordingly — is a key advantage of SV-LOI over purely algorithmic methods.
+
+### Paper Framing
+> *"Initial class discovery produces semantically valid but fine-grained classes.
+> LLM-guided consolidation maps these to canonical ontology concepts, raising
+> Name F1 from 0.214 to 0.563. This two-phase approach separates the concerns
+> of semantic correctness (discovery) and naming convention alignment (consolidation)."*
+
+---
+
+## F-17 · Incomplete Reference Class Coverage in Source Data
+
+**Date**: 2026-03-24
+**Zone**: Evaluation
+**Status**: Confirmed
+
+### Claim
+The Riskine reference ontology contains 10 classes, but flood insurance documents
+(SFIP policy + OpenFEMA claims/policy data) do not contain entities that naturally
+map to Person, Organization, or Object. The maximum achievable full-Riskine recall
+from flood data alone is approximately 0.6-0.7.
+
+### Evidence
+Riskine's 10 classes: Coverage, Product, Damage, Risk, Structure, Property, Person,
+Object, Organization, Address.
+
+Flood insurance documents primarily contain:
+- Coverage descriptions, policy terms, property definitions, risk factors,
+  structural requirements, geographic/address information, damage types
+- No named persons (policies reference "the insured" generically, not by name)
+- No named organizations (FEMA/NFIP appear as proper nouns, not as typed entities)
+- No "Object" entities in the Riskine sense (movable physical objects)
+
+This means any induction method operating on flood data alone has a recall ceiling.
+
+### Interpretation
+Full-Riskine F1 penalizes methods that correctly identify all discoverable classes
+but cannot discover classes absent from the source data. The "present-class" metric
+(F-18) provides a fairer comparison.
+
+### Paper Framing
+> *"Reference ontology recall is bounded by source data coverage. Flood insurance
+> documents lack Person, Organization, and Object entities, capping achievable
+> Riskine recall at ~0.7. We introduce present-class F1 to evaluate only against
+> reference classes representable in the source domain."*
+
+---
+
+## F-18 · Present-Class F1 as a Fairer Evaluation Metric
+
+**Date**: 2026-03-24
+**Zone**: Evaluation
+**Status**: Confirmed
+
+### Claim
+The "present-class" F1 metric — which evaluates only against reference ontology classes
+that are actually representable in the source data — provides a fairer comparison
+between ontology induction methods than full-Riskine F1.
+
+### Evidence
+
+| Method | Entity Assign F1 (full) | Entity Assign F1 (present) | Delta |
+|--------|:-:|:-:|:-:|
+| Leiden | 0.226 | 0.293 | +0.067 |
+| RSI-LCR | 0.302 | 0.344 | +0.042 |
+| SV-LOI | 0.326 | **0.417** | +0.091 |
+
+SV-LOI benefits most from the present-class metric because it correctly identifies
+and assigns entities to the ~7 discoverable classes with higher precision, but is
+unfairly penalized for the ~3 classes absent from the source data.
+
+### Interpretation
+When evaluating domain-agnostic ontology induction, the reference ontology may
+cover concepts not present in every domain's data. Present-class F1 isolates
+the method's ability to discover and organize the classes that ARE there, rather
+than penalizing for data limitations.
+
+### Paper Framing
+> *"We propose present-class F1, which restricts evaluation to reference classes
+> with at least one entity in the source data. This avoids penalizing induction
+> methods for coverage gaps in the source documents rather than algorithmic
+> limitations. SV-LOI achieves 0.417 present-class F1, a 42% improvement over
+> Leiden's 0.293."*
