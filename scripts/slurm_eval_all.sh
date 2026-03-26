@@ -144,6 +144,19 @@ M3_TIME=$((M3_END - M3_START))
 echo "SV-LOI complete: ${M3_TIME}s"
 
 # ---------------------------------------------------------------------------
+# Extraction Quality Evaluation (runs on the final graph state = SV-LOI)
+# ---------------------------------------------------------------------------
+echo ""
+echo "================================================================"
+echo "EXTRACTION QUALITY EVALUATION"
+echo "  Started: $(date)"
+echo "================================================================"
+
+python3 evaluation/extraction_quality.py --suffix zone3_svloi --model "$MODEL" --sample-size 50 || {
+    echo "WARNING: Extraction quality eval failed"
+}
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
