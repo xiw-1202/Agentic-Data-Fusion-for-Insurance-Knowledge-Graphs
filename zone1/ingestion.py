@@ -101,7 +101,7 @@ CSV_FIELD_GROUPS: dict[str, dict[str, list[str]]] = {
 
 # Fields to skip: too granular, no ontology value, or personal identifiers
 CSV_SKIP_FIELDS: set[str] = {
-    "id", "latitude", "longitude", "censusBlockGroupFips", "censusTract",
+    "latitude", "longitude", "censusBlockGroupFips", "censusTract",
     "countyCode", "mapPanelNumber", "mapPanelSuffix", "ficoNumber",
 }
 

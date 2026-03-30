@@ -200,11 +200,25 @@ def generate_composite_key(
     record: dict[str, str],
     record_type: str,
 ) -> str:
-    """Generate a 12-char hex composite key from salient fields.
+    """Generate a stable entity key for a structured record.
 
-    Uses predefined salient fields per record type. Falls back to
-    first N non-empty fields for unknown record types (domain-agnostic).
+    Priority:
+      1. Use the original source ID if present (e.g., OpenFEMA "id" field)
+         — preserves queryability by the real identifier.
+      2. Fall back to SHA-256 hash of salient fields when no ID exists
+         — keeps the pipeline domain-agnostic.
     """
+    # --- Priority 1: original source ID ---
+    original_id = record.get("id", "")
+    prefix = {
+        "policies": "POL",
+        "claims": "CLM",
+    }.get(record_type, "REC")
+
+    if original_id:
+        return f"{prefix}-{original_id}"
+
+    # --- Priority 2: composite hash of salient fields ---
     key_fields = _KEY_FIELDS.get(record_type, [])
 
     # Collect values from salient fields.
@@ -227,12 +241,6 @@ def generate_composite_key(
     # Hash to 12 hex chars.
     raw = "|".join(parts)
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
-
-    # Prefix with record type for readability.
-    prefix = {
-        "policies": "POL",
-        "claims": "CLM",
-    }.get(record_type, "REC")
 
     return f"{prefix}-{digest}"
 
@@ -269,6 +277,163 @@ def infer_value_type(field_name: str, value: str) -> str:
         return "Categorical"
 
     return "Text"
+
+
+# ---------------------------------------------------------------------------
+# Identity field detection & cross-record linking
+# ---------------------------------------------------------------------------
+
+# Heuristic patterns for identity-bearing fields (domain-agnostic).
+_IDENTITY_PATTERNS: dict[str, list[str]] = {
+    "person": [
+        "name", "first name", "last name", "full name",
+        "policyholder", "insured name", "claimant",
+        "email", "e-mail", "email address",
+        "date of birth", "birth date", "dob", "birthday",
+        "phone", "telephone", "mobile",
+        "ssn", "social security",
+    ],
+    "property": [
+        "address", "street", "city", "state", "zip",
+        "zip code", "postal code", "county",
+        "property address", "mailing address",
+    ],
+}
+
+# Minimum identity fields required to create a shared node.
+_MIN_IDENTITY_FIELDS = 2
+
+
+def detect_identity_fields(
+    record: dict[str, str],
+) -> dict[str, dict[str, str]]:
+    """Detect identity-bearing fields in a record using heuristic matching.
+
+    Returns a dict of identity group → {field_name: value} for each
+    group that has ≥ _MIN_IDENTITY_FIELDS matching fields.
+
+    Example return:
+        {"person": {"name": "John Smith", "email": "john@email.com"}}
+    """
+    matches: dict[str, dict[str, str]] = {
+        group: {} for group in _IDENTITY_PATTERNS
+    }
+
+    for field_name, value in record.items():
+        field_lower = field_name.lower()
+        for group, patterns in _IDENTITY_PATTERNS.items():
+            if any(pat in field_lower for pat in patterns):
+                matches[group][field_name] = value
+                break  # each field belongs to at most one group
+
+    # Only return groups with enough fields for reliable linking.
+    return {
+        group: fields
+        for group, fields in matches.items()
+        if len(fields) >= _MIN_IDENTITY_FIELDS
+    }
+
+
+def generate_identity_key(
+    group: str,
+    fields: dict[str, str],
+) -> str:
+    """Generate a stable key for an identity node.
+
+    Hashes sorted field values so the same person/property always
+    maps to the same node regardless of which record it appears in.
+    """
+    # Sort by field name for stability across records with different field order.
+    parts = [v.strip().lower() for _, v in sorted(fields.items()) if v.strip()]
+    raw = "|".join(parts)
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+    prefix = {
+        "person": "PER",
+        "property": "PROP",
+    }.get(group, "ID")
+
+    return f"{prefix}-{digest}"
+
+
+def identity_triples(
+    record_key: str,
+    record_type: str,
+    identity_groups: dict[str, dict[str, str]],
+    chunk_id: str,
+    source: str,
+) -> list[dict[str, Any]]:
+    """Emit identity nodes and BELONGS_TO links for a record.
+
+    For each detected identity group (person, property):
+      - 1 IS_A triple for the identity node (idempotent in Neo4j via MERGE)
+      - 1 BELONGS_TO triple linking the record to the identity node
+      - N property triples on the identity node (name, email, etc.)
+    """
+    triples: list[dict[str, Any]] = []
+
+    entity_type_map = {
+        "policies": "PolicyRecord",
+        "claims": "ClaimRecord",
+    }
+    record_entity_type = entity_type_map.get(record_type, "Record")
+
+    identity_type_map = {
+        "person": "Person",
+        "property": "Property",
+    }
+
+    for group, fields in identity_groups.items():
+        id_key = generate_identity_key(group, fields)
+        id_type = identity_type_map.get(group, "IdentityEntity")
+
+        # IS_A triple for the identity node.
+        triples.append({
+            "subject": id_key,
+            "subject_type": id_type,
+            "relation": "IS_A",
+            "object": id_type,
+            "object_type": "IdentityType",
+            "span": f"{id_type} identity from {source}",
+            "confidence": 1.0,
+            "chunk_id": chunk_id,
+            "source": source,
+            "source_type": "structured",
+        })
+
+        # BELONGS_TO link: record → identity.
+        triples.append({
+            "subject": record_key,
+            "subject_type": record_entity_type,
+            "relation": "BELONGS_TO",
+            "object": id_key,
+            "object_type": id_type,
+            "span": f"{record_key} belongs to {id_type} {id_key}",
+            "confidence": 1.0,
+            "chunk_id": chunk_id,
+            "source": source,
+            "source_type": "structured",
+        })
+
+        # Property triples on the identity node.
+        for field_name, value in fields.items():
+            relation = _field_to_relation(field_name)
+            value_type = infer_value_type(field_name, value)
+
+            triples.append({
+                "subject": id_key,
+                "subject_type": id_type,
+                "relation": relation,
+                "object": value,
+                "object_type": value_type,
+                "span": f"{field_name}: {value}",
+                "confidence": 1.0,
+                "chunk_id": chunk_id,
+                "source": source,
+                "source_type": "structured",
+            })
+
+    return triples
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +530,8 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
 
     n_records = 0
     n_structured_chunks = 0
+    n_identity_nodes = 0
+    identity_keys_seen: set[str] = set()
 
     for i, chunk in enumerate(all_chunks):
         if is_schema_chunk(chunk):
@@ -389,6 +556,25 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
                     record_index=j,
                 )
                 structured_triples.extend(triples)
+
+                # Identity detection & cross-record linking.
+                record_key = generate_composite_key(record, record_type)
+                id_groups = detect_identity_fields(record)
+                if id_groups:
+                    id_triples = identity_triples(
+                        record_key=record_key,
+                        record_type=record_type,
+                        identity_groups=id_groups,
+                        chunk_id=chunk_id,
+                        source=source,
+                    )
+                    structured_triples.extend(id_triples)
+                    for group, fields in id_groups.items():
+                        id_key = generate_identity_key(group, fields)
+                        if id_key not in identity_keys_seen:
+                            identity_keys_seen.add(id_key)
+                            n_identity_nodes += 1
+
                 n_records += 1
         else:
             pdf_chunks.append(chunk)
@@ -399,6 +585,11 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
     print(f"\n[1.5/4] Structured mapper — SEAF-KG Stage 1")
     print(f"  ✓ {n_structured_chunks} structured chunks → "
           f"{n_records} records → {len(structured_triples)} triples")
+    if n_identity_nodes:
+        print(f"  ✓ {n_identity_nodes} unique identity nodes detected "
+              f"(cross-record linking enabled)")
+    else:
+        print(f"  ℹ No identity fields detected — using record-level keys only")
     print(f"  ✓ {len(pdf_chunks)} PDF chunks passed to LLM extraction")
     print(f"  ✓ {len(schema_chunks)} schema chunks kept for bootstrap sampling")
 

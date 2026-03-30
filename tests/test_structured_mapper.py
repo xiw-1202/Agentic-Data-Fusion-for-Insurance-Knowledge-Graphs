@@ -3,8 +3,11 @@
 import pytest
 
 from zone2.structured_mapper import (
+    detect_identity_fields,
     detect_record_type,
     generate_composite_key,
+    generate_identity_key,
+    identity_triples,
     infer_value_type,
     is_schema_chunk,
     is_structured_chunk,
@@ -297,3 +300,157 @@ class TestExtractStructuredNode:
         result = extract_structured({"chunks": []})
         assert result["structured_triples"] == []
         assert result["chunks"] == []
+
+
+# ── Identity Detection & Cross-Record Linking ──────────────────────────
+
+
+class TestIdentityDetection:
+    """Tests for detect_identity_fields and identity linking."""
+
+    def test_person_identity_detected(self) -> None:
+        record = {
+            "name": "John Smith",
+            "email": "john@example.com",
+            "date of birth": "1990-01-15",
+            "policy effective date": "2025-01-01",
+            "rated flood zone": "AE",
+        }
+        groups = detect_identity_fields(record)
+        assert "person" in groups
+        assert "name" in groups["person"]
+        assert "email" in groups["person"]
+
+    def test_property_identity_detected(self) -> None:
+        record = {
+            "property address": "123 Main St",
+            "city": "Miami",
+            "state": "FL",
+            "zip code": "33101",
+            "policy cost": "1500",
+        }
+        groups = detect_identity_fields(record)
+        assert "property" in groups
+        assert len(groups["property"]) >= 2
+
+    def test_no_identity_with_insufficient_fields(self) -> None:
+        record = {
+            "name": "John Smith",
+            "policy cost": "1500",
+            "rated flood zone": "AE",
+        }
+        groups = detect_identity_fields(record)
+        # Only 1 person field (name), below threshold of 2.
+        assert "person" not in groups
+
+    def test_anonymized_data_no_identity(self) -> None:
+        """OpenFEMA-like record with no PII → no identity nodes."""
+        record = {
+            "policy effective date": "2025-01-01",
+            "total building insurance coverage": "250000",
+            "rated flood zone": "AE",
+            "policy cost": "1200",
+        }
+        groups = detect_identity_fields(record)
+        assert len(groups) == 0
+
+    def test_identity_key_stability(self) -> None:
+        """Same person in different records → same identity key."""
+        fields1 = {"name": "John Smith", "email": "john@example.com"}
+        fields2 = {"email": "john@example.com", "name": "John Smith"}
+        key1 = generate_identity_key("person", fields1)
+        key2 = generate_identity_key("person", fields2)
+        assert key1 == key2
+        assert key1.startswith("PER-")
+
+    def test_different_persons_different_keys(self) -> None:
+        fields1 = {"name": "John Smith", "email": "john@example.com"}
+        fields2 = {"name": "Jane Doe", "email": "jane@example.com"}
+        key1 = generate_identity_key("person", fields1)
+        key2 = generate_identity_key("person", fields2)
+        assert key1 != key2
+
+    def test_property_key_prefix(self) -> None:
+        fields = {"address": "123 Main St", "city": "Miami"}
+        key = generate_identity_key("property", fields)
+        assert key.startswith("PROP-")
+
+
+class TestIdentityTriples:
+    """Tests for identity_triples emission."""
+
+    def test_belongs_to_triple_emitted(self) -> None:
+        groups = {"person": {"name": "John Smith", "email": "john@example.com"}}
+        triples = identity_triples(
+            record_key="POL-abc123",
+            record_type="policies",
+            identity_groups=groups,
+            chunk_id="1",
+            source="test.json",
+        )
+        relations = [t["relation"] for t in triples]
+        assert "IS_A" in relations
+        assert "BELONGS_TO" in relations
+        assert "HAS_NAME" in relations
+        assert "HAS_EMAIL" in relations
+
+    def test_belongs_to_links_record_to_identity(self) -> None:
+        groups = {"person": {"name": "John Smith", "email": "john@example.com"}}
+        triples = identity_triples(
+            record_key="POL-abc123",
+            record_type="policies",
+            identity_groups=groups,
+            chunk_id="1",
+            source="test.json",
+        )
+        belongs_to = [t for t in triples if t["relation"] == "BELONGS_TO"]
+        assert len(belongs_to) == 1
+        assert belongs_to[0]["subject"] == "POL-abc123"
+        assert belongs_to[0]["object"].startswith("PER-")
+
+    def test_same_person_two_policies_same_identity_node(self) -> None:
+        """Two policies for same person link to same identity key."""
+        groups = {"person": {"name": "John Smith", "email": "john@example.com"}}
+
+        t1 = identity_triples("POL-aaa", "policies", groups, "1", "a.json")
+        t2 = identity_triples("POL-bbb", "policies", groups, "2", "b.json")
+
+        bt1 = [t for t in t1 if t["relation"] == "BELONGS_TO"][0]
+        bt2 = [t for t in t2 if t["relation"] == "BELONGS_TO"][0]
+
+        # Different records link to the SAME person node.
+        assert bt1["subject"] != bt2["subject"]  # POL-aaa ≠ POL-bbb
+        assert bt1["object"] == bt2["object"]     # PER-xxx == PER-xxx
+
+    def test_cross_domain_linking(self) -> None:
+        """Same person in flood policy and auto claim → same identity node."""
+        person = {"name": "John Smith", "email": "john@example.com"}
+
+        t_flood = identity_triples(
+            "POL-flood1", "policies",
+            {"person": person}, "1", "flood_policies.json",
+        )
+        t_auto = identity_triples(
+            "POL-auto1", "policies",
+            {"person": person}, "2", "auto_policies.json",
+        )
+
+        bt_flood = [t for t in t_flood if t["relation"] == "BELONGS_TO"][0]
+        bt_auto = [t for t in t_auto if t["relation"] == "BELONGS_TO"][0]
+
+        assert bt_flood["object"] == bt_auto["object"]
+
+    def test_multiple_identity_groups(self) -> None:
+        """Record with both person and property identity."""
+        groups = {
+            "person": {"name": "John Smith", "email": "john@example.com"},
+            "property": {"address": "123 Main St", "city": "Miami"},
+        }
+        triples = identity_triples("POL-abc", "policies", groups, "1", "t.json")
+
+        belongs_to = [t for t in triples if t["relation"] == "BELONGS_TO"]
+        assert len(belongs_to) == 2
+
+        targets = {t["object"] for t in belongs_to}
+        assert any(t.startswith("PER-") for t in targets)
+        assert any(t.startswith("PROP-") for t in targets)
