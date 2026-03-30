@@ -1,37 +1,39 @@
 """
-Zone 2.5 — Entity Resolution via Embedding Similarity
+Zone 2.5 — Entity Resolution via Embedding Similarity (In-Memory)
 
-Groups semantically near-duplicate Zone2Entity nodes and merges them into a
-single canonical node, redirecting all relationships.
+Deduplicates near-identical entity names in the triple list BEFORE Neo4j
+insertion. All processing happens in Python — zero Neo4j round-trips.
 
 Algorithm:
-  1. Embed all node IDs with sentence-transformers all-MiniLM-L6-v2
-  2. Compute pairwise cosine similarity (L2-normalised embeddings → dot product)
-  3. Collect pairs with similarity ≥ threshold (default 0.90 — conservative)
+  1. Collect unique node IDs from triple list (exclude structured prefixes)
+  2. Embed with sentence-transformers all-MiniLM-L6-v2
+  3. Vectorized pairwise cosine similarity (matrix multiply)
   4. Build connected components via union-find
-  5. Elect canonical node per component (shortest ID, then alphabetical tiebreak)
-  6. Redirect all relationships from duplicates → canonical (pure Cypher, no APOC)
-  7. Delete duplicate nodes
+  5. Elect canonical node per component (shortest ID, then alphabetical)
+  6. Replace duplicate IDs in triple list with canonical IDs
+  7. Return deduplicated triple list
 
-Usage (called from zone2/pipeline.py as pipeline node zone25_entity_resolution):
-  from zone2.entity_resolution import resolve_entities
+Usage (called from zone2/pipeline.py):
+  from zone2.entity_resolution import resolve_entities_in_memory
 """
+
+from __future__ import annotations
 
 import re
 from collections import defaultdict
+from typing import Any
+
 import numpy as np
 
-SIMILARITY_THRESHOLD = 0.90  # conservative: only merge near-identical node names
+SIMILARITY_THRESHOLD = 0.90
+
+# Structured node prefixes — never merge these.
+STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _sanitize_rel(rel: str) -> str:
-    """Make a relation name safe for Neo4j Cypher f-string interpolation."""
-    return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
-
 
 def _sanitize_label(label: str) -> str:
     """Make a Neo4j label safe for f-string interpolation."""
@@ -63,140 +65,131 @@ def _union_find_components(pairs: list[tuple[str, str]]) -> list[list[str]]:
     return [grp for grp in groups.values() if len(grp) > 1]
 
 
-def _merge_node_into_canonical(graph, dup_id: str, canon_id: str, graph_label: str = "Entity") -> int:
-    """
-    Redirect all relationships from dup → canonical node, then delete dup.
-    Uses pure Cypher MERGE (no APOC) so it works on AuraDB free tier.
-    Returns number of relationships redirected.
-    """
-    label = _sanitize_label(graph_label)
-    out_rels = graph.query(
-        f"MATCH (n:{label} {{id: $id}})-[r]->(m) "
-        "RETURN type(r) AS t, m.id AS mid, properties(r) AS p",
-        params={"id": dup_id},
-    )
-    in_rels = graph.query(
-        f"MATCH (m)-[r]->(n:{label} {{id: $id}}) "
-        "RETURN type(r) AS t, m.id AS mid, properties(r) AS p",
-        params={"id": dup_id},
-    )
-    moved = 0
-    for row in out_rels:
-        rt = _sanitize_rel(row["t"])
-        graph.query(
-            f"MATCH (c:{label} {{id: $cid}}) "
-            f"MATCH (tgt:{label} {{id: $tid}}) "
-            f"MERGE (c)-[r:{rt}]->(tgt) ON CREATE SET r = $p",
-            params={"cid": canon_id, "tid": row["mid"], "p": row["p"]},
-        )
-        moved += 1
-    for row in in_rels:
-        rt = _sanitize_rel(row["t"])
-        graph.query(
-            f"MATCH (src:{label} {{id: $sid}}) "
-            f"MATCH (c:{label} {{id: $cid}}) "
-            f"MERGE (src)-[r:{rt}]->(c) ON CREATE SET r = $p",
-            params={"sid": row["mid"], "cid": canon_id, "p": row["p"]},
-        )
-        moved += 1
-    graph.query(
-        f"MATCH (n:{label} {{id: $id}}) DETACH DELETE n",
-        params={"id": dup_id},
-    )
-    return moved
-
-
 # ---------------------------------------------------------------------------
-# Main Entry Point
+# In-memory entity resolution (operates on triple list, no Neo4j)
 # ---------------------------------------------------------------------------
 
-def resolve_entities(graph, threshold: float = SIMILARITY_THRESHOLD, node_label: str = "Entity") -> dict:
-    """
-    Embed all Zone2Entity node IDs and merge near-duplicates above cosine threshold.
+def resolve_entities_in_memory(
+    triples: list[dict[str, Any]],
+    threshold: float = SIMILARITY_THRESHOLD,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Deduplicate near-identical entity names in the triple list.
 
-    Returns stats dict: nodes_before, nodes_after, merged, pairs, groups.
-    Near-duplicates are groups connected by similarity ≥ threshold; canonical is
-    elected as the shortest (most concise) node ID in each group.
-    """
-    node_label = _sanitize_label(node_label)
+    Operates entirely in Python — no Neo4j queries. Structured triples
+    (source_type='structured') and their nodes are excluded from merging.
 
+    Args:
+        triples: List of triple dicts with 'subject', 'object', 'source_type' keys.
+        threshold: Cosine similarity threshold for merging (default 0.90).
+
+    Returns:
+        (deduplicated_triples, stats_dict)
+    """
     try:
         from sentence_transformers import SentenceTransformer
     except ImportError:
         print("  ⚠ sentence_transformers not available; skipping entity resolution")
-        return {"error": "sentence_transformers not installed", "merged": 0}
+        return triples, {"error": "sentence_transformers not installed", "merged": 0}
 
-    rows = graph.query(f"MATCH (n:{node_label}) RETURN n.id AS id, n.source_type AS st")
-    all_ids = [r["id"] for r in rows]
-    n_before = len(all_ids)
+    # Collect all unique node IDs from triples.
+    all_ids: set[str] = set()
+    for t in triples:
+        all_ids.add(t["subject"])
+        all_ids.add(t["object"])
 
-    # Exclude structured entity nodes from resolution — they are already
-    # exact (deterministic extraction, confidence=1.0). Merging date/numeric
-    # values by embedding similarity destroys queryable structured data.
-    # Structured nodes include:
-    #   - Record entities: POL-xxx, CLM-xxx, REC-xxx
-    #   - Identity nodes: PER-xxx, PROP-xxx
-    #   - Their property values (connected via HAS_ relations from structured sources)
-    _STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
-    structured_ids = set()
-    for r in rows:
-        nid = r["id"]
-        if nid.startswith(_STRUCTURED_PREFIXES):
-            structured_ids.add(nid)
-        elif r.get("st") == "structured":
-            structured_ids.add(nid)
+    n_total = len(all_ids)
 
-    # Also exclude property value nodes connected to structured entities.
-    if structured_ids:
-        value_rows = graph.query(
-            f"MATCH (n:{node_label})-[r]->(v:{node_label}) "
-            "WHERE n.id IN $sids AND type(r) STARTS WITH 'HAS_' "
-            "RETURN DISTINCT v.id AS vid",
-            params={"sids": list(structured_ids)},
-        )
-        for vr in value_rows:
-            structured_ids.add(vr["vid"])
+    # Identify structured IDs to exclude.
+    structured_ids: set[str] = set()
+    for t in triples:
+        if t.get("source_type") == "structured":
+            structured_ids.add(t["subject"])
+            structured_ids.add(t["object"])
+        elif t["subject"].startswith(STRUCTURED_PREFIXES):
+            structured_ids.add(t["subject"])
+        elif t["object"].startswith(STRUCTURED_PREFIXES):
+            structured_ids.add(t["object"])
 
-    ids = [nid for nid in all_ids if nid not in structured_ids]
-    n_excluded = n_before - len(ids)
+    # Also exclude value nodes connected to structured subjects via HAS_ relations.
+    for t in triples:
+        if (t["subject"] in structured_ids
+                and t["relation"].startswith("HAS_")):
+            structured_ids.add(t["object"])
 
-    if len(ids) < 2:
-        print(f"  ℹ {n_excluded} structured nodes excluded from resolution")
-        return {"merged": 0, "nodes_before": n_before, "nodes_after": n_before,
-                "structured_excluded": n_excluded}
+    # Filter to candidates for resolution.
+    candidate_ids = sorted(all_ids - structured_ids)
+    n_excluded = n_total - len(candidate_ids)
 
-    print(f"  Embedding {len(ids)} node IDs with all-MiniLM-L6-v2... "
+    if len(candidate_ids) < 2:
+        print(f"  ℹ {n_excluded} structured nodes excluded, "
+              f"{len(candidate_ids)} candidates — skipping resolution")
+        return triples, {
+            "merged": 0, "nodes_total": n_total,
+            "structured_excluded": n_excluded,
+        }
+
+    print(f"  Embedding {len(candidate_ids)} node IDs with all-MiniLM-L6-v2... "
           f"({n_excluded} structured nodes excluded)")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    embs = model.encode(ids, normalize_embeddings=True)  # L2-norm → dot = cosine
 
-    n_candidates = len(ids)
-    sim_pairs: list[tuple[str, str]] = []
-    for i in range(n_candidates):
-        for j in range(i + 1, n_candidates):
-            if float(np.dot(embs[i], embs[j])) >= threshold:
-                sim_pairs.append((ids[i], ids[j]))
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    embs = model.encode(candidate_ids, normalize_embeddings=True)
+
+    # Vectorized pairwise similarity (replaces O(n²) Python loop).
+    sim_matrix = embs @ embs.T
+    n = len(candidate_ids)
+    # Zero out lower triangle + diagonal, keep upper triangle only.
+    mask = np.triu(np.ones((n, n), dtype=bool), k=1)
+    pairs_i, pairs_j = np.where((sim_matrix >= threshold) & mask)
+
+    sim_pairs = [(candidate_ids[i], candidate_ids[j])
+                 for i, j in zip(pairs_i, pairs_j)]
 
     print(f"  Near-duplicate pairs (cosine ≥ {threshold}): {len(sim_pairs)}")
-    if not sim_pairs:
-        return {"merged": 0, "nodes_before": n_before, "nodes_after": n_before, "pairs": 0}
 
+    if not sim_pairs:
+        return triples, {
+            "merged": 0, "nodes_total": n_total,
+            "structured_excluded": n_excluded, "pairs": 0,
+        }
+
+    # Build merge map: duplicate_id → canonical_id.
     components = _union_find_components(sim_pairs)
+    merge_map: dict[str, str] = {}
     total_merged = 0
+
     for group in components:
-        canonical = min(group, key=lambda x: (len(x), x))  # shortest, then alpha
+        canonical = min(group, key=lambda x: (len(x), x))
         for dup in sorted(group):
             if dup != canonical:
-                moved = _merge_node_into_canonical(graph, dup, canonical, graph_label=node_label)
-                print(f"    Merged '{dup}' → '{canonical}' ({moved} rels)")
+                merge_map[dup] = canonical
+                print(f"    Merged '{dup}' → '{canonical}'")
                 total_merged += 1
 
-    after_rows = graph.query(f"MATCH (n:{node_label}) RETURN count(n) AS c")
-    n_after = after_rows[0]["c"] if after_rows else n_before - total_merged
-    return {
-        "merged":       total_merged,
-        "nodes_before": n_before,
-        "nodes_after":  n_after,
-        "pairs":        len(sim_pairs),
-        "groups":       len(components),
+    # Apply merge map to all triples (immutable — create new list).
+    deduplicated = [
+        {
+            **t,
+            "subject": merge_map.get(t["subject"], t["subject"]),
+            "object": merge_map.get(t["object"], t["object"]),
+        }
+        for t in triples
+    ]
+
+    # Remove self-referential triples created by merging.
+    deduplicated = [t for t in deduplicated if t["subject"] != t["object"]]
+    self_refs_removed = len(triples) - len([t for t in triples if t["subject"] == t["object"]]) - len([t for t in deduplicated if t["subject"] != t["object"]])
+
+    n_after = len(all_ids) - total_merged
+    print(f"  ✓ {total_merged} merged: {n_total} → {n_after} unique nodes")
+
+    stats = {
+        "merged": total_merged,
+        "nodes_total": n_total,
+        "nodes_after": n_after,
+        "structured_excluded": n_excluded,
+        "pairs": len(sim_pairs),
+        "groups": len(components),
+        "merge_map": {k: v for k, v in list(merge_map.items())[:20]},  # sample for logging
     }
+
+    return deduplicated, stats

@@ -53,7 +53,7 @@ from zone2.prompts import (
     PASS_FOCUS_INSTRUCTIONS,
     SINGLE_PASS_FOCUS,
 )
-from zone2.entity_resolution import resolve_entities
+from zone2.entity_resolution import resolve_entities_in_memory
 from zone2.structured_mapper import extract_structured
 from zone2.cross_source_linker import cross_source_link
 
@@ -956,17 +956,18 @@ def insert_to_neo4j(state: Zone2State) -> dict:
 
 
 def zone25_entity_resolution(state: Zone2State) -> dict:
-    """Zone 2.5: embed Entity node IDs, merge near-duplicates (cosine ≥ 0.90)."""
-    print("\n[4.5] Zone 2.5 — Entity Resolution...")
-    try:
-        graph = get_neo4j_graph()
-        stats = resolve_entities(graph, node_label="Entity")
-        print(f"  ✓ {stats.get('merged', 0)} merged: "
-              f"{stats.get('nodes_before')} → {stats.get('nodes_after')} nodes")
-        return {"resolution_stats": stats}
-    except Exception as e:
-        print(f"  ⚠ Entity resolution failed ({e}); skipping")
-        return {"resolution_stats": {"error": str(e), "merged": 0}}
+    """Zone 2.5: in-memory entity resolution on triple list.
+
+    Runs BEFORE Neo4j insertion — deduplicates near-identical node names
+    by replacing duplicate IDs in the triple list. Zero Neo4j round-trips.
+    """
+    print("\n[4.5] Zone 2.5 — Entity Resolution (in-memory)...")
+    triples = state.get("triples", [])
+    if not triples:
+        return {"resolution_stats": {"merged": 0}}
+
+    deduplicated, stats = resolve_entities_in_memory(triples)
+    return {"triples": deduplicated, "resolution_stats": stats}
 
 
 # ---------------------------------------------------------------------------
@@ -988,9 +989,9 @@ def build_pipeline():
     builder.add_edge("extract_structured",       "bootstrap_vocab")
     builder.add_edge("bootstrap_vocab",          "extract_triples")
     builder.add_edge("extract_triples",          "canonicalize_relations")
-    builder.add_edge("canonicalize_relations",   "insert_to_neo4j")
-    builder.add_edge("insert_to_neo4j",          "zone25_entity_resolution")
-    builder.add_edge("zone25_entity_resolution", "cross_source_link")
+    builder.add_edge("canonicalize_relations",   "zone25_entity_resolution")
+    builder.add_edge("zone25_entity_resolution", "insert_to_neo4j")
+    builder.add_edge("insert_to_neo4j",          "cross_source_link")
     builder.add_edge("cross_source_link",        END)
     return builder.compile()
 
