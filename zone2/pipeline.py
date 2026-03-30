@@ -884,15 +884,21 @@ def canonicalize_relations(state: Zone2State) -> dict:
         print(f"  ⚠ Canonicalization LLM call failed ({e}); keeping original relations")
         return {}
 
-    # Apply mapping
-    canonicalized = [
-        {**t, "relation": mapping.get(t["relation"], t["relation"])}
-        for t in triples
-    ]
+    # Apply mapping — skip structured triples (their relation names are
+    # already well-formed field names needed for cross-source linking).
+    canonicalized = []
+    n_skipped = 0
+    for t in triples:
+        if t.get("source_type") == "structured":
+            canonicalized.append(t)
+            n_skipped += 1
+        else:
+            canonicalized.append({**t, "relation": mapping.get(t["relation"], t["relation"])})
 
-    types_before = len(set(t["relation"] for t in triples))
-    types_after  = len(set(t["relation"] for t in canonicalized))
-    print(f"  ✓ Canonicalized: {types_before} → {types_after} relation types")
+    types_before = len(set(t["relation"] for t in triples if t.get("source_type") != "structured"))
+    types_after  = len(set(t["relation"] for t in canonicalized if t.get("source_type") != "structured"))
+    print(f"  ✓ Canonicalized: {types_before} → {types_after} LLM relation types "
+          f"({n_skipped} structured triples preserved)")
 
     return {"triples": canonicalized}
 
