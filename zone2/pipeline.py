@@ -55,6 +55,7 @@ from zone2.prompts import (
 )
 from zone2.entity_resolution import resolve_entities
 from zone2.structured_mapper import extract_structured
+from zone2.cross_source_linker import cross_source_link
 
 
 # ---------------------------------------------------------------------------
@@ -966,6 +967,7 @@ def build_pipeline():
     builder.add_node("canonicalize_relations",   canonicalize_relations)
     builder.add_node("insert_to_neo4j",          insert_to_neo4j)
     builder.add_node("zone25_entity_resolution", zone25_entity_resolution)
+    builder.add_node("cross_source_link",        cross_source_link)
     builder.set_entry_point("load_chunks")
     builder.add_edge("load_chunks",              "extract_structured")
     builder.add_edge("extract_structured",       "bootstrap_vocab")
@@ -973,7 +975,8 @@ def build_pipeline():
     builder.add_edge("extract_triples",          "canonicalize_relations")
     builder.add_edge("canonicalize_relations",   "insert_to_neo4j")
     builder.add_edge("insert_to_neo4j",          "zone25_entity_resolution")
-    builder.add_edge("zone25_entity_resolution", END)
+    builder.add_edge("zone25_entity_resolution", "cross_source_link")
+    builder.add_edge("cross_source_link",        END)
     return builder.compile()
 
 
