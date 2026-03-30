@@ -93,10 +93,10 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 M1_START=$(date +%s)
-python3 zone3/pipeline.py --model "$MODEL" --suffix zone3_leiden || {
+python3 zone3/pipeline.py --model "$MODEL" --suffix zone3_leiden_seaf || {
     echo "WARNING: Leiden pipeline failed — continuing with eval"
 }
-python3 baseline/eval.py --suffix zone3_leiden --riskine --model "$MODEL" || {
+python3 baseline/eval.py --suffix zone3_leiden_seaf --riskine --model "$MODEL" || {
     echo "WARNING: Leiden eval failed"
 }
 M1_END=$(date +%s)
@@ -113,10 +113,10 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 M2_START=$(date +%s)
-python3 zone3/rsi_lcr.py --model "$MODEL" --suffix zone3_rsi || {
+python3 zone3/rsi_lcr.py --model "$MODEL" --suffix zone3_rsi_seaf || {
     echo "WARNING: RSI-LCR pipeline failed — continuing with eval"
 }
-python3 baseline/eval.py --suffix zone3_rsi --riskine --model "$MODEL" || {
+python3 baseline/eval.py --suffix zone3_rsi_seaf --riskine --model "$MODEL" || {
     echo "WARNING: RSI-LCR eval failed"
 }
 M2_END=$(date +%s)
@@ -133,10 +133,10 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 M3_START=$(date +%s)
-python3 zone3/sv_loi.py --model "$MODEL" --suffix zone3_svloi || {
+python3 zone3/sv_loi.py --model "$MODEL" --suffix zone3_svloi_seaf || {
     echo "WARNING: SV-LOI pipeline failed — continuing with eval"
 }
-python3 baseline/eval.py --suffix zone3_svloi --riskine --model "$MODEL" || {
+python3 baseline/eval.py --suffix zone3_svloi_seaf --riskine --model "$MODEL" || {
     echo "WARNING: SV-LOI eval failed"
 }
 M3_END=$(date +%s)
@@ -152,7 +152,7 @@ echo "EXTRACTION QUALITY EVALUATION"
 echo "  Started: $(date)"
 echo "================================================================"
 
-python3 evaluation/extraction_quality.py --suffix zone3_svloi --model "$MODEL" --sample-size 50 || {
+python3 evaluation/extraction_quality.py --suffix zone3_svloi_seaf --model "$MODEL" --sample-size 50 || {
     echo "WARNING: Extraction quality eval failed"
 }
 
@@ -170,9 +170,9 @@ python3 -c "
 import json, os
 
 methods = [
-    ('Leiden (A)',  'zone3_leiden'),
-    ('RSI-LCR (B)', 'zone3_rsi'),
-    ('SV-LOI (D)',  'zone3_svloi'),
+    ('Leiden (A)',  'zone3_leiden_seaf'),
+    ('RSI-LCR (B)', 'zone3_rsi_seaf'),
+    ('SV-LOI (D)',  'zone3_svloi_seaf'),
 ]
 
 print(f'{'Method':<16} {'Name F1':>8} {'EA F1':>8} {'EA F1p':>8} {'BERT F1':>8} {'Graph F1':>9} {'WuPalm':>8} {'QAcc':>6}')
@@ -229,12 +229,12 @@ echo "  SV-LOI:   ${M3_TIME}s"
 echo "  Total:     ${TOTAL}s"
 echo ""
 echo "Result files:"
-echo "  riskine_eval_zone3_leiden.json"
-echo "  riskine_eval_zone3_rsi.json"
-echo "  riskine_eval_zone3_svloi.json"
-echo "  baseline_eval_results_zone3_leiden.json"
-echo "  baseline_eval_results_zone3_rsi.json"
-echo "  baseline_eval_results_zone3_svloi.json"
+echo "  riskine_eval_zone3_leiden_seaf.json"
+echo "  riskine_eval_zone3_rsi_seaf.json"
+echo "  riskine_eval_zone3_svloi_seaf.json"
+echo "  baseline_eval_results_zone3_leiden_seaf.json"
+echo "  baseline_eval_results_zone3_rsi_seaf.json"
+echo "  baseline_eval_results_zone3_svloi_seaf.json"
 echo ""
 echo "Fetch:  bash scripts/sync_to_cluster.sh xwa2284 --fetch"
 echo "============================================================"
