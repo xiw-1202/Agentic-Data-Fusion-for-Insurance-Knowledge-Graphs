@@ -13,6 +13,7 @@ Contrast with baseline: fixed 512-token sliding window with no semantic awarenes
 Supports:
   - PDF: SFIP policy documents (section-aware + table extraction)
   - CSV: OpenFEMA policies + claims (token-capped dynamic batching with field grouping)
+  - Generic CSV: any standard CSV file (auto-grouped fields, domain-agnostic)
 """
 
 from __future__ import annotations
@@ -186,12 +187,50 @@ def _detect_section_label(line: str) -> Optional[tuple[str, str]]:
 
 
 def _humanize_field_name(field_name: str) -> str:
-    """Convert camelCase to human-readable label.
+    """Convert camelCase or UPPER_SNAKE_CASE to human-readable label.
 
-    Example: 'amountPaidOnBuildingClaim' → 'amount paid on building claim'
+    Examples:
+      'amountPaidOnBuildingClaim' → 'amount paid on building claim'
+      'POLICY_NUMBER'             → 'policy number'
+      'CLAIM_STATUS'              → 'claim status'
+      'EFF_DATE'                  → 'eff date'
     """
+    if "_" in field_name and field_name == field_name.upper():
+        # UPPER_SNAKE_CASE → split on underscores
+        return field_name.lower().replace("_", " ").strip()
+    # camelCase → insert spaces before uppercase letters
     s = re.sub(r'([A-Z])', r' \1', field_name)
     return s.lower().strip()
+
+
+# Heuristic patterns for auto-grouping generic CSV fields.
+_FIELD_GROUP_PATTERNS: dict[str, list[str]] = {
+    "Identity":   ["id", "name", "insured", "client", "claimant", "master",
+                   "polno", "policy_no", "policy_number", "claim_number",
+                   "subscriber"],
+    "Date":       ["date", "eff_", "exp_", "cxl_", "trm_", "time",
+                   "begin_", "period", "month"],
+    "Coverage":   ["cov", "coverage", "ded", "deductible", "premium",
+                   "endorsement", "limit"],
+    "Financial":  ["amount", "paid", "cost", "fee", "gwp", "nwp", "tax",
+                   "credit", "loss", "payment", "prem"],
+    "Location":   ["state", "city", "zip", "county", "address", "add1",
+                   "add2", "add3", "terr", "loc", "risk_st"],
+    "Status":     ["status", "indicator", "code", "type", "kind", "reason",
+                   "category"],
+}
+
+
+def _auto_group_field(field_name: str) -> str:
+    """Assign a field to a semantic group using heuristic pattern matching.
+
+    Returns group name or 'Other' if no pattern matches.
+    """
+    field_lower = field_name.lower()
+    for group, patterns in _FIELD_GROUP_PATTERNS.items():
+        if any(pat in field_lower for pat in patterns):
+            return group
+    return "Other"
 
 
 # ---------------------------------------------------------------------------
@@ -565,6 +604,200 @@ def _chunk_csv_records(
 
 
 # ---------------------------------------------------------------------------
+# Generic CSV ingestion (domain-agnostic)
+# ---------------------------------------------------------------------------
+
+# Fields to always skip in generic CSVs (internal/audit columns).
+_GENERIC_SKIP_FIELDS: set[str] = {
+    "bi_created_dt", "bi_created_by", "bi_modified_dt", "bi_modified_by",
+}
+
+# Values treated as empty in generic CSVs.
+_EMPTY_VALUES: frozenset[str] = frozenset({
+    "", "nan", "none", "null", "false", "0", "0.0", "0.00",
+    "1900-01-01", "1900-01-01T00:00:00.000Z",
+})
+
+
+def _infer_record_type_from_filename(filename: str) -> str:
+    """Infer record type from filename heuristics.
+
+    'synthetic_data_sample_geicorentersclaims.csv' → 'claims'
+    'synthetic_data_sample_geicorenterspoliciesdetails.csv' → 'policies'
+    'synthetic_data_sample_tmobileclaimsample.csv' → 'claims'
+    """
+    name = filename.lower()
+    if "polic" in name:
+        return "policies"
+    if "claim" in name:
+        return "claims"
+    if "survey" in name or "cancel" in name:
+        return "survey"
+    return "unknown"
+
+
+def _format_generic_csv_record(
+    rec: dict[str, str],
+    headers: list[str],
+) -> str:
+    """Format a generic CSV record into grouped, human-readable text.
+
+    Uses auto-grouping by field name heuristics. Skips empty/zero values
+    and internal audit columns.
+    """
+    groups: dict[str, list[str]] = {}
+
+    for field_name in headers:
+        if field_name.lower() in _GENERIC_SKIP_FIELDS:
+            continue
+        value = str(rec.get(field_name, "")).strip()
+        if value.lower() in _EMPTY_VALUES:
+            continue
+
+        group = _auto_group_field(field_name)
+        label = _humanize_field_name(field_name)
+        if group not in groups:
+            groups[group] = []
+        groups[group].append(f"{label}: {value}")
+
+    lines: list[str] = []
+    # Emit groups in a stable order.
+    group_order = ["Identity", "Date", "Coverage", "Financial",
+                   "Location", "Status", "Other"]
+    for g in group_order:
+        parts = groups.get(g, [])
+        if parts:
+            lines.append(f"  [{g}] " + " | ".join(parts))
+
+    return "RECORD:\n" + "\n".join(lines) if lines else ""
+
+
+def _chunk_generic_csv_records(
+    records: list[dict[str, str]],
+    headers: list[str],
+    source: str,
+    dataset_name: str,
+    max_tokens: int = MAX_CHUNK_TOKENS,
+) -> list[dict]:
+    """Convert generic CSV records into token-capped text chunks.
+
+    Same batching logic as OpenFEMA but with auto-generated schema
+    and auto-grouped fields.
+    """
+    # Schema chunk: list all column headers with their auto-detected groups.
+    schema_lines = [f"DATASET SCHEMA: {dataset_name}"]
+    schema_lines.append(f"Total fields: {len(headers)}")
+    for g in ["Identity", "Date", "Coverage", "Financial",
+              "Location", "Status", "Other"]:
+        fields_in_group = [h for h in headers if _auto_group_field(h) == g
+                           and h.lower() not in _GENERIC_SKIP_FIELDS]
+        if fields_in_group:
+            humanized = [_humanize_field_name(f) for f in fields_in_group]
+            schema_lines.append(f"  [{g}] " + ", ".join(humanized))
+
+    schema_text = "\n".join(schema_lines)
+    dataset_header = f"DATASET: {dataset_name}\n"
+
+    chunks: list[dict] = []
+
+    # Chunk 0: schema description.
+    chunks.append({
+        "text": schema_text,
+        "section_hierarchy": [source, "schema"],
+        "pages": [],
+        "temporal_markers": [],
+        "merged_from": [],
+        "chunk_type": "text",
+    })
+
+    # Data chunks: dynamic token-capped batching.
+    current_batch: list[str] = []
+    current_tokens: int = 0
+    batch_start_idx: int = 0
+
+    def flush_batch(end_idx: int) -> None:
+        nonlocal current_batch, current_tokens, batch_start_idx
+        if not current_batch:
+            return
+        text = dataset_header + "\n\n".join(current_batch)
+        chunks.append({
+            "text": text,
+            "section_hierarchy": [source, f"records {batch_start_idx}–{end_idx}"],
+            "pages": [],
+            "temporal_markers": [],
+            "merged_from": [],
+            "chunk_type": "text",
+        })
+        current_batch = []
+        current_tokens = 0
+        batch_start_idx = end_idx + 1
+
+    for rec_idx, rec in enumerate(records):
+        formatted = _format_generic_csv_record(rec, headers)
+        if not formatted:
+            continue
+        tok = _approx_tokens(formatted)
+
+        if current_tokens + tok > max_tokens and current_batch:
+            flush_batch(rec_idx - 1)
+
+        current_batch.append(formatted)
+        current_tokens += tok
+
+    flush_batch(len(records) - 1)
+
+    return chunks
+
+
+def ingest_generic_csv(
+    csv_path: str,
+    max_tokens: int = MAX_CHUNK_TOKENS,
+) -> list[HybridChunk]:
+    """Zone 1 ingestion for standard CSV files (domain-agnostic).
+
+    Auto-detects record type from filename, auto-groups fields by
+    heuristic patterns, and produces the same chunk format as OpenFEMA
+    ingestion for seamless downstream processing.
+    """
+    import csv as csv_mod
+
+    filename = os.path.basename(csv_path)
+    record_type = _infer_record_type_from_filename(filename)
+    dataset_name = filename.replace("synthetic_data_sample_", "").replace(
+        ".csv", "").replace("_", " ").title()
+
+    print(f"\n[CSV] {filename} (record_type={record_type}, dataset={dataset_name})")
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv_mod.DictReader(f)
+        headers = list(reader.fieldnames or [])
+        records = list(reader)
+
+    print(f"  Loaded {len(records)} records, {len(headers)} columns")
+
+    raw = _chunk_generic_csv_records(
+        records, headers, filename, dataset_name, max_tokens,
+    )
+    print(f"  → {len(raw)} chunks total "
+          f"(1 schema + {len(raw) - 1} data, dynamic tok-cap max={max_tokens})")
+
+    chunks: list[HybridChunk] = []
+    for i, sec in enumerate(raw):
+        chunks.append(HybridChunk(
+            chunk_id=i,
+            content=sec["text"],
+            source=csv_path,
+            section_hierarchy=sec["section_hierarchy"],
+            temporal_markers=sec["temporal_markers"],
+            pages=[],
+            token_count=_approx_tokens(sec["text"]),
+            merged_from=sec["merged_from"],
+            chunk_type=sec.get("chunk_type", "text"),
+        ))
+    return chunks
+
+
+# ---------------------------------------------------------------------------
 # Main ingestion functions
 # ---------------------------------------------------------------------------
 
@@ -669,7 +902,20 @@ def ingest_csv(
 # Entry point
 # ---------------------------------------------------------------------------
 
-def run_zone1() -> list[HybridChunk]:
+def run_zone1(data_dir: str | None = None, output_path: str | None = None) -> list[HybridChunk]:
+    """Run Zone 1 ingestion on a data directory.
+
+    Auto-discovers PDFs and CSVs in the directory structure:
+      - data_dir/raw/pdf/*.pdf        → PDF ingestion
+      - data_dir/raw/openfema/*.json  → OpenFEMA JSON ingestion
+      - data_dir/*.csv                → Generic CSV ingestion
+      - data_dir/*.pdf                → PDF ingestion
+
+    Args:
+        data_dir: Root directory containing source files. If None, uses
+                  the default flood data directory from config.
+        output_path: Where to save chunks JSON. If None, uses config default.
+    """
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
     print("=" * 60)
     print("Zone 1: Hybrid Ingestion (Novel Pipeline)")
@@ -678,26 +924,69 @@ def run_zone1() -> list[HybridChunk]:
     model = SentenceTransformer(EMBED_MODEL)
 
     all_chunks: list[HybridChunk] = []
+    pdf_chunks: list[HybridChunk] = []
+    csv_chunk_groups: list[tuple[str, list[HybridChunk]]] = []
 
-    # --- PDF ---
-    pdf_path = config.PDF_PATH
-    pdf_chunks = ingest_pdf(pdf_path, model)
-    all_chunks.extend(pdf_chunks)
+    if data_dir is None:
+        # --- Default: flood data (OpenFEMA + SFIP PDF) ---
+        pdf_path = config.PDF_PATH
+        pdf_chunks = ingest_pdf(pdf_path, model)
+        all_chunks.extend(pdf_chunks)
 
-    # --- OpenFEMA CSVs ---
-    policies_chunks = ingest_csv(
-        os.path.join(config.OPENFEMA_DIR, "policies_sample.json"),
-        record_key="FimaNfipPolicies",
-        record_type="policies",
-    )
-    all_chunks.extend(policies_chunks)
+        policies_chunks = ingest_csv(
+            os.path.join(config.OPENFEMA_DIR, "policies_sample.json"),
+            record_key="FimaNfipPolicies",
+            record_type="policies",
+        )
+        all_chunks.extend(policies_chunks)
+        csv_chunk_groups.append(("Policies (OpenFEMA)", policies_chunks))
 
-    claims_chunks = ingest_csv(
-        os.path.join(config.OPENFEMA_DIR, "claims_sample.json"),
-        record_key="FimaNfipClaims",
-        record_type="claims",
-    )
-    all_chunks.extend(claims_chunks)
+        claims_chunks = ingest_csv(
+            os.path.join(config.OPENFEMA_DIR, "claims_sample.json"),
+            record_key="FimaNfipClaims",
+            record_type="claims",
+        )
+        all_chunks.extend(claims_chunks)
+        csv_chunk_groups.append(("Claims (OpenFEMA)", claims_chunks))
+    else:
+        # --- Generic: scan directory for PDFs and CSVs ---
+        print(f"\n  Data directory: {data_dir}")
+
+        # Discover PDFs (in root and subdirectories).
+        for root, _dirs, files in os.walk(data_dir):
+            for f in sorted(files):
+                fpath = os.path.join(root, f)
+                if f.lower().endswith(".pdf"):
+                    chunks = ingest_pdf(fpath, model)
+                    pdf_chunks.extend(chunks)
+                    all_chunks.extend(chunks)
+
+        # Discover CSVs (in root and subdirectories).
+        for root, _dirs, files in os.walk(data_dir):
+            for f in sorted(files):
+                fpath = os.path.join(root, f)
+                if f.lower().endswith(".csv"):
+                    chunks = ingest_generic_csv(fpath)
+                    all_chunks.extend(chunks)
+                    csv_chunk_groups.append((f, chunks))
+
+        # Discover OpenFEMA JSONs (in case they're mixed in).
+        for root, _dirs, files in os.walk(data_dir):
+            for f in sorted(files):
+                fpath = os.path.join(root, f)
+                if f.lower().endswith(".json") and "sample" in f.lower():
+                    # Attempt to load as OpenFEMA format.
+                    try:
+                        with open(fpath) as fh:
+                            data = json.load(fh)
+                        for key in data:
+                            if isinstance(data[key], list) and len(data[key]) > 0:
+                                rtype = "policies" if "polic" in key.lower() else "claims"
+                                chunks = ingest_csv(fpath, key, rtype)
+                                all_chunks.extend(chunks)
+                                csv_chunk_groups.append((f"{f} ({key})", chunks))
+                    except (json.JSONDecodeError, Exception):
+                        pass
 
     # --- Summary ---
     print(f"\n{'=' * 60}")
@@ -705,13 +994,11 @@ def run_zone1() -> list[HybridChunk]:
     print(f"{'=' * 60}")
     pdf_text_chunks  = [c for c in pdf_chunks if c.chunk_type == "text"]
     pdf_table_chunks = [c for c in pdf_chunks if c.chunk_type == "table"]
-    print(f"  PDF text chunks:   {len(pdf_text_chunks):>4}  "
-          f"(baseline had 56 fixed-size)")
+    print(f"  PDF text chunks:   {len(pdf_text_chunks):>4}")
     print(f"  PDF table chunks:  {len(pdf_table_chunks):>4}")
-    print(f"  Policy chunks:     {len(policies_chunks):>4}  "
-          f"(1 schema + {len(policies_chunks)-1} data)")
-    print(f"  Claims chunks:     {len(claims_chunks):>4}  "
-          f"(1 schema + {len(claims_chunks)-1} data)")
+    for name, chunks in csv_chunk_groups:
+        print(f"  {name}: {len(chunks):>4} chunks "
+              f"(1 schema + {len(chunks)-1} data)")
     print(f"  Total chunks:      {len(all_chunks):>4}")
 
     # Token distribution
@@ -729,15 +1016,16 @@ def run_zone1() -> list[HybridChunk]:
             print(f"  ✓ All chunks within {MAX_CHUNK_TOKENS}-token ceiling")
 
     # Show a few PDF chunks to verify section detection
-    print(f"\n  Sample PDF chunks:")
-    for c in pdf_chunks[:5]:
-        print(f"    [{c.chunk_id:>2}] type={c.chunk_type:<5}  "
-              f"tokens={c.token_count:>4}  "
-              f"hierarchy={c.section_hierarchy}")
+    if pdf_chunks:
+        print(f"\n  Sample PDF chunks:")
+        for c in pdf_chunks[:5]:
+            print(f"    [{c.chunk_id:>2}] type={c.chunk_type:<5}  "
+                  f"tokens={c.token_count:>4}  "
+                  f"hierarchy={c.section_hierarchy}")
 
     # Save
     out = [asdict(c) for c in all_chunks]
-    out_path = config.ZONE1_CHUNKS_FILE
+    out_path = output_path or config.ZONE1_CHUNKS_FILE
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
@@ -747,4 +1035,20 @@ def run_zone1() -> list[HybridChunk]:
 
 
 if __name__ == "__main__":
-    run_zone1()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Zone 1: Hybrid Ingestion")
+    parser.add_argument(
+        "--data-dir",
+        default=None,
+        help="Path to data directory with PDFs and CSVs. "
+             "Default: OpenFEMA flood data.",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Output path for chunks JSON. "
+             "Default: data/flood/processed/zone1_chunks.json",
+    )
+    args = parser.parse_args()
+    run_zone1(data_dir=args.data_dir, output_path=args.output)

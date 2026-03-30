@@ -84,17 +84,19 @@ def is_structured_chunk(chunk: dict[str, Any]) -> bool:
     """Detect CSV-derived chunks via source path and section_hierarchy.
 
     CSV chunks have:
-      - `.json` in the source path (OpenFEMA JSON files)
+      - `.json` or `.csv` in the source path
       - "records" in section_hierarchy (data batches, not schema)
     """
     source = chunk.get("source", "")
     hierarchy = chunk.get("section_hierarchy", [])
     hierarchy_str = " ".join(str(h) for h in hierarchy).lower()
 
-    is_json_source = ".json" in source.lower()
+    is_structured_source = (
+        ".json" in source.lower() or ".csv" in source.lower()
+    )
     is_data_batch = "records" in hierarchy_str  # not "schema"
 
-    return is_json_source and is_data_batch
+    return is_structured_source and is_data_batch
 
 
 def is_schema_chunk(chunk: dict[str, Any]) -> bool:
@@ -103,7 +105,10 @@ def is_schema_chunk(chunk: dict[str, Any]) -> bool:
     hierarchy = chunk.get("section_hierarchy", [])
     hierarchy_str = " ".join(str(h) for h in hierarchy).lower()
 
-    return ".json" in source.lower() and "schema" in hierarchy_str
+    is_structured_source = (
+        ".json" in source.lower() or ".csv" in source.lower()
+    )
+    return is_structured_source and "schema" in hierarchy_str
 
 
 def detect_record_type(chunk: dict[str, Any]) -> str:
