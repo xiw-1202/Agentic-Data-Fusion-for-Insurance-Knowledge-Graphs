@@ -54,6 +54,7 @@ from zone2.prompts import (
     SINGLE_PASS_FOCUS,
 )
 from zone2.entity_resolution import resolve_entities
+from zone2.structured_mapper import extract_structured
 
 
 # ---------------------------------------------------------------------------
@@ -61,16 +62,17 @@ from zone2.entity_resolution import resolve_entities
 # ---------------------------------------------------------------------------
 
 class Zone2State(TypedDict):
-    chunks:           list[dict]
-    vocab:            list[str]                  # bootstrapped relation vocabulary
-    entity_types:     list[str]                  # bootstrapped entity type vocabulary
-    triples:          list[dict]                 # extracted + validated triples
-    vocab_quality:    dict                       # quality metrics for the vocab
-    neo4j_stats:      dict
-    resolution_stats: dict                       # Zone 2.5 entity resolution stats
-    errors:           Annotated[list, operator.add]
-    model:            str
-    num_passes:       int
+    chunks:              list[dict]
+    vocab:               list[str]                  # bootstrapped relation vocabulary
+    entity_types:        list[str]                  # bootstrapped entity type vocabulary
+    triples:             list[dict]                 # extracted + validated triples
+    structured_triples:  list[dict]                 # SEAF-KG: deterministic CSV triples
+    vocab_quality:       dict                       # quality metrics for the vocab
+    neo4j_stats:         dict
+    resolution_stats:    dict                       # Zone 2.5 entity resolution stats
+    errors:              Annotated[list, operator.add]
+    model:               str
+    num_passes:          int
 
 
 # ---------------------------------------------------------------------------
@@ -760,11 +762,19 @@ def extract_triples(state: Zone2State) -> dict:
             all_triples.append(t)
 
     dedup_removed = len(all_raw_triples) - len(all_triples)
-    per_chunk     = len(all_triples) / len(chunks) if chunks else 0
 
-    print(f"\n  ✓ Raw triples (all passes): {len(all_raw_triples)}")
-    print(f"  ✓ After dedup:              {len(all_triples)} "
+    # Merge SEAF-KG structured triples (deterministic CSV extraction).
+    structured = state.get("structured_triples", [])
+    if structured:
+        all_triples = structured + all_triples
+        print(f"\n  ✓ Structured triples (SEAF-KG): {len(structured)}")
+
+    per_chunk = len(all_triples) / max(len(chunks), 1)
+
+    print(f"\n  ✓ LLM raw triples (all passes): {len(all_raw_triples)}")
+    print(f"  ✓ LLM after dedup:              {len(all_triples) - len(structured)} "
           f"(removed {dedup_removed} duplicates, {per_chunk:.1f}/chunk)")
+    print(f"  ✓ Total triples (structured + LLM): {len(all_triples)}")
     print(f"  ✗ Errors:                   {len(errors)} chunk-passes failed")
     vq = evaluate_vocab_quality(all_triples, vocab)
     print(f"  ✓ Vocab coverage: {vq['types_used']}/{vq['vocab_size']} "
@@ -947,13 +957,15 @@ def zone25_entity_resolution(state: Zone2State) -> dict:
 def build_pipeline():
     builder = StateGraph(Zone2State)
     builder.add_node("load_chunks",              load_chunks)
+    builder.add_node("extract_structured",       extract_structured)
     builder.add_node("bootstrap_vocab",          bootstrap_vocab)
     builder.add_node("extract_triples",          extract_triples)
     builder.add_node("canonicalize_relations",   canonicalize_relations)
     builder.add_node("insert_to_neo4j",          insert_to_neo4j)
     builder.add_node("zone25_entity_resolution", zone25_entity_resolution)
     builder.set_entry_point("load_chunks")
-    builder.add_edge("load_chunks",              "bootstrap_vocab")
+    builder.add_edge("load_chunks",              "extract_structured")
+    builder.add_edge("extract_structured",       "bootstrap_vocab")
     builder.add_edge("bootstrap_vocab",          "extract_triples")
     builder.add_edge("extract_triples",          "canonicalize_relations")
     builder.add_edge("canonicalize_relations",   "insert_to_neo4j")
