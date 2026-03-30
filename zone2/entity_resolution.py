@@ -160,9 +160,10 @@ def resolve_entities(graph, threshold: float = SIMILARITY_THRESHOLD, node_label:
     model = SentenceTransformer("all-MiniLM-L6-v2")
     embs = model.encode(ids, normalize_embeddings=True)  # L2-norm → dot = cosine
 
+    n_candidates = len(ids)
     sim_pairs: list[tuple[str, str]] = []
-    for i in range(n_before):
-        for j in range(i + 1, n_before):
+    for i in range(n_candidates):
+        for j in range(i + 1, n_candidates):
             if float(np.dot(embs[i], embs[j])) >= threshold:
                 sim_pairs.append((ids[i], ids[j]))
 

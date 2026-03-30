@@ -796,6 +796,7 @@ def _group_triples_by_relation(triples: list[dict]) -> dict:
             "confidence":   t.get("confidence", 1.0),
             "chunk_id":     t["chunk_id"],
             "source":       t["source"],
+            "source_type":  t.get("source_type", "llm"),
         })
     return dict(by_relation)
 
@@ -809,12 +810,14 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
             f"""
             UNWIND $batch AS row
             MERGE (s:Entity {{id: row.subject}})
-            ON CREATE SET s.entity_type = row.subject_type
+            ON CREATE SET s.entity_type = row.subject_type,
+                          s.source_type = row.source_type
             ON MATCH SET s.entity_type = CASE
                 WHEN s.entity_type IS NULL OR s.entity_type = 'Unknown' THEN row.subject_type
                 ELSE s.entity_type END
             MERGE (o:Entity {{id: row.object}})
-            ON CREATE SET o.entity_type = row.object_type
+            ON CREATE SET o.entity_type = row.object_type,
+                          o.source_type = row.source_type
             ON MATCH SET o.entity_type = CASE
                 WHEN o.entity_type IS NULL OR o.entity_type = 'Unknown' THEN row.object_type
                 ELSE o.entity_type END
