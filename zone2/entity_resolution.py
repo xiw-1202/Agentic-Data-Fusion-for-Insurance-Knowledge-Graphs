@@ -33,6 +33,14 @@ def _sanitize_rel(rel: str) -> str:
     return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
 
 
+def _sanitize_label(label: str) -> str:
+    """Make a Neo4j label safe for f-string interpolation."""
+    cleaned = re.sub(r'[^A-Za-z0-9_]', '', label.strip())
+    if not cleaned:
+        raise ValueError(f"Invalid Neo4j label: {label!r}")
+    return cleaned
+
+
 def _union_find_components(pairs: list[tuple[str, str]]) -> list[list[str]]:
     """Build connected components from (a, b) similar-node pairs via union-find."""
     parent: dict[str, str] = {}
@@ -61,7 +69,7 @@ def _merge_node_into_canonical(graph, dup_id: str, canon_id: str, graph_label: s
     Uses pure Cypher MERGE (no APOC) so it works on AuraDB free tier.
     Returns number of relationships redirected.
     """
-    label = graph_label
+    label = _sanitize_label(graph_label)
     out_rels = graph.query(
         f"MATCH (n:{label} {{id: $id}})-[r]->(m) "
         "RETURN type(r) AS t, m.id AS mid, properties(r) AS p",
@@ -110,6 +118,8 @@ def resolve_entities(graph, threshold: float = SIMILARITY_THRESHOLD, node_label:
     Near-duplicates are groups connected by similarity ≥ threshold; canonical is
     elected as the shortest (most concise) node ID in each group.
     """
+    node_label = _sanitize_label(node_label)
+
     try:
         from sentence_transformers import SentenceTransformer
     except ImportError:

@@ -33,6 +33,21 @@ MAX_BLOCKING_PASSES = 2        # number of blocking passes (top-N cardinality fi
 
 _STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 
+
+def _sanitize_label(label: str) -> str:
+    """Make a Neo4j label safe for f-string interpolation."""
+    import re
+    cleaned = re.sub(r'[^A-Za-z0-9_]', '', label.strip())
+    if not cleaned:
+        raise ValueError(f"Invalid Neo4j label: {label!r}")
+    return cleaned
+
+
+def _sanitize_rel(rel: str) -> str:
+    """Make a relation name safe for Neo4j Cypher f-string interpolation."""
+    import re
+    return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
+
 # Patterns for auto-detecting field types from relation names.
 _DATE_HINTS = frozenset({
     "date", "effective", "termination", "expiration", "loss",
@@ -215,9 +230,11 @@ def discover_shared_relations(
     Returns list of dicts sorted by IDF weight (highest first):
         [{relation, cardinality_a, cardinality_b, idf_weight, field_type, sample_values}]
     """
+    safe_label = _sanitize_label(node_label)
+
     def _get_relation_stats(entity_type: str) -> dict[str, dict]:
         rows = graph.query(
-            f"MATCH (n:{node_label} {{entity_type: $et}})-[r]->(v) "
+            f"MATCH (n:{safe_label} {{entity_type: $et}})-[r]->(v) "
             "WHERE type(r) STARTS WITH 'HAS_' "
             "RETURN type(r) AS rel, count(DISTINCT v.id) AS card, "
             "       count(DISTINCT n.id) AS n_records, "
@@ -279,11 +296,13 @@ def load_record_profiles(
 
     Only fetches the specified relations for efficiency.
     """
+    safe_label = _sanitize_label(node_label)
     profiles: dict[str, dict[str, str]] = defaultdict(dict)
 
     for rel in relations:
+        safe_rel = _sanitize_rel(rel)
         rows = graph.query(
-            f"MATCH (n:{node_label} {{entity_type: $et}})-[r:{rel}]->(v) "
+            f"MATCH (n:{safe_label} {{entity_type: $et}})-[r:{safe_rel}]->(v) "
             "RETURN n.id AS nid, v.id AS vid",
             params={"et": entity_type},
         )
