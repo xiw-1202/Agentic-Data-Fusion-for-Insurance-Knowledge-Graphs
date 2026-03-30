@@ -835,13 +835,22 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
 
 
 def canonicalize_relations(state: Zone2State) -> dict:
-    """EDC-inspired: map raw extracted relation types → bootstrapped vocab (one LLM call)."""
+    """EDC-inspired: map raw LLM relation types → bootstrapped vocab (one LLM call).
+
+    Structured triples (source_type='structured') are passed through unchanged —
+    their relation names are field-derived (HAS_{FIELD_NAME}) and needed as-is
+    for cross-source entity linking in Stage 3.
+    """
     print("\n[3.5/4] EDC Canonicalization — mapping raw relations → vocab...")
     triples = state.get("triples", [])
     vocab   = state.get("vocab", [])
     model   = state.get("model", config.OLLAMA_MODEL)
 
-    raw_relations = sorted(set(t["relation"] for t in triples))
+    # Only canonicalize LLM-extracted relations — structured field names are
+    # already well-formed and must be preserved for cross-source linking.
+    raw_relations = sorted(set(
+        t["relation"] for t in triples if t.get("source_type") != "structured"
+    ))
     if not raw_relations or not vocab:
         print("  ⚠ No triples or vocab — skipping canonicalization")
         return {}
