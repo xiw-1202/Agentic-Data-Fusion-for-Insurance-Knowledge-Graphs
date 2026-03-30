@@ -116,13 +116,47 @@ def resolve_entities(graph, threshold: float = SIMILARITY_THRESHOLD, node_label:
         print("  ⚠ sentence_transformers not available; skipping entity resolution")
         return {"error": "sentence_transformers not installed", "merged": 0}
 
-    rows = graph.query(f"MATCH (n:{node_label}) RETURN n.id AS id")
-    ids = [r["id"] for r in rows]
-    n_before = len(ids)
-    if n_before < 2:
-        return {"merged": 0, "nodes_before": n_before, "nodes_after": n_before}
+    rows = graph.query(f"MATCH (n:{node_label}) RETURN n.id AS id, n.source_type AS st")
+    all_ids = [r["id"] for r in rows]
+    n_before = len(all_ids)
 
-    print(f"  Embedding {n_before} node IDs with all-MiniLM-L6-v2...")
+    # Exclude structured entity nodes from resolution — they are already
+    # exact (deterministic extraction, confidence=1.0). Merging date/numeric
+    # values by embedding similarity destroys queryable structured data.
+    # Structured nodes include:
+    #   - Record entities: POL-xxx, CLM-xxx, REC-xxx
+    #   - Identity nodes: PER-xxx, PROP-xxx
+    #   - Their property values (connected via HAS_ relations from structured sources)
+    _STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
+    structured_ids = set()
+    for r in rows:
+        nid = r["id"]
+        if nid.startswith(_STRUCTURED_PREFIXES):
+            structured_ids.add(nid)
+        elif r.get("st") == "structured":
+            structured_ids.add(nid)
+
+    # Also exclude property value nodes connected to structured entities.
+    if structured_ids:
+        value_rows = graph.query(
+            f"MATCH (n:{node_label})-[r]->(v:{node_label}) "
+            "WHERE n.id IN $sids AND type(r) STARTS WITH 'HAS_' "
+            "RETURN DISTINCT v.id AS vid",
+            params={"sids": list(structured_ids)},
+        )
+        for vr in value_rows:
+            structured_ids.add(vr["vid"])
+
+    ids = [nid for nid in all_ids if nid not in structured_ids]
+    n_excluded = n_before - len(ids)
+
+    if len(ids) < 2:
+        print(f"  ℹ {n_excluded} structured nodes excluded from resolution")
+        return {"merged": 0, "nodes_before": n_before, "nodes_after": n_before,
+                "structured_excluded": n_excluded}
+
+    print(f"  Embedding {len(ids)} node IDs with all-MiniLM-L6-v2... "
+          f"({n_excluded} structured nodes excluded)")
     model = SentenceTransformer("all-MiniLM-L6-v2")
     embs = model.encode(ids, normalize_embeddings=True)  # L2-norm → dot = cosine
 
