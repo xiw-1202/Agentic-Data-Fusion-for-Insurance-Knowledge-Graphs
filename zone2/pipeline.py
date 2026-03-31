@@ -225,6 +225,17 @@ def _parse_json_list(text: str) -> list:
     return parsed
 
 
+def _sanitize_relation(rel: str) -> str:
+    """Make a relation name safe for Neo4j Cypher interpolation."""
+    return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
+
+
+def _sanitize_label(label: str) -> str:
+    """Make a PascalCase label safe for Neo4j Cypher interpolation."""
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', label.strip())
+    return cleaned if cleaned else "Entity"
+
+
 def keep_triple(t: dict) -> bool:
     """Filter triples: reject low-confidence, empty entities, generic blacklist."""
     rel = RELATION_NORMALIZATIONS.get(t.get("relation", ""), t.get("relation", ""))
@@ -828,7 +839,7 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
     """MERGE triples into Neo4j grouped by relation type."""
     total = 0
     for rel_type, batch in by_relation.items():
-        rel_type = sanitize_relation(rel_type)
+        rel_type = _sanitize_relation(rel_type)
         graph.query(
             f"""
             UNWIND $batch AS row
