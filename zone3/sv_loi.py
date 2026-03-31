@@ -71,6 +71,10 @@ DEVIATION_THRESHOLD = 2.0  # σ threshold for structural flagging
 MAX_ARBITRATION_BATCH = 10  # entities per arbitration prompt
 MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
 
+# Structured entity prefixes — these already have entity_type from Stage 1.
+# SV-LOI should use their existing types directly, not re-classify via LLM.
+_STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
+
 # Target class count range (guide for class discovery)
 TARGET_CLASSES_MIN = 10
 TARGET_CLASSES_MAX = 20
@@ -353,18 +357,24 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
                 seen_lower.add(c.lower())
         print(f"  After retry: {classes}", flush=True)
 
-    # Last resort fallback — generic class names if LLM completely fails
+    # Last resort fallback — derive classes from actual entity types in the graph.
+    # NEVER use hardcoded class names — that would be domain leakage (see CLAUDE.md).
     if len(classes) < TARGET_CLASSES_MIN:
-        print(f"  WARNING: Only {len(classes)} classes after retry. Adding generic fallbacks.", flush=True)
-        generic_fallbacks = [
-            "Coverage", "Product", "Risk", "Structure", "Person",
-            "Organization", "Property", "Damage", "Address", "Peril",
-            "Limit", "Obligation", "Exclusion", "Document", "Regulation",
-        ]
-        for fb in generic_fallbacks:
-            if fb.lower() not in seen_lower:
-                classes.append(fb)
-                seen_lower.add(fb.lower())
+        print(f"  WARNING: Only {len(classes)} classes after retry. "
+              f"Deriving fallbacks from graph entity types.", flush=True)
+        # Collect entity_type values already present in the graph.
+        type_counts: dict[str, int] = defaultdict(int)
+        for e in entities:
+            et = e.get("entity_type", "Unknown")
+            if et and et != "Unknown":
+                type_counts[et] += 1
+        # Sort by frequency, take most common as fallback classes.
+        sorted_types = sorted(type_counts.items(), key=lambda x: -x[1])
+        for et_name, _cnt in sorted_types:
+            sanitized = _sanitize_label(et_name)
+            if sanitized.lower() not in seen_lower and sanitized.lower() not in FORBIDDEN_CLASS_NAMES:
+                classes.append(sanitized)
+                seen_lower.add(sanitized.lower())
             if len(classes) >= TARGET_CLASSES_MIN:
                 break
 
@@ -385,18 +395,47 @@ def batch_type_entities(
 ) -> dict[str, str]:
     """Assign ontology class to each entity via batched LLM prompts.
 
+    Structured entities (POL-xxx, CLM-xxx, etc.) are assigned directly
+    from their existing entity_type — no LLM calls needed. Only
+    LLM-extracted entities go through the batched classification.
+
     Returns:
         {entity_id: class_name}
     """
-    print(f"\n[Phase 1b] Batched LLM entity typing ({len(entities)} entities, batch={BATCH_SIZE})...")
+    # Separate structured entities (already typed) from LLM-extracted (need classification).
+    structured_entities: list[dict] = []
+    llm_entities: list[dict] = []
+    for e in entities:
+        if e["id"].startswith(_STRUCTURED_PREFIXES):
+            structured_entities.append(e)
+        else:
+            llm_entities.append(e)
+
+    assignments: dict[str, str] = {}
+
+    # Assign structured entities directly from their entity_type.
+    for e in structured_entities:
+        et = e.get("entity_type", "Other")
+        # Map structured entity types to class vocab if possible.
+        matched = False
+        for cv in class_vocab:
+            if cv.lower() == et.lower():
+                assignments[e["id"]] = cv
+                matched = True
+                break
+        if not matched:
+            assignments[e["id"]] = et if et != "Unknown" else "Other"
+
+    print(f"\n[Phase 1b] Batched LLM entity typing "
+          f"({len(llm_entities)} LLM entities + {len(structured_entities)} structured "
+          f"pre-assigned, batch={BATCH_SIZE})...")
 
     class_list = ", ".join(c for c in class_vocab if c != "Other")
-    assignments: dict[str, str] = {}
-    n_batches = (len(entities) + BATCH_SIZE - 1) // BATCH_SIZE
+    n_batches = (len(llm_entities) + BATCH_SIZE - 1) // BATCH_SIZE
 
     for batch_idx in range(n_batches):
         start = batch_idx * BATCH_SIZE
-        batch = entities[start:start + BATCH_SIZE]
+        batch = llm_entities[start:start + BATCH_SIZE]
 
         entity_descriptions = []
         for e in batch:
