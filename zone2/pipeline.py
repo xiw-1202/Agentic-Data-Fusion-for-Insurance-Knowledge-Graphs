@@ -1015,8 +1015,12 @@ def build_pipeline():
     builder.add_edge("extract_structured",       "bootstrap_vocab")
     builder.add_edge("bootstrap_vocab",          "extract_triples")
     builder.add_edge("extract_triples",          "canonicalize_relations")
-    builder.add_edge("canonicalize_relations",   "zone25_entity_resolution")
-    builder.add_edge("zone25_entity_resolution", "insert_to_neo4j")
+    # Entity resolution skipped — only merges ~7 trivial duplicates
+    # but hangs on cluster due to sentence-transformers GPU conflict with Ollama.
+    # TODO: re-enable after moving to local Neo4j or fixing model loading.
+    # builder.add_edge("canonicalize_relations",   "zone25_entity_resolution")
+    # builder.add_edge("zone25_entity_resolution", "insert_to_neo4j")
+    builder.add_edge("canonicalize_relations",   "insert_to_neo4j")
     builder.add_edge("insert_to_neo4j",          "cross_source_link")
     builder.add_edge("cross_source_link",        END)
     return builder.compile()
