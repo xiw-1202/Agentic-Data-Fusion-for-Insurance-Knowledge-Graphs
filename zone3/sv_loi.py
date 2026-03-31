@@ -256,6 +256,7 @@ Output ONLY a JSON array:
 [{{"name": "ClassName", "definition": "what entities belong here"}}]
 """
     raw = _invoke_llm(llm, prompt)
+    print(f"  [debug] Raw LLM response ({len(raw)} chars): {raw[:300]}...", flush=True)
     parsed = _parse_json_safely(raw)
 
     if isinstance(parsed, list):
@@ -264,6 +265,17 @@ Output ONLY a JSON array:
         classes = list(parsed.keys())
     else:
         classes = []
+
+    # Fallback: extract class names from lines like "1. ClassName" or "- ClassName"
+    if not classes:
+        print("  [debug] JSON parse found 0 classes, trying line-based extraction...", flush=True)
+        line_re = re.compile(
+            r'(?:^|\n)\s*(?:\d+[\.\)]\s*|[-*]\s*)'  # "1. " or "- "
+            r'\**([A-Z][A-Za-z]+)\**',                # PascalCase word (possibly bold)
+        )
+        classes = [m.group(1) for m in line_re.finditer(raw)]
+        if classes:
+            print(f"  [debug] Line-based extraction found: {classes}", flush=True)
 
     # Sanitize
     classes = [_sanitize_label(c) for c in classes if c]
@@ -308,14 +320,26 @@ FORBIDDEN: Amount, Date, Number, Measurement, Event, Condition, Location, Text, 
 
 Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
         raw2 = _invoke_llm(llm, retry_prompt)
+        print(f"  [debug] Retry response ({len(raw2)} chars): {raw2[:300]}...", flush=True)
         parsed2 = _parse_json_safely(raw2)
         if isinstance(parsed2, list):
             extra = [item["name"] for item in parsed2 if isinstance(item, dict) and "name" in item]
-            extra = [_sanitize_label(c) for c in extra if c]
-            extra = [c for c in extra if c.lower() not in FORBIDDEN_CLASS_NAMES and c.lower() not in seen_lower]
-            classes.extend(extra)
-            for c in extra:
-                seen_lower.add(c.lower())
+        elif isinstance(parsed2, dict):
+            extra = list(parsed2.keys())
+        else:
+            extra = []
+        # Fallback: line-based extraction
+        if not extra:
+            line_re2 = re.compile(
+                r'(?:^|\n)\s*(?:\d+[\.\)]\s*|[-*]\s*)'
+                r'\**([A-Z][A-Za-z]+)\**',
+            )
+            extra = [m.group(1) for m in line_re2.finditer(raw2)]
+        extra = [_sanitize_label(c) for c in extra if c]
+        extra = [c for c in extra if c.lower() not in FORBIDDEN_CLASS_NAMES and c.lower() not in seen_lower]
+        classes.extend(extra)
+        for c in extra:
+            seen_lower.add(c.lower())
         print(f"  After retry: {classes}", flush=True)
 
     # Last resort fallback — derive classes from actual entity types in the graph.
