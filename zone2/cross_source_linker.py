@@ -30,7 +30,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 MIN_MATCHING_FIELDS = 3
-MIN_WEIGHTED_SCORE = 0.6
+MIN_WEIGHTED_SCORE = 0.4
 HIGH_CARDINALITY_THRESHOLD = 50
 REQUIRE_ANCHOR_MATCH = True
 NUMERIC_TOLERANCE = 0.05
@@ -317,9 +317,10 @@ def score_pair(
     shared_rels: list[dict],
 ) -> tuple[float, int, list[str]]:
     """IDF-weighted pair scoring with field-type-specific comparators."""
-    all_weight = sum(r["idf_weight"] for r in shared_rels)
     matched_weight = 0.0
+    compared_weight = 0.0  # weight of fields present on both sides
     n_matched = 0
+    n_compared = 0
     matched_fields: list[str] = []
 
     for rel_info in shared_rels:
@@ -333,17 +334,23 @@ def score_pair(
         if val_a is None or val_b is None:
             continue
 
+        compared_weight += weight
+        n_compared += 1
         match_score = compare_values(val_a, val_b, ftype)
         if match_score > 0:
             matched_weight += weight * match_score
             n_matched += 1
             matched_fields.append(rel)
 
-    total_weight = all_weight
-    if total_weight == 0:
+    if compared_weight == 0:
         return 0.0, 0, []
 
-    weighted_score = matched_weight / total_weight
+    # Score = match rate among compared fields, penalized by coverage.
+    # If only 3 of 22 fields are present, coverage_penalty = 3/22 = 0.14.
+    # This prevents sparse records from scoring artificially high.
+    match_rate = matched_weight / compared_weight
+    coverage = n_compared / max(len(shared_rels), 1)
+    weighted_score = match_rate * (0.5 + 0.5 * coverage)  # half weight from coverage
 
     if REQUIRE_ANCHOR_MATCH:
         has_anchor = any(
@@ -443,12 +450,15 @@ def cross_source_link(state: dict[str, Any]) -> dict[str, Any]:
 
             links_for_pair = 0
             temporal_rejected = 0
+            score_debug: list[tuple[float, int]] = []  # (score, n_matched) for debugging
 
             for id_a, id_b in candidates:
                 pa = profiles_a.get(id_a, {})
                 pb = profiles_b.get(id_b, {})
 
                 wscore, n_matched, matched = score_pair(pa, pb, shared)
+                if wscore > 0:
+                    score_debug.append((wscore, n_matched))
 
                 if n_matched < MIN_MATCHING_FIELDS or wscore < MIN_WEIGHTED_SCORE:
                     continue
@@ -475,6 +485,17 @@ def cross_source_link(state: dict[str, Any]) -> dict[str, Any]:
             total_checked += len(candidates)
             total_links += links_for_pair
             total_temporal_rejected += temporal_rejected
+
+            # Debug: show score distribution.
+            if score_debug:
+                scores = sorted([s for s, _ in score_debug], reverse=True)
+                print(f"    ℹ Score distribution (top 10): "
+                      f"{[round(s, 3) for s in scores[:10]]}")
+                print(f"    ℹ Pairs with score>0: {len(score_debug)}, "
+                      f"max_score={scores[0]:.3f}, "
+                      f"max_matched={max(n for _, n in score_debug)}")
+            else:
+                print(f"    ℹ No pairs scored > 0 (anchor check may have blocked all)")
 
             print(f"    ✓ {links_for_pair} LINKED_TO triples created "
                   f"(rejected {temporal_rejected} temporal)")

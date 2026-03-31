@@ -243,9 +243,11 @@ class TestScorePair:
         pb = {"HAS_A": "X", "HAS_B": "Y"}
 
         score, n, _ = score_pair(pa, pb, shared)
-        # HAS_A matches (weight=1.0) but denominator is ALL weights (2.0).
-        # score = 1.0 / 2.0 = 0.5 — penalized for missing field.
-        assert score == pytest.approx(0.5)
+        # match_rate = 1.0/1.0 = 1.0 (only 1 field compared, it matched)
+        # coverage = 1/2 = 0.5
+        # score = 1.0 * (0.5 + 0.5*0.5) = 0.75 — penalized by low coverage
+        assert score == pytest.approx(0.75)
+        assert score < 1.0  # less than perfect (coverage penalty)
         assert n == 1
 
     def test_numeric_tolerance_in_scoring(self) -> None:
