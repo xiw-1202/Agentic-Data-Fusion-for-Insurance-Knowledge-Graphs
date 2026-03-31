@@ -131,8 +131,8 @@ def resolve_entities_in_memory(
     print(f"  Embedding {len(candidate_ids)} node IDs with all-MiniLM-L6-v2... "
           f"({n_excluded} structured nodes excluded)")
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    embs = model.encode(candidate_ids, normalize_embeddings=True)
+    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    embs = model.encode(candidate_ids, normalize_embeddings=True, show_progress_bar=False)
 
     # Vectorized pairwise similarity (replaces O(n²) Python loop).
     sim_matrix = embs @ embs.T
