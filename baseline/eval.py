@@ -200,6 +200,81 @@ EVAL_TASKS = [
         "cypher": "MATCH (n) WHERE toLower(n.id) CONTAINS 'liberaliz' RETURN n.id LIMIT 10",
         "keywords": ["liberalization", "broadens", "coverage"],
     },
+    # ── SEAF-KG Structured Data Queries (21-30) ──────────────────────────
+    # These test whether structured CSV records are queryable as entities.
+    # Derived from Zone 1 CSV_FIELD_GROUPS metadata, not from actual Neo4j values.
+    {
+        "id": 21,
+        "category": "structured_claims",
+        "question": "Are individual claim records represented as entities in the KG?",
+        "cypher": "MATCH (c:Entity {entity_type: 'ClaimRecord'}) RETURN count(c) AS cnt",
+        "keywords": ["ClaimRecord"],
+        "eval_type": "count_gt_0",
+    },
+    {
+        "id": 22,
+        "category": "structured_policies",
+        "question": "Are individual policy records represented as entities in the KG?",
+        "cypher": "MATCH (p:Entity {entity_type: 'PolicyRecord'}) RETURN count(p) AS cnt",
+        "keywords": ["PolicyRecord"],
+        "eval_type": "count_gt_0",
+    },
+    {
+        "id": 23,
+        "category": "structured_claims",
+        "question": "Do claim records have payment amount information?",
+        "cypher": "MATCH (c:Entity {entity_type: 'ClaimRecord'})-[r:HAS_AMOUNT_PAID_ON_BUILDING_CLAIM]->(v) RETURN c.id, v.id LIMIT 5",
+        "keywords": ["amount", "paid", "building"],
+    },
+    {
+        "id": 24,
+        "category": "structured_claims",
+        "question": "Do claim records have date of loss information?",
+        "cypher": "MATCH (c:Entity {entity_type: 'ClaimRecord'})-[r:HAS_DATE_OF_LOSS]->(v) RETURN c.id, v.id LIMIT 5",
+        "keywords": ["date", "loss"],
+    },
+    {
+        "id": 25,
+        "category": "structured_policies",
+        "question": "Do policy records have coverage amount information?",
+        "cypher": "MATCH (p:Entity {entity_type: 'PolicyRecord'})-[r:HAS_TOTAL_BUILDING_INSURANCE_COVERAGE]->(v) RETURN p.id, v.id LIMIT 5",
+        "keywords": ["coverage", "building", "insurance"],
+    },
+    {
+        "id": 26,
+        "category": "structured_policies",
+        "question": "Do policy records have flood zone classification?",
+        "cypher": "MATCH (p:Entity {entity_type: 'PolicyRecord'})-[r:HAS_RATED_FLOOD_ZONE]->(v) RETURN p.id, v.id LIMIT 5",
+        "keywords": ["flood", "zone"],
+    },
+    {
+        "id": 27,
+        "category": "cross_source",
+        "question": "Are any policy records linked to claim records?",
+        "cypher": "MATCH (a)-[r:LINKED_TO]->(b) WHERE a.entity_type IN ['PolicyRecord','ClaimRecord'] AND b.entity_type IN ['PolicyRecord','ClaimRecord'] RETURN a.id, a.entity_type, b.id, b.entity_type, r.confidence LIMIT 10",
+        "keywords": ["LINKED_TO", "PolicyRecord", "ClaimRecord"],
+    },
+    {
+        "id": 28,
+        "category": "cross_source",
+        "question": "Do structured records share flood zone values with PDF-extracted concepts?",
+        "cypher": "MATCH (rec)-[:HAS_RATED_FLOOD_ZONE]->(z)<-[r]-(concept) WHERE rec.entity_type IN ['PolicyRecord','ClaimRecord'] AND concept.source_type <> 'structured' RETURN z.id, type(r), concept.id LIMIT 10",
+        "keywords": ["flood", "zone"],
+    },
+    {
+        "id": 29,
+        "category": "structured_claims",
+        "question": "Do claim records have cause of damage information?",
+        "cypher": "MATCH (c:Entity {entity_type: 'ClaimRecord'})-[r:HAS_CAUSE_OF_DAMAGE]->(v) RETURN c.id, v.id LIMIT 5",
+        "keywords": ["cause", "damage"],
+    },
+    {
+        "id": 30,
+        "category": "identity",
+        "question": "Are property identity nodes linking multiple records?",
+        "cypher": "MATCH (rec)-[:BELONGS_TO]->(prop:Entity {entity_type: 'Property'}) RETURN prop.id, count(rec) AS linked_records LIMIT 5",
+        "keywords": ["BELONGS_TO", "Property"],
+    },
 ]
 
 
@@ -283,7 +358,7 @@ def measure_type_consistency(graph: Neo4jGraph) -> dict:
 
 
 def run_query_tasks(graph: Neo4jGraph) -> list[dict]:
-    """Run all 20 evaluation tasks and record results."""
+    """Run all evaluation tasks (20 PDF + 10 structured/cross-source) and record results."""
     results = []
     for task in EVAL_TASKS:
         try:
