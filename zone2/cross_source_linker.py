@@ -25,8 +25,10 @@ from typing import Any
 # Constants
 # ---------------------------------------------------------------------------
 
-MIN_MATCHING_FIELDS = 5
-MIN_WEIGHTED_SCORE = 0.7
+MIN_MATCHING_FIELDS = 3
+MIN_WEIGHTED_SCORE = 0.6
+HIGH_CARDINALITY_THRESHOLD = 50  # fields with ≥50 distinct values are "anchor" fields
+REQUIRE_ANCHOR_MATCH = True      # at least 1 high-cardinality field must match
 NUMERIC_TOLERANCE = 0.05       # 5% relative tolerance for numeric comparison
 DATE_PROXIMITY_DAYS = 30       # days within which dates are a partial match
 MAX_BLOCKING_PASSES = 2        # number of blocking passes (top-N cardinality fields)
@@ -50,7 +52,6 @@ _VALUE_ENTITY_TYPES = frozenset({
 
 def _sanitize_label(label: str) -> str:
     """Make a Neo4j label safe for f-string interpolation."""
-    import re
     cleaned = re.sub(r'[^A-Za-z0-9_]', '', label.strip())
     if not cleaned:
         raise ValueError(f"Invalid Neo4j label: {label!r}")
@@ -59,7 +60,6 @@ def _sanitize_label(label: str) -> str:
 
 def _sanitize_rel(rel: str) -> str:
     """Make a relation name safe for Neo4j Cypher f-string interpolation."""
-    import re
     return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
 
 # Patterns for auto-detecting field types from relation names.
@@ -274,10 +274,13 @@ def discover_shared_relations(
     for rel in shared:
         sa, sb = stats_a[rel], stats_b[rel]
 
-        # IDF weight: higher cardinality → higher weight (more discriminant).
+        # IDF weight: higher cardinality (more distinct values) → higher weight.
+        # A field with 300 distinct values is more discriminating than one with 5.
+        # selectivity = distinct_values / total_records (0→1 scale).
         avg_card = (sa["cardinality"] + sb["cardinality"]) / 2
-        total_records = max(sa["n_records"] + sb["n_records"], 1)
-        idf = math.log(total_records / max(avg_card, 1)) + 1.0
+        max_records = max(sa["n_records"], sb["n_records"], 1)
+        selectivity = avg_card / max_records
+        idf = math.log(1 + selectivity * 10) + 0.1  # scale so selectivity=1.0 → idf≈2.5
 
         samples = sa["samples"] + sb["samples"]
         field_type = classify_field_type(rel, samples)
@@ -384,7 +387,10 @@ def score_pair(
     Returns (weighted_score, n_matched, matched_field_names).
     weighted_score = sum(idf_weight * compare(va, vb)) / sum(idf_weights)
     """
-    total_weight = 0.0
+    # Use ALL shared field weights as denominator (not just present fields)
+    # to penalize sparse records — a pair matching 2/2 present fields but
+    # missing 6 others should score lower than one matching 6/8.
+    all_weight = sum(r["idf_weight"] for r in shared_rels)
     matched_weight = 0.0
     n_matched = 0
     matched_fields: list[str] = []
@@ -400,7 +406,6 @@ def score_pair(
         if val_a is None or val_b is None:
             continue  # skip fields missing from either record
 
-        total_weight += weight
         match_score = compare_values(val_a, val_b, ftype)
 
         if match_score > 0:
@@ -408,10 +413,25 @@ def score_pair(
             n_matched += 1
             matched_fields.append(rel)
 
+    total_weight = all_weight  # normalize over ALL shared fields, not just present ones
+
     if total_weight == 0:
         return 0.0, 0, []
 
     weighted_score = matched_weight / total_weight
+
+    # Require at least one anchor (high-cardinality) field match to prevent
+    # spurious links based only on common values like flood zone or state.
+    if REQUIRE_ANCHOR_MATCH:
+        has_anchor = any(
+            rel_info["relation"] in matched_fields
+            and max(rel_info.get("cardinality_a", 0), rel_info.get("cardinality_b", 0))
+            >= HIGH_CARDINALITY_THRESHOLD
+            for rel_info in shared_rels
+        )
+        if not has_anchor:
+            return 0.0, 0, []
+
     return weighted_score, n_matched, matched_fields
 
 
