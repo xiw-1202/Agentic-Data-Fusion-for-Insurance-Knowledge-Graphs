@@ -115,7 +115,7 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 EVAL_START=$(date +%s)
-python3 baseline/eval.py --suffix "$SUFFIX" --riskine --model "$MODEL"
+python3 baseline/eval.py --suffix "$SUFFIX" --riskine --all-classes --model "$MODEL"
 EVAL_END=$(date +%s)
 EVAL_TIME=$((EVAL_END - EVAL_START))
 
