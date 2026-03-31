@@ -329,6 +329,10 @@ Output ONLY a JSON array:
     # If LLM still produced too few valid classes, re-prompt with harder steering
     if len(classes) < TARGET_CLASSES_MIN:
         print(f"  Only {len(classes)} valid classes — re-prompting with stronger steering...", flush=True)
+        # Collect relation types as hints (domain-agnostic — no hardcoded class names).
+        rel_types_sample = sorted(set(
+            r["rel"] for e in entities for r in e.get("out_rels", [])[:3] if r.get("rel")
+        ))[:20]
         retry_prompt = f"""The previous attempt produced data-type classes that were rejected.
 
 I need {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes for a {domain} domain.
@@ -336,12 +340,14 @@ I need {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes for a {domain}
 These entities exist in the graph:
 {chr(10).join(f'  {n}' for n in name_sample[:50])}
 
+Relation types in the graph: {', '.join(rel_types_sample)}
+
 Propose classes that answer "what real-world thing IS this?" for each entity.
 Think of chapter titles in a {domain} reference manual.
 
-MANDATORY: Every class must be a real-world concept like:
-Coverage, Product, Risk, Structure, Person, Organization, Property, Damage,
-Address, Peril, Limit, Obligation, Exclusion, Document, Regulation, Claim, Zone
+IMPORTANT: Every class must be a real-world domain concept, NOT a data type.
+Look at the entities and relations above — what roles do these entities play
+in the {domain} domain? Group them by their real-world function.
 
 FORBIDDEN: Amount, Date, Number, Measurement, Event, Condition, Location, Text, Value
 
@@ -414,17 +420,24 @@ def batch_type_entities(
     assignments: dict[str, str] = {}
 
     # Assign structured entities directly from their entity_type.
+    # If entity_type is not in class_vocab, add it (prevents ghost classes).
     for e in structured_entities:
         et = e.get("entity_type", "Other")
-        # Map structured entity types to class vocab if possible.
+        sanitized_et = _sanitize_label(et) if et and et != "Unknown" else "Other"
+
+        # Match against existing class vocab (case-insensitive).
         matched = False
         for cv in class_vocab:
-            if cv.lower() == et.lower():
+            if cv.lower() == sanitized_et.lower():
                 assignments[e["id"]] = cv
                 matched = True
                 break
+
         if not matched:
-            assignments[e["id"]] = et if et != "Unknown" else "Other"
+            if sanitized_et != "Other":
+                # Add the new class to vocab so downstream phases see it.
+                class_vocab.append(sanitized_et)
+            assignments[e["id"]] = sanitized_et
 
     print(f"\n[Phase 1b] Batched LLM entity typing "
           f"({len(llm_entities)} LLM entities + {len(structured_entities)} structured "
