@@ -25,21 +25,20 @@ from typing import Any
 # Constants
 # ---------------------------------------------------------------------------
 
-MIN_MATCHING_FIELDS = 3
-MIN_WEIGHTED_SCORE = 0.5
+MIN_MATCHING_FIELDS = 5
+MIN_WEIGHTED_SCORE = 0.7
 NUMERIC_TOLERANCE = 0.05       # 5% relative tolerance for numeric comparison
 DATE_PROXIMITY_DAYS = 30       # days within which dates are a partial match
 MAX_BLOCKING_PASSES = 2        # number of blocking passes (top-N cardinality fields)
 
 _STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 
-# Entity types that represent actual records (not property values).
+# Entity types that represent actual data records (not property values or identity nodes).
 # Only these types should participate in cross-source linking.
-# Value types (Numeric, Date, Text, Categorical, Currency, Percentage)
-# are property values attached to records — linking them is meaningless.
+# Identity nodes (Person, Property) already have BELONGS_TO edges from records —
+# linking them via cross-source matching is redundant.
 _RECORD_ENTITY_TYPES = frozenset({
     "PolicyRecord", "ClaimRecord", "Record",
-    "Person", "Property", "Organization",
 })
 
 # Value entity types to EXCLUDE from linking.
