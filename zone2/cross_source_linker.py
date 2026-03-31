@@ -18,10 +18,7 @@ from __future__ import annotations
 import math
 import re
 from collections import defaultdict
-from datetime import datetime
 from typing import Any
-
-from zone2.utils import sanitize_label, sanitize_relation
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +32,36 @@ DATE_PROXIMITY_DAYS = 30       # days within which dates are a partial match
 MAX_BLOCKING_PASSES = 2        # number of blocking passes (top-N cardinality fields)
 
 _STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
+
+# Entity types that represent actual records (not property values).
+# Only these types should participate in cross-source linking.
+# Value types (Numeric, Date, Text, Categorical, Currency, Percentage)
+# are property values attached to records — linking them is meaningless.
+_RECORD_ENTITY_TYPES = frozenset({
+    "PolicyRecord", "ClaimRecord", "Record",
+    "Person", "Property", "Organization",
+})
+
+# Value entity types to EXCLUDE from linking.
+_VALUE_ENTITY_TYPES = frozenset({
+    "Numeric", "Date", "Text", "Categorical",
+    "Currency", "Percentage",
+})
+
+
+def _sanitize_label(label: str) -> str:
+    """Make a Neo4j label safe for f-string interpolation."""
+    import re
+    cleaned = re.sub(r'[^A-Za-z0-9_]', '', label.strip())
+    if not cleaned:
+        raise ValueError(f"Invalid Neo4j label: {label!r}")
+    return cleaned
+
+
+def _sanitize_rel(rel: str) -> str:
+    """Make a relation name safe for Neo4j Cypher f-string interpolation."""
+    import re
+    return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
 
 # Patterns for auto-detecting field types from relation names.
 _DATE_HINTS = frozenset({
@@ -130,6 +157,7 @@ def compare_values(val_a: str, val_b: str, field_type: str) -> float:
             if da == db:
                 return 1.0
             try:
+                from datetime import datetime
                 dt_a = datetime.strptime(da, "%Y-%m-%d")
                 dt_b = datetime.strptime(db, "%Y-%m-%d")
                 delta = abs((dt_a - dt_b).days)
@@ -160,6 +188,8 @@ def check_temporal_consistency(
 
     Returns True if no date fields found (can't disprove).
     """
+    from datetime import datetime
+
     def _find_date(profile: dict, hints: list[str]) -> str | None:
         for rel, val in profile.items():
             rel_lower = rel.lower()
@@ -215,7 +245,7 @@ def discover_shared_relations(
     Returns list of dicts sorted by IDF weight (highest first):
         [{relation, cardinality_a, cardinality_b, idf_weight, field_type, sample_values}]
     """
-    safe_label = sanitize_label(node_label)
+    safe_label = _sanitize_label(node_label)
 
     def _get_relation_stats(entity_type: str) -> dict[str, dict]:
         rows = graph.query(
@@ -279,21 +309,20 @@ def load_record_profiles(
 ) -> dict[str, dict[str, str]]:
     """Query Neo4j for all records of a type, returning {record_id: {relation: value}}.
 
-    Fetches all specified relations in a single query using WHERE type(r) IN $rels,
-    replacing the previous N-query-per-relation loop.
+    Only fetches the specified relations for efficiency.
     """
-    safe_label = sanitize_label(node_label)
-    safe_rels = [sanitize_relation(r) for r in relations]
+    safe_label = _sanitize_label(node_label)
     profiles: dict[str, dict[str, str]] = defaultdict(dict)
 
-    rows = graph.query(
-        f"MATCH (n:{safe_label} {{entity_type: $et}})-[r]->(v) "
-        "WHERE type(r) IN $rels "
-        "RETURN n.id AS nid, type(r) AS rel_type, v.id AS vid",
-        params={"et": entity_type, "rels": safe_rels},
-    )
-    for row in rows:
-        profiles[row["nid"]][row["rel_type"]] = row["vid"]
+    for rel in relations:
+        safe_rel = _sanitize_rel(rel)
+        rows = graph.query(
+            f"MATCH (n:{safe_label} {{entity_type: $et}})-[r:{safe_rel}]->(v) "
+            "RETURN n.id AS nid, v.id AS vid",
+            params={"et": entity_type},
+        )
+        for row in rows:
+            profiles[row["nid"]][rel] = row["vid"]
 
     return dict(profiles)
 
@@ -405,7 +434,7 @@ def cross_source_link(state: dict[str, Any]) -> dict[str, Any]:
     """
     from zone2.pipeline import get_neo4j_graph
 
-    print("\n[8/8] Cross-Source Entity Linking — SEAF-KG Stage 3")
+    print("\n[5/4] Cross-Source Entity Linking — SEAF-KG Stage 3")
 
     try:
         graph = get_neo4j_graph()
@@ -419,8 +448,38 @@ def cross_source_link(state: dict[str, Any]) -> dict[str, Any]:
         "WHERE n.source_type = 'structured' AND n.entity_type IS NOT NULL "
         "RETURN DISTINCT n.entity_type AS et, count(n) AS cnt"
     )
-    entity_types = {r["et"]: r["cnt"] for r in type_rows
-                    if r["et"] not in ("RecordType", "IdentityType")}
+    # Filter to record-level entity types only.
+    # Exclude value types (Numeric, Date, Text, etc.) — they are property
+    # values, not records that should be cross-linked.
+    entity_types = {}
+    skipped_value_types: list[str] = []
+    for r in type_rows:
+        et = r["et"]
+        if et in ("RecordType", "IdentityType"):
+            continue
+        if et in _VALUE_ENTITY_TYPES:
+            skipped_value_types.append(f"{et}({r['cnt']})")
+            continue
+        # Accept known record types OR any type with a structured prefix pattern.
+        if et in _RECORD_ENTITY_TYPES:
+            entity_types[et] = r["cnt"]
+        else:
+            # Unknown type — check if it looks like a record type (has ID-prefixed members).
+            has_prefixed = graph.query(
+                "MATCH (n:Entity {entity_type: $et}) "
+                "WHERE n.id STARTS WITH 'POL-' OR n.id STARTS WITH 'CLM-' "
+                "   OR n.id STARTS WITH 'REC-' OR n.id STARTS WITH 'PER-' "
+                "   OR n.id STARTS WITH 'PROP-' "
+                "RETURN count(n) AS cnt LIMIT 1",
+                params={"et": et},
+            )
+            if has_prefixed and has_prefixed[0]["cnt"] > 0:
+                entity_types[et] = r["cnt"]
+            else:
+                skipped_value_types.append(f"{et}({r['cnt']})")
+
+    if skipped_value_types:
+        print(f"  ℹ Skipped value types: {', '.join(skipped_value_types)}")
 
     if len(entity_types) < 2:
         print(f"  ℹ Only {len(entity_types)} structured type(s) found — "
