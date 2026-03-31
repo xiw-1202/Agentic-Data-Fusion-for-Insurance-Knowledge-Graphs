@@ -1069,30 +1069,89 @@ def _save_run_summary(result: dict, model: str, elapsed: float) -> str:
     return out_path
 
 
-def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3):
+def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
+              skip_extraction: bool = False):
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
-    print("=" * 60)
-    print("CS584 Capstone — Zone 2 Pipeline [Domain-Agnostic Open IE]")
-    print(f"Bootstrapped schema + few-shot extraction → Neo4j  (model: {model})")
-    print(f"Extraction passes: {num_passes}")
-    print("=" * 60)
+    if skip_extraction:
+        # Load cached triples from previous run, skip straight to
+        # entity resolution → Neo4j insertion → cross-source linking.
+        summary_path = os.path.join(config.RESULTS_DIR, "zone2_run_summary.json")
+        if not os.path.exists(summary_path):
+            print(f"✗ Cannot skip extraction: {summary_path} not found.")
+            print("  Run full pipeline first to generate cached triples.")
+            return {}
 
-    pipeline = build_pipeline()
-    start    = time.time()
-    result   = pipeline.invoke({
-        "chunks":           [],
-        "vocab":            [],
-        "entity_types":     [],
-        "triples":          [],
-        "vocab_quality":    {},
-        "neo4j_stats":      {},
-        "resolution_stats": {},
-        "errors":           [],
-        "model":            model,
-        "num_passes":       num_passes,
-    })
-    elapsed = time.time() - start
+        print("=" * 60)
+        print("CS584 Capstone — Zone 2 Pipeline [SKIP EXTRACTION — cached triples]")
+        print(f"Loading triples from {summary_path}")
+        print("=" * 60)
+
+        with open(summary_path) as f:
+            cached = json.load(f)
+
+        triples = cached.get("triples", [])
+        print(f"  ✓ Loaded {len(triples)} cached triples")
+        print(f"  ✓ Skipping: load_chunks, extract_structured, bootstrap_vocab, "
+              f"extract_triples, canonicalize_relations")
+        print(f"  → Running: entity_resolution → insert_to_neo4j → cross_source_link")
+
+        start = time.time()
+
+        # Entity resolution (in-memory).
+        print("\n[4.5] Zone 2.5 — Entity Resolution (in-memory)...")
+        if triples:
+            deduplicated, resolution_stats = resolve_entities_in_memory(triples)
+        else:
+            deduplicated, resolution_stats = triples, {"merged": 0}
+
+        # Neo4j insertion.
+        result_state = {
+            "triples": deduplicated,
+            "resolution_stats": resolution_stats,
+            "vocab": cached.get("vocab", []),
+            "entity_types": cached.get("entity_types", []),
+            "vocab_quality": cached.get("vocab_quality", {}),
+            "errors": cached.get("errors", []),
+            "model": model,
+            "structured_triples": [],
+            "chunks": [],
+            "num_passes": num_passes,
+        }
+
+        neo4j_result = insert_to_neo4j(result_state)
+        result_state.update(neo4j_result)
+
+        # Cross-source linking.
+        link_result = cross_source_link(result_state)
+        result_state.update(link_result)
+
+        elapsed = time.time() - start
+        result = result_state
+
+    else:
+        print("=" * 60)
+        print("CS584 Capstone — Zone 2 Pipeline [Domain-Agnostic Open IE]")
+        print(f"Bootstrapped schema + few-shot extraction → Neo4j  (model: {model})")
+        print(f"Extraction passes: {num_passes}")
+        print("=" * 60)
+
+        pipeline = build_pipeline()
+        start    = time.time()
+        result   = pipeline.invoke({
+            "chunks":             [],
+            "vocab":              [],
+            "entity_types":       [],
+            "triples":            [],
+            "structured_triples": [],
+            "vocab_quality":      {},
+            "neo4j_stats":        {},
+            "resolution_stats":   {},
+            "errors":             [],
+            "model":              model,
+            "num_passes":         num_passes,
+        })
+        elapsed = time.time() - start
 
     neo4j_stats = result.get("neo4j_stats", {})
     triples     = result.get("triples", [])
@@ -1141,5 +1200,11 @@ Examples:
         help="Number of extraction passes: 1=combined single pass, "
              "2=general+numeric, 3=general+numeric+obligations (default: 3)"
     )
+    parser.add_argument(
+        "--skip-extraction", action="store_true",
+        help="Skip LLM extraction, load cached triples from zone2_run_summary.json. "
+             "Only re-runs entity resolution + Neo4j insertion + cross-source linking."
+    )
     args = parser.parse_args()
-    run_zone2(model=args.model, num_passes=args.passes)
+    run_zone2(model=args.model, num_passes=args.passes,
+              skip_extraction=args.skip_extraction)
