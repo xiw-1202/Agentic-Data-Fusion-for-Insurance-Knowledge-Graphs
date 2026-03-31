@@ -483,12 +483,13 @@ def cross_source_link(state: dict[str, Any]) -> dict[str, Any]:
         if et in _RECORD_ENTITY_TYPES:
             entity_types[et] = r["cnt"]
         else:
-            # Unknown type — check if it looks like a record type (has ID-prefixed members).
+            # Unknown type — check if it looks like a DATA RECORD type
+            # (has POL-/CLM-/REC- prefixed members). Exclude identity nodes
+            # (PER-/PROP-) — they already have BELONGS_TO edges.
             has_prefixed = graph.query(
                 "MATCH (n:Entity {entity_type: $et}) "
                 "WHERE n.id STARTS WITH 'POL-' OR n.id STARTS WITH 'CLM-' "
-                "   OR n.id STARTS WITH 'REC-' OR n.id STARTS WITH 'PER-' "
-                "   OR n.id STARTS WITH 'PROP-' "
+                "   OR n.id STARTS WITH 'REC-' "
                 "RETURN count(n) AS cnt LIMIT 1",
                 params={"et": et},
             )
