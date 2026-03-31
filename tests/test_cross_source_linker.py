@@ -180,10 +180,15 @@ class TestMultiPassBlocking:
 class TestScorePair:
 
     def _make_rels(self, names: list[str], weights: list[float],
-                   types: list[str]) -> list[dict]:
+                   types: list[str],
+                   cardinalities: "list[int] | None" = None) -> list[dict]:
+        """Build shared_rels dicts. Default cardinality=100 (above anchor threshold)."""
+        if cardinalities is None:
+            cardinalities = [100] * len(names)
         return [
-            {"relation": n, "idf_weight": w, "field_type": t}
-            for n, w, t in zip(names, weights, types)
+            {"relation": n, "idf_weight": w, "field_type": t,
+             "cardinality_a": c, "cardinality_b": c}
+            for n, w, t, c in zip(names, weights, types, cardinalities)
         ]
 
     def test_all_fields_match(self) -> None:
@@ -228,7 +233,7 @@ class TestScorePair:
         assert score > 0.9
         assert n == 1
 
-    def test_missing_value_skipped(self) -> None:
+    def test_missing_value_penalizes_score(self) -> None:
         shared = self._make_rels(
             ["HAS_A", "HAS_B"],
             [1.0, 1.0],
@@ -238,8 +243,9 @@ class TestScorePair:
         pb = {"HAS_A": "X", "HAS_B": "Y"}
 
         score, n, _ = score_pair(pa, pb, shared)
-        # Only HAS_A is compared (both present), and it matches.
-        assert score == 1.0
+        # HAS_A matches (weight=1.0) but denominator is ALL weights (2.0).
+        # score = 1.0 / 2.0 = 0.5 — penalized for missing field.
+        assert score == pytest.approx(0.5)
         assert n == 1
 
     def test_numeric_tolerance_in_scoring(self) -> None:
@@ -264,9 +270,12 @@ class TestDomainAgnostic:
     def test_arbitrary_field_names(self) -> None:
         """Works with non-OpenFEMA field names."""
         shared = [
-            {"relation": "HAS_RISK_ST", "idf_weight": 1.5, "field_type": "categorical"},
-            {"relation": "HAS_COVAMT_PERS", "idf_weight": 3.0, "field_type": "numeric"},
-            {"relation": "HAS_COUNTY", "idf_weight": 2.0, "field_type": "text"},
+            {"relation": "HAS_RISK_ST", "idf_weight": 1.5, "field_type": "categorical",
+             "cardinality_a": 100, "cardinality_b": 100},
+            {"relation": "HAS_COVAMT_PERS", "idf_weight": 3.0, "field_type": "numeric",
+             "cardinality_a": 200, "cardinality_b": 200},
+            {"relation": "HAS_COUNTY", "idf_weight": 2.0, "field_type": "text",
+             "cardinality_a": 150, "cardinality_b": 150},
         ]
         pa = {"HAS_RISK_ST": "OH", "HAS_COVAMT_PERS": "10000", "HAS_COUNTY": "HAMILTON"}
         pb = {"HAS_RISK_ST": "OH", "HAS_COVAMT_PERS": "10000", "HAS_COUNTY": "HAMILTON"}
