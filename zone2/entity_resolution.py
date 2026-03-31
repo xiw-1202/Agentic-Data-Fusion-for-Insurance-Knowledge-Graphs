@@ -19,7 +19,6 @@ Usage (called from zone2/pipeline.py):
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from typing import Any
 
@@ -34,14 +33,6 @@ STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _sanitize_label(label: str) -> str:
-    """Make a Neo4j label safe for f-string interpolation."""
-    cleaned = re.sub(r'[^A-Za-z0-9_]', '', label.strip())
-    if not cleaned:
-        raise ValueError(f"Invalid Neo4j label: {label!r}")
-    return cleaned
-
 
 def _union_find_components(pairs: list[tuple[str, str]]) -> list[list[str]]:
     """Build connected components from (a, b) similar-node pairs via union-find."""
@@ -177,7 +168,6 @@ def resolve_entities_in_memory(
 
     # Remove self-referential triples created by merging.
     deduplicated = [t for t in deduplicated if t["subject"] != t["object"]]
-    self_refs_removed = len(triples) - len([t for t in triples if t["subject"] == t["object"]]) - len([t for t in deduplicated if t["subject"] != t["object"]])
 
     n_after = len(all_ids) - total_merged
     print(f"  ✓ {total_merged} merged: {n_total} → {n_after} unique nodes")

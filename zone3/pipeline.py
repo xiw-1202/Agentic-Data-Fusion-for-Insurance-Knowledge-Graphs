@@ -56,6 +56,7 @@ from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 
 import config
+from zone3.graph_cache import load_cached_entities
 
 
 # ---------------------------------------------------------------------------
@@ -156,58 +157,14 @@ def _parse_json_safely(text: str) -> list | dict:
 # ---------------------------------------------------------------------------
 
 def load_entities(state: Zone3State) -> dict:
-    """Load all Entity nodes from Neo4j with their structural context."""
-    print("\n[1/5] Loading entities from Neo4j...")
-    graph = get_neo4j_graph()
-
-    # Get all entities with their types (single batch query — was O(n) round-trips)
-    rows = graph.query("""
-        MATCH (n:Entity)
-        OPTIONAL MATCH (n)-[r]->(m:Entity)
-        OPTIONAL MATCH (p:Entity)-[s]->(n)
-        RETURN n.id AS id,
-               n.entity_type AS entity_type,
-               collect(DISTINCT {rel: type(r), target: m.id, chunk: r.chunk_id}) AS out_rels,
-               collect(DISTINCT {rel: type(s), source: p.id, chunk: s.chunk_id}) AS in_rels
-    """)
-    if not rows:
-        print("  ✗ No Entity nodes found. Run zone2/pipeline.py first.")
+    """Load all Entity nodes from local cache (zero Neo4j round-trips)."""
+    print("\n[1/5] Loading entities from cache...")
+    entities = load_cached_entities(fmt="leiden")
+    if not entities:
+        print("  ✗ No entities found. Run zone2/pipeline.py first.")
         return {"entities": []}
 
-    entities: list[dict] = []
-    type_counts: dict[str, int] = defaultdict(int)
-    for row in rows:
-        eid = row["id"]
-        etype = row.get("entity_type") or "Unknown"
-        type_counts[etype] += 1
-
-        # Filter out null rels from OPTIONAL MATCH
-        out_rels = [r for r in row.get("out_rels", []) if r.get("rel")]
-        in_rels  = [r for r in row.get("in_rels", []) if r.get("rel")]
-
-        rel_types_out = [r["rel"] for r in out_rels]
-        rel_types_in  = [r["rel"] for r in in_rels]
-        chunks = list(set(
-            r.get("chunk", "") for r in out_rels + in_rels if r.get("chunk")
-        ))
-
-        entities.append({
-            "id": eid,
-            "entity_type": etype,
-            "relations_out": rel_types_out,
-            "relations_in": rel_types_in,
-            "all_relation_types": list(set(rel_types_out + rel_types_in)),
-            "neighbors": list(set(
-                [r["target"] for r in out_rels if r.get("target")] +
-                [r["source"] for r in in_rels if r.get("source")]
-            )),
-            "chunks": chunks,
-        })
-
     entity_map = {e["id"]: e for e in entities}
-    typed = sum(1 for e in entities if e["entity_type"] != "Unknown")
-    print(f"  ✓ {len(entities)} entities loaded ({typed} typed, "
-          f"{len(type_counts)} distinct types)")
     return {"entities": entities, "entity_map": entity_map}
 
 
@@ -760,7 +717,24 @@ def write_ontology(state: Zone3State) -> dict:
 
     try:
         graph = get_neo4j_graph()
+        graph.query("RETURN 1 AS ok")
+    except Exception as e:
+        print(f"  ⚠ Neo4j unavailable ({e}), skipping write. Results saved to JSON.")
+        primary_class_names = set()
+        for c in named:
+            cn = _sanitize_label(c.get("class_name", ""))
+            if cn:
+                primary_class_names.add(cn)
+        return {"neo4j_stats": {
+            "entities_labeled": sum(len(c["members"]) for c in named),
+            "ontology_classes": len(primary_class_names),
+            "subclass_of_edges": len(hierarchy),
+            "class_names": sorted(primary_class_names),
+            "method": "Leiden",
+            "neo4j_skipped": True,
+        }}
 
+    try:
         # Step 0: Clear any previous Zone 3 ontology labels from Entity nodes.
         existing_oc = graph.query(
             "MATCH (c:OntologyClass) RETURN c.name AS name"

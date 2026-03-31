@@ -25,6 +25,10 @@ from typing import Any
 
 # Salient fields for composite key generation per record type.
 # Order matters — first 4 non-empty fields are used.
+# These field names are NFIP-specific (flood LOB). For other LOBs the salient
+# fields won't match, which is fine: generate_composite_key() falls back to
+# hashing the first N non-empty fields alphabetically, producing stable keys
+# for any CSV structure without requiring configuration changes.
 _KEY_FIELDS: dict[str, list[str]] = {
     "policies": [
         "policy effective date",
@@ -125,9 +129,16 @@ def detect_record_type(chunk: dict[str, Any]) -> str:
         return "claims"
 
     # Field-based heuristic for unknown sources.
-    if "date of loss" in content or "cause of damage" in content:
+    # Terms cover NFIP flood fields and common equivalents in other LOBs.
+    if any(kw in content for kw in (
+        "date of loss", "date of accident", "date of incident",
+        "cause of damage", "cause of loss", "cause of accident",
+    )):
         return "claims"
-    if "policy effective date" in content or "policy cost" in content:
+    if any(kw in content for kw in (
+        "policy effective date", "policy cost",
+        "effective date", "inception date",
+    )):
         return "policies"
 
     return "unknown"

@@ -58,6 +58,11 @@ from langchain_neo4j import Neo4jGraph
 from langchain_ollama import ChatOllama
 
 import config
+from zone3.graph_cache import (
+    load_cached_entities,
+    get_concept_entities,
+    STRUCTURED_PREFIXES,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +78,7 @@ MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
 
 # Structured entity prefixes — these already have entity_type from Stage 1.
 # SV-LOI should use their existing types directly, not re-classify via LLM.
-_STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
+_STRUCTURED_PREFIXES = STRUCTURED_PREFIXES
 
 # Target class count range (guide for class discovery)
 TARGET_CLASSES_MIN = 10
@@ -150,62 +155,10 @@ def _invoke_llm(llm: ChatOllama, prompt: str) -> str:
 # Step 1: Load Entities from Neo4j (reused from RSI-LCR)
 # ---------------------------------------------------------------------------
 
-def load_entities(graph: Neo4jGraph) -> list[dict]:
-    """Load all Entity nodes with structural context."""
-    print("\n[Phase 0] Loading entities from Neo4j...", flush=True)
-
-    rows = graph.query("""
-        MATCH (n:Entity)
-        OPTIONAL MATCH (n)-[r]->(m:Entity)
-        OPTIONAL MATCH (p:Entity)-[s]->(n)
-        RETURN n.id AS id,
-               n.entity_type AS entity_type,
-               collect(DISTINCT {rel: type(r), target: m.id, target_type: m.entity_type}) AS out_rels,
-               collect(DISTINCT {rel: type(s), source: p.id, source_type: p.entity_type}) AS in_rels
-    """)
-    if not rows:
-        print("  ✗ No Entity nodes found. Run zone2/pipeline.py first.")
-        return []
-
-    entities: list[dict] = []
-    for row in rows:
-        eid = row["id"]
-        etype = row.get("entity_type") or "Unknown"
-
-        out_rels = [r for r in row.get("out_rels", []) if r.get("rel")]
-        in_rels = [r for r in row.get("in_rels", []) if r.get("rel")]
-
-        # Relation summaries for LLM prompt
-        out_summary = []
-        for r in out_rels[:5]:
-            out_summary.append(f"--{r['rel']}--> {r.get('target', '?')}")
-        in_summary = []
-        for r in in_rels[:5]:
-            in_summary.append(f"<--{r['rel']}-- {r.get('source', '?')}")
-
-        # Relation type counts for structural signature
-        out_counts: dict[str, int] = defaultdict(int)
-        in_counts: dict[str, int] = defaultdict(int)
-        for r in out_rels:
-            out_counts[r["rel"]] += 1
-        for r in in_rels:
-            in_counts[r["rel"]] += 1
-
-        entities.append({
-            "id": eid,
-            "entity_type": etype,
-            "out_rels": out_rels,
-            "in_rels": in_rels,
-            "out_summary": out_summary,
-            "in_summary": in_summary,
-            "out_rel_counts": dict(out_counts),
-            "in_rel_counts": dict(in_counts),
-            "degree": len(out_rels) + len(in_rels),
-        })
-
-    typed = sum(1 for e in entities if e["entity_type"] != "Unknown")
-    print(f"  ✓ {len(entities)} entities loaded ({typed} typed, {len(entities) - typed} untyped)")
-    return entities
+def load_entities() -> list[dict]:
+    """Load all Entity nodes from local cache (zero Neo4j round-trips)."""
+    print("\n[Phase 0] Loading entities from cache...", flush=True)
+    return load_cached_entities(fmt="sv_loi")
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +220,7 @@ What industry/domain is this knowledge graph about? Answer in 1-3 words."""
 
     prompt = f"""You are designing a DOMAIN ONTOLOGY for a {domain} knowledge graph.
 
-Here are 80 entity names from the graph:
+Here are {len(name_sample)} entity names from the graph (domain concepts only):
 {chr(10).join(f'  {n}' for n in name_sample)}
 
 Relationship types:
@@ -1225,7 +1178,22 @@ def write_ontology(
 ) -> dict:
     """Write ontology layer to Neo4j."""
     print("\n[Phase 5] Writing ontology to Neo4j...")
-    graph = get_neo4j_graph()
+
+    try:
+        graph = get_neo4j_graph()
+        graph.query("RETURN 1 AS ok")
+    except Exception as e:
+        print(f"  ⚠ Neo4j unavailable ({e}), skipping write. Results saved to JSON.")
+        class_counts = Counter(v for v in assignments.values() if v != "Other")
+        return {
+            "entities_labeled": len(assignments),
+            "ontology_classes": len(class_counts),
+            "subclass_of_edges": len(hierarchy),
+            "class_names": sorted(class_counts.keys()),
+            "class_distribution": dict(class_counts),
+            "method": "SV-LOI",
+            "neo4j_skipped": True,
+        }
 
     # Clean previous ontology
     try:
@@ -1332,25 +1300,16 @@ def run_sv_loi(
 
     start = time.time()
 
-    # Test Neo4j connection first
-    _flush_print("\n[Pre-check] Testing Neo4j connection...")
-    try:
-        graph = get_neo4j_graph()
-        test = graph.query("RETURN 1 AS ok")
-        _flush_print(f"  ✓ Neo4j connected ({config.NEO4J_URI})")
-    except Exception as e:
-        _flush_print(f"  ✗ Neo4j connection FAILED: {e}")
-        return {"error": f"Neo4j connection failed: {e}"}
-
-    # Phase 0: Load entities
-    entities = load_entities(graph)
+    # Phase 0: Load entities from cache (zero Neo4j round-trips)
+    entities = load_entities()
     if not entities:
         return {"error": "no entities"}
 
     llm = get_llm(model)
 
-    # Phase 1a: Discover class vocabulary
-    class_vocab = discover_class_vocabulary(entities, llm)
+    # Phase 1a: Discover class vocabulary (concept entities only)
+    concept_entities = get_concept_entities(entities)
+    class_vocab = discover_class_vocabulary(concept_entities, llm)
 
     # Phase 1b: Batch LLM entity typing
     assignments = batch_type_entities(entities, class_vocab, llm)

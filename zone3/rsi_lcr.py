@@ -50,6 +50,7 @@ from langchain_neo4j import Neo4jGraph
 from langchain_ollama import ChatOllama
 
 import config
+from zone3.graph_cache import load_cached_entities
 
 
 # ---------------------------------------------------------------------------
@@ -126,52 +127,9 @@ def _parse_json_safely(text: str) -> Union[dict, list]:
 # ---------------------------------------------------------------------------
 
 def load_entities() -> list[dict]:
-    """Load all Entity nodes with their structural context."""
-    print("\n[1/7] Loading entities from Neo4j...")
-    graph = get_neo4j_graph()
-
-    rows = graph.query("""
-        MATCH (n:Entity)
-        OPTIONAL MATCH (n)-[r]->(m:Entity)
-        OPTIONAL MATCH (p:Entity)-[s]->(n)
-        RETURN n.id AS id,
-               n.entity_type AS entity_type,
-               collect(DISTINCT {rel: type(r), target: m.id}) AS out_rels,
-               collect(DISTINCT {rel: type(s), source: p.id}) AS in_rels
-    """)
-    if not rows:
-        print("  ✗ No Entity nodes found. Run zone2/pipeline.py first.")
-        return []
-
-    entities: list[dict] = []
-    for row in rows:
-        eid = row["id"]
-        etype = row.get("entity_type") or "Unknown"
-
-        out_rels = [r for r in row.get("out_rels", []) if r.get("rel")]
-        in_rels = [r for r in row.get("in_rels", []) if r.get("rel")]
-
-        # Relation type counts (the core of RSI)
-        out_counts: dict[str, int] = defaultdict(int)
-        in_counts: dict[str, int] = defaultdict(int)
-        for r in out_rels:
-            out_counts[r["rel"]] += 1
-        for r in in_rels:
-            in_counts[r["rel"]] += 1
-
-        entities.append({
-            "id": eid,
-            "entity_type": etype,
-            "out_rel_counts": dict(out_counts),
-            "in_rel_counts": dict(in_counts),
-            "out_rel_types": list(out_counts.keys()),
-            "in_rel_types": list(in_counts.keys()),
-            "degree": len(out_rels) + len(in_rels),
-        })
-
-    typed = sum(1 for e in entities if e["entity_type"] != "Unknown")
-    print(f"  ✓ {len(entities)} entities loaded ({typed} typed)")
-    return entities
+    """Load all Entity nodes from local cache (zero Neo4j round-trips)."""
+    print("\n[1/7] Loading entities from cache...")
+    return load_cached_entities(fmt="rsi_lcr")
 
 
 # ---------------------------------------------------------------------------
@@ -735,80 +693,102 @@ def write_ontology(clusters: list[dict], hierarchy: list[dict]) -> dict:
         print("  ✗ No clusters to write")
         return {"error": "no clusters"}
 
-    graph = get_neo4j_graph()
+    try:
+        graph = get_neo4j_graph()
+        graph.query("RETURN 1 AS ok")
+    except Exception as e:
+        print(f"  ⚠ Neo4j unavailable ({e}), skipping write. Results saved to JSON.")
+        class_names = set()
+        for c in clusters:
+            cn = _sanitize_label(c.get("class_name", ""))
+            if cn:
+                class_names.add(cn)
+        return {
+            "entities_labeled": sum(len(c["members"]) for c in clusters),
+            "ontology_classes": len(class_names),
+            "subclass_of_edges": len(hierarchy),
+            "class_names": sorted(class_names),
+            "method": "RSI-LCR",
+            "neo4j_skipped": True,
+        }
 
-    # Clear previous ontology
-    existing_oc = graph.query("MATCH (c:OntologyClass) RETURN c.name AS name")
-    for row in existing_oc:
-        old_cls = _sanitize_label(row["name"]) if row["name"] else None
-        if old_cls:
-            try:
-                graph.query(f"MATCH (n:Entity) WHERE n:{old_cls} REMOVE n:{old_cls}")
-            except Exception:
-                pass
-    graph.query("MATCH (c:OntologyClass) DETACH DELETE c")
-    print(f"  Cleared {len(existing_oc)} previous OntologyClass nodes")
+    try:
+        # Clear previous ontology
+        existing_oc = graph.query("MATCH (c:OntologyClass) RETURN c.name AS name")
+        for row in existing_oc:
+            old_cls = _sanitize_label(row["name"]) if row["name"] else None
+            if old_cls:
+                try:
+                    graph.query(f"MATCH (n:Entity) WHERE n:{old_cls} REMOVE n:{old_cls}")
+                except Exception:
+                    pass
+        graph.query("MATCH (c:OntologyClass) DETACH DELETE c")
+        print(f"  Cleared {len(existing_oc)} previous OntologyClass nodes")
 
-    # Label entities
-    entities_labeled = 0
-    class_names: set[str] = set()
-    for cluster in clusters:
-        class_name = _sanitize_label(cluster["class_name"])
-        members = cluster["members"]
-        if not class_name or not members:
-            continue
-        class_names.add(class_name)
-        graph.query(
-            f"UNWIND $members AS mid "
-            f"MATCH (n:Entity {{id: mid}}) "
-            f"SET n:{class_name} "
-            f"SET n.ontology_class = $cls",
-            params={"members": members, "cls": class_name}
-        )
-        entities_labeled += len(members)
-
-    # Create OntologyClass nodes
-    for cluster in clusters:
-        class_name = _sanitize_label(cluster["class_name"])
-        graph.query(
-            "MERGE (c:OntologyClass {name: $name}) "
-            "SET c.member_count = $count, "
-            "    c.example_members = $examples, "
-            "    c.method = 'RSI-LCR'",
-            params={
-                "name": class_name,
-                "count": len(cluster["members"]),
-                "examples": cluster["members"][:10],
-            }
-        )
-
-    # Create SUBCLASS_OF edges
-    subclass_created = 0
-    for rel in hierarchy:
-        child = _sanitize_label(rel["child"])
-        parent = _sanitize_label(rel["parent"])
-        if child in class_names and parent in class_names:
+        # Label entities
+        entities_labeled = 0
+        class_names: set[str] = set()
+        for cluster in clusters:
+            class_name = _sanitize_label(cluster["class_name"])
+            members = cluster["members"]
+            if not class_name or not members:
+                continue
+            class_names.add(class_name)
             graph.query(
-                "MATCH (child:OntologyClass {name: $child}) "
-                "MATCH (parent:OntologyClass {name: $parent}) "
-                "MERGE (child)-[:SUBCLASS_OF]->(parent)",
-                params={"child": child, "parent": parent}
+                f"UNWIND $members AS mid "
+                f"MATCH (n:Entity {{id: mid}}) "
+                f"SET n:{class_name} "
+                f"SET n.ontology_class = $cls",
+                params={"members": members, "cls": class_name}
             )
-            subclass_created += 1
+            entities_labeled += len(members)
 
-    stats = {
-        "entities_labeled": entities_labeled,
-        "ontology_classes": len(class_names),
-        "subclass_of_edges": subclass_created,
-        "class_names": sorted(class_names),
-        "method": "RSI-LCR",
-    }
+        # Create OntologyClass nodes
+        for cluster in clusters:
+            class_name = _sanitize_label(cluster["class_name"])
+            graph.query(
+                "MERGE (c:OntologyClass {name: $name}) "
+                "SET c.member_count = $count, "
+                "    c.example_members = $examples, "
+                "    c.method = 'RSI-LCR'",
+                params={
+                    "name": class_name,
+                    "count": len(cluster["members"]),
+                    "examples": cluster["members"][:10],
+                }
+            )
 
-    print(f"  ✓ Entities labeled:     {entities_labeled}")
-    print(f"  ✓ OntologyClass nodes:  {len(class_names)}")
-    print(f"  ✓ SUBCLASS_OF edges:    {subclass_created}")
-    print(f"  ✓ Classes:              {sorted(class_names)}")
-    return stats
+        # Create SUBCLASS_OF edges
+        subclass_created = 0
+        for rel in hierarchy:
+            child = _sanitize_label(rel["child"])
+            parent = _sanitize_label(rel["parent"])
+            if child in class_names and parent in class_names:
+                graph.query(
+                    "MATCH (child:OntologyClass {name: $child}) "
+                    "MATCH (parent:OntologyClass {name: $parent}) "
+                    "MERGE (child)-[:SUBCLASS_OF]->(parent)",
+                    params={"child": child, "parent": parent}
+                )
+                subclass_created += 1
+
+        stats = {
+            "entities_labeled": entities_labeled,
+            "ontology_classes": len(class_names),
+            "subclass_of_edges": subclass_created,
+            "class_names": sorted(class_names),
+            "method": "RSI-LCR",
+        }
+
+        print(f"  ✓ Entities labeled:     {entities_labeled}")
+        print(f"  ✓ OntologyClass nodes:  {len(class_names)}")
+        print(f"  ✓ SUBCLASS_OF edges:    {subclass_created}")
+        print(f"  ✓ Classes:              {sorted(class_names)}")
+        return stats
+
+    except Exception as e:
+        print(f"  ✗ Neo4j write error: {e}")
+        return {"error": str(e), "method": "RSI-LCR"}
 
 
 # ---------------------------------------------------------------------------

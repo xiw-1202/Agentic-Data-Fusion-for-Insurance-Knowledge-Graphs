@@ -56,6 +56,7 @@ from zone2.prompts import (
 from zone2.entity_resolution import resolve_entities_in_memory
 from zone2.structured_mapper import extract_structured
 from zone2.cross_source_linker import cross_source_link
+from zone2.utils import sanitize_label, sanitize_relation
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +81,6 @@ class Zone2State(TypedDict):
 # Constants — ALL DOMAIN-AGNOSTIC
 # ---------------------------------------------------------------------------
 
-PDF_SOURCE_KEY      = "fema_F-123-general-property-SFIP_2021.pdf"
 CHUNK_CONTENT_LIMIT = 3000  # chars
 
 # Remap common LLM paraphrases → canonical form (domain-agnostic synonyms)
@@ -225,21 +225,9 @@ def _parse_json_list(text: str) -> list:
     return parsed
 
 
-def _sanitize_relation(rel: str) -> str:
-    """Make a relation name safe for Neo4j Cypher interpolation."""
-    return re.sub(r'[^A-Z0-9_]', '_', rel.upper().strip())
-
-
-def _sanitize_label(label: str) -> str:
-    """Make a PascalCase label safe for Neo4j Cypher interpolation."""
-    cleaned = re.sub(r'[^A-Za-z0-9]', '', label.strip())
-    return cleaned if cleaned else "Entity"
-
-
 def keep_triple(t: dict) -> bool:
     """Filter triples: reject low-confidence, empty entities, generic blacklist."""
     rel = RELATION_NORMALIZATIONS.get(t.get("relation", ""), t.get("relation", ""))
-    rel = RELATION_NORMALIZATIONS.get(rel, rel)
     try:
         if float(t.get("confidence", 1.0)) < 0.5:
             return False
@@ -392,7 +380,7 @@ def bootstrap_vocab(state: Zone2State) -> dict:
         raw = resp.content.strip()
         print(f"    Entities ({len(raw)} chars): {raw.replace(chr(10), ' ')[:200]}")
         proposed_entities = [
-            _sanitize_label(e) for e in _parse_json_list(raw)
+            sanitize_label(e) for e in _parse_json_list(raw)
             if isinstance(e, str) and e.strip()
         ]
     except Exception as e:
@@ -735,23 +723,30 @@ def extract_triples(state: Zone2State) -> dict:
             all_raw_triples.extend(pass_triples)
             print(f"  → Pass {pass_idx + 1} subtotal: {len(pass_triples)} triples")
 
-    # Regex numeric fallback (F-01 fix) — runs over ALL chunks regardless of LLM output
-    print("\n  Regex numeric fallback (F-01 fix):")
-    regex_numeric: list[dict] = []
-    for chunk in chunks:
-        regex_numeric.extend(
-            _extract_numeric_from_text(
-                chunk["content"][:CHUNK_CONTENT_LIMIT],
-                chunk.get("chunk_id", ""),
-                chunk.get("source", ""),
+    # Regex numeric fallback (F-01 fix) — only for small models (8b/7b).
+    # Large models (70b/72b) extract numeric facts directly; the regex uses
+    # flood-specific subject names (Building Coverage, Proof of Loss, etc.)
+    # that would contaminate cross-domain runs.
+    is_small_model = any(tag in model.lower() for tag in (":8b", ":7b", "-8b", "-7b"))
+    if is_small_model:
+        print("\n  Regex numeric fallback (F-01 fix):")
+        regex_numeric: list[dict] = []
+        for chunk in chunks:
+            regex_numeric.extend(
+                _extract_numeric_from_text(
+                    chunk["content"][:CHUNK_CONTENT_LIMIT],
+                    chunk.get("chunk_id", ""),
+                    chunk.get("source", ""),
+                )
             )
-        )
-    if regex_numeric:
-        all_raw_triples.extend(regex_numeric)
-        print(f"  → Added {len(regex_numeric)} regex numeric triples "
-              f"(dollar amounts, time periods, percentages)")
+        if regex_numeric:
+            all_raw_triples.extend(regex_numeric)
+            print(f"  → Added {len(regex_numeric)} regex numeric triples "
+                  f"(dollar amounts, time periods, percentages)")
+        else:
+            print("  → No unambiguous numeric patterns found")
     else:
-        print("  → No unambiguous numeric patterns found")
+        print(f"\n  Regex numeric fallback skipped ({model} extracts numerics directly)")
 
     # Deduplicate across passes by normalized (subject, relation, object)
     seen_keys:   set[tuple]  = set()
@@ -806,7 +801,7 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
     """MERGE triples into Neo4j grouped by relation type."""
     total = 0
     for rel_type, batch in by_relation.items():
-        rel_type = _sanitize_relation(rel_type)
+        rel_type = sanitize_relation(rel_type)
         graph.query(
             f"""
             UNWIND $batch AS row
@@ -891,7 +886,7 @@ def canonicalize_relations(state: Zone2State) -> dict:
                         break
     except Exception as e:
         print(f"  ⚠ Canonicalization LLM call failed ({e}); keeping original relations")
-        return {}
+        return {"errors": state.get("errors", []) + [f"canonicalization_failed: {e}"]}
 
     # Apply mapping — skip structured triples (their relation names are
     # already well-formed field names needed for cross-source linking).
