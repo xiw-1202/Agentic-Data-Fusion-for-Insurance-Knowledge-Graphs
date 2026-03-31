@@ -130,11 +130,15 @@ def _sanitize_label(name: str) -> str:
 def _parse_json_safely(text: str) -> Union[dict, list]:
     """Try to parse JSON from LLM output with fallbacks."""
     text = text.strip()
+    # Strip markdown code fences: ```json ... ``` or ``` ... ```
+    text = re.sub(r'^```(?:json)?\s*\n?', '', text)
+    text = re.sub(r'\n?```\s*$', '', text)
+    text = text.strip()
     try:
         return json.loads(text)
     except (json.JSONDecodeError, ValueError):
         pass
-    m = re.search(r'\{.*\}', text, re.DOTALL) or re.search(r'\[.*\]', text, re.DOTALL)
+    m = re.search(r'\[.*\]', text, re.DOTALL) or re.search(r'\{.*\}', text, re.DOTALL)
     if m:
         try:
             return json.loads(m.group())
