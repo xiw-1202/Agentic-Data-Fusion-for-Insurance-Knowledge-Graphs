@@ -33,6 +33,21 @@ MAX_BLOCKING_PASSES = 2        # number of blocking passes (top-N cardinality fi
 
 _STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 
+# Entity types that represent actual records (not property values).
+# Only these types should participate in cross-source linking.
+# Value types (Numeric, Date, Text, Categorical, Currency, Percentage)
+# are property values attached to records — linking them is meaningless.
+_RECORD_ENTITY_TYPES = frozenset({
+    "PolicyRecord", "ClaimRecord", "Record",
+    "Person", "Property", "Organization",
+})
+
+# Value entity types to EXCLUDE from linking.
+_VALUE_ENTITY_TYPES = frozenset({
+    "Numeric", "Date", "Text", "Categorical",
+    "Currency", "Percentage",
+})
+
 
 def _sanitize_label(label: str) -> str:
     """Make a Neo4j label safe for f-string interpolation."""
@@ -433,8 +448,38 @@ def cross_source_link(state: dict[str, Any]) -> dict[str, Any]:
         "WHERE n.source_type = 'structured' AND n.entity_type IS NOT NULL "
         "RETURN DISTINCT n.entity_type AS et, count(n) AS cnt"
     )
-    entity_types = {r["et"]: r["cnt"] for r in type_rows
-                    if r["et"] not in ("RecordType", "IdentityType")}
+    # Filter to record-level entity types only.
+    # Exclude value types (Numeric, Date, Text, etc.) — they are property
+    # values, not records that should be cross-linked.
+    entity_types = {}
+    skipped_value_types: list[str] = []
+    for r in type_rows:
+        et = r["et"]
+        if et in ("RecordType", "IdentityType"):
+            continue
+        if et in _VALUE_ENTITY_TYPES:
+            skipped_value_types.append(f"{et}({r['cnt']})")
+            continue
+        # Accept known record types OR any type with a structured prefix pattern.
+        if et in _RECORD_ENTITY_TYPES:
+            entity_types[et] = r["cnt"]
+        else:
+            # Unknown type — check if it looks like a record type (has ID-prefixed members).
+            has_prefixed = graph.query(
+                "MATCH (n:Entity {entity_type: $et}) "
+                "WHERE n.id STARTS WITH 'POL-' OR n.id STARTS WITH 'CLM-' "
+                "   OR n.id STARTS WITH 'REC-' OR n.id STARTS WITH 'PER-' "
+                "   OR n.id STARTS WITH 'PROP-' "
+                "RETURN count(n) AS cnt LIMIT 1",
+                params={"et": et},
+            )
+            if has_prefixed and has_prefixed[0]["cnt"] > 0:
+                entity_types[et] = r["cnt"]
+            else:
+                skipped_value_types.append(f"{et}({r['cnt']})")
+
+    if skipped_value_types:
+        print(f"  ℹ Skipped value types: {', '.join(skipped_value_types)}")
 
     if len(entity_types) < 2:
         print(f"  ℹ Only {len(entity_types)} structured type(s) found — "
