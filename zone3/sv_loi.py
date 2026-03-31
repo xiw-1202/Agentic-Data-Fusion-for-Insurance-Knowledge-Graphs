@@ -61,6 +61,7 @@ import config
 from zone3.graph_cache import (
     load_cached_entities,
     get_concept_entities,
+    is_concept_entity,
     STRUCTURED_PREFIXES,
 )
 
@@ -361,16 +362,27 @@ def batch_type_entities(
     Returns:
         {entity_id: class_name}
     """
-    # Separate structured entities (already typed) from LLM-extracted (need classification).
+    # Separate entities into 3 groups:
+    # 1. Structured (POL-/CLM-/REC-/PER-/PROP-) — pre-assign from entity_type
+    # 2. Value entities (Numeric, Date, Text, etc.) — pre-assign as "Other"
+    # 3. Concept entities (~208) — these go through LLM classification
     structured_entities: list[dict] = []
+    value_entities: list[dict] = []
     llm_entities: list[dict] = []
     for e in entities:
         if e["id"].startswith(_STRUCTURED_PREFIXES):
             structured_entities.append(e)
+        elif not is_concept_entity(e):
+            value_entities.append(e)
         else:
             llm_entities.append(e)
 
     assignments: dict[str, str] = {}
+
+    # Pre-assign value entities as "Other" — dollar amounts, dates, zip codes,
+    # category codes, etc. don't need LLM classification.
+    for e in value_entities:
+        assignments[e["id"]] = "Other"
 
     # Assign structured entities directly from their entity_type.
     # If entity_type is not in class_vocab, add it (prevents ghost classes).
@@ -393,8 +405,9 @@ def batch_type_entities(
             assignments[e["id"]] = sanitized_et
 
     print(f"\n[Phase 1b] Batched LLM entity typing "
-          f"({len(llm_entities)} LLM entities + {len(structured_entities)} structured "
-          f"pre-assigned, batch={BATCH_SIZE})...")
+          f"({len(llm_entities)} concept entities via LLM, "
+          f"{len(structured_entities)} structured + {len(value_entities)} value pre-assigned, "
+          f"batch={BATCH_SIZE})...")
 
     class_list = ", ".join(c for c in class_vocab if c != "Other")
     n_batches = (len(llm_entities) + BATCH_SIZE - 1) // BATCH_SIZE
