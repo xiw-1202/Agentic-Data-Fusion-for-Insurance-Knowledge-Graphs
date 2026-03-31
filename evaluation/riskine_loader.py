@@ -23,7 +23,7 @@ RISKINE_BASE = (
     "https://raw.githubusercontent.com/riskine/ontology/master/schemas/core/"
 )
 
-# 10 flood-relevant schemas used in P/R/F1 scoring
+# 10 flood-relevant schemas (original subset for backward compat)
 FLOOD_SCHEMAS = [
     "product",
     "coverage",
@@ -35,6 +35,36 @@ FLOOD_SCHEMAS = [
     "object",
     "organization",
     "address",
+]
+
+# ALL 26 Riskine core schemas (excludes definitions.json which is value types)
+ALL_SCHEMAS = [
+    "address",
+    "animal",
+    "bank-account",
+    "business-process",
+    "coverage",
+    "credit-card",
+    "damage",
+    "data-processing",
+    "driving-license",
+    "education",
+    "employee",
+    "finances",
+    "identification",
+    "object",
+    "organization",
+    "person",
+    "preference",
+    "product",
+    "profession",
+    "property",
+    "revenue",
+    "risk",
+    "security-measure",
+    "site",
+    "structure",
+    "vehicle",
 ]
 
 # Default local cache directory
@@ -49,16 +79,20 @@ def fetch_and_cache(
     cache_dir: str = CACHE_DIR,
     schemas: Optional[list[str]] = None,
     force_refresh: bool = False,
+    use_all: bool = False,
 ) -> dict[str, dict]:
     """
     Fetch Riskine schemas from GitHub; write each to cache_dir as <name>.json.
     On subsequent calls, reads from disk unless force_refresh=True.
 
+    Args:
+        use_all: If True, fetch ALL 26 Riskine core schemas (not just flood-relevant 10).
+
     Returns:
         {schema_name: schema_dict}  — e.g. {"coverage": {...}, "product": {...}}
     """
     if schemas is None:
-        schemas = FLOOD_SCHEMAS
+        schemas = ALL_SCHEMAS if use_all else FLOOD_SCHEMAS
 
     os.makedirs(cache_dir, exist_ok=True)
     result: dict[str, dict] = {}

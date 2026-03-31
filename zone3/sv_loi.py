@@ -82,8 +82,9 @@ MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
 _STRUCTURED_PREFIXES = STRUCTURED_PREFIXES
 
 # Target class count range (guide for class discovery)
-TARGET_CLASSES_MIN = 10
-TARGET_CLASSES_MAX = 20
+# Higher minimum to counteract consolidation over-merging
+TARGET_CLASSES_MIN = 12
+TARGET_CLASSES_MAX = 25
 
 # Forbidden class names — data types masquerading as ontology classes
 FORBIDDEN_CLASS_NAMES = {
@@ -984,33 +985,32 @@ def consolidate_classes(
         sample = members[:8]
         class_descs.append(f"  {cls} ({dist[cls]} members): {', '.join(sample)}")
 
-    prompt = f"""You have {len(class_names)} ontology classes from a knowledge graph. Some are too \
-fine-grained and should be merged.
+    prompt = f"""You have {len(class_names)} ontology classes from a knowledge graph. Review whether \
+any classes represent the EXACT SAME concept and should be merged.
 
 CURRENT CLASSES:
 {chr(10).join(class_descs)}
 
-YOUR TASK: Propose merges for classes that represent the SAME real-world concept.
-Also rename classes to standard ontology terms where appropriate.
+YOUR TASK: Propose merges ONLY for classes that clearly represent the SAME real-world concept.
 
-MERGE GUIDELINES:
-- City + County + State + similar geographic classes → Address
-- If "Policy" exists, it represents insurance products → rename to Product
-- Premium + Limit + Deductible could stay separate OR merge into Coverage (your judgment)
-- Code + Year + Deadline are data artifacts → merge into the nearest domain class OR mark as Other
-- Keep classes that represent genuinely different domain concepts separate
+CONSERVATIVE MERGE RULES:
+- ONLY merge classes that are TRUE SYNONYMS (e.g., City + County + State → Address)
+- Renaming is allowed if the name is more standard (e.g., Policy → Product)
+- Mark data-type classes (Code, Year, Deadline) as Other ONLY if truly just data artifacts
+- KEEP 10-15 final classes — prefer more classes over fewer
+- DO NOT merge classes that are related but different (e.g., Coverage ≠ Product)
+- When in doubt, DO NOT MERGE
 
 OUTPUT FORMAT (JSON):
 {{
   "merges": [
-    {{"from": ["City", "County", "State"], "to": "Address", "reason": "all represent geographic locations"}},
-    {{"from": ["Policy"], "to": "Product", "reason": "insurance policies are products"}}
+    {{"from": ["City", "County", "State"], "to": "Address", "reason": "all represent geographic locations"}}
   ],
-  "keep_as_is": ["Coverage", "Risk", "Property"],
-  "mark_other": ["Code", "Year"]
+  "keep_as_is": ["Coverage", "Risk", "Property", "Product", "Damage"],
+  "mark_other": ["Code"]
 }}
 
-Only propose merges you are confident about. It's better to keep classes separate than to merge incorrectly.
+Be VERY conservative. Only merge when >90% confident classes are the same concept.
 """
     raw = _invoke_llm(llm, prompt)
     result = _parse_json_safely(raw)
@@ -1301,14 +1301,38 @@ def _flush_print(msg: str) -> None:
 def run_sv_loi(
     model: str = config.OLLAMA_MODEL,
     suffix: str = "zone3_svloi",
+    skip_verify: bool = False,
+    skip_arbitrate: bool = False,
+    skip_consolidate: bool = False,
+    seed: int = 42,
 ) -> dict:
-    """Run the full SV-LOI pipeline."""
+    """Run the full SV-LOI pipeline.
+
+    Ablation flags:
+        skip_verify:      Skip Phase 2 structural consensus verification
+        skip_arbitrate:   Skip Phase 3 disagreement arbitration
+        skip_consolidate: Skip Phase 4a LLM-guided class consolidation
+        seed:             Random seed for reproducibility (variance measurement)
+    """
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
+
+    ablation_flags = []
+    if skip_verify:
+        ablation_flags.append("no-verify")
+    if skip_arbitrate:
+        ablation_flags.append("no-arbitrate")
+    if skip_consolidate:
+        ablation_flags.append("no-consolidate")
+    ablation_str = f" [ABLATION: {', '.join(ablation_flags)}]" if ablation_flags else ""
 
     _flush_print("=" * 70)
     _flush_print("CS584 Capstone — Zone 3: SV-LOI")
-    _flush_print("Structurally-Verified LLM Ontology Induction")
-    _flush_print(f"Model: {model} | Suffix: {suffix}")
+    _flush_print(f"Structurally-Verified LLM Ontology Induction{ablation_str}")
+    _flush_print(f"Model: {model} | Suffix: {suffix} | Seed: {seed}")
     _flush_print("=" * 70)
 
     start = time.time()
@@ -1335,33 +1359,76 @@ def run_sv_loi(
     # Phase 1d: Rescue "Other" entities with targeted re-typing
     assignments = rescue_other_entities(assignments, entities, llm)
 
+    # --- Decision provenance tracking ---
+    # Track per-entity: initial LLM type, structural outlier score,
+    # whether arbitration was triggered, and final class.
+    provenance: dict[str, dict] = {}
+    pre_verify_assignments = dict(assignments)
+    for eid, cls in assignments.items():
+        provenance[eid] = {"llm_type": cls, "flagged": False, "arbitrated": False}
+
     # Phase 2+3: Iterative structural verification + arbitration
-    # Run verify→arbitrate twice — second pass catches entities that were
-    # mistyped by arbitration or uncovered by class distribution shifts.
     features, entity_ids, feature_names = build_structural_signatures(entities)
     total_flagged = 0
 
-    for verify_round in range(2):
-        round_label = f"(round {verify_round + 1}/2)"
-        _flush_print(f"\n--- Structural verification {round_label} ---")
+    if skip_verify:
+        _flush_print("\n--- [ABLATION] Skipping structural verification ---")
+    else:
+        for verify_round in range(2):
+            round_label = f"(round {verify_round + 1}/2)"
+            _flush_print(f"\n--- Structural verification {round_label} ---")
 
-        class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
-        total_flagged += len(flagged)
+            class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
+            total_flagged += len(flagged)
 
-        if not flagged:
-            _flush_print(f"  No disagreements in {round_label} — skipping arbitration.")
-            break
+            # Record outlier scores in provenance
+            for f_entry in flagged:
+                eid = f_entry["entity_id"]
+                if eid in provenance:
+                    provenance[eid]["flagged"] = True
+                    provenance[eid]["outlier_score"] = f_entry["similarity"]
+                    provenance[eid]["class_mean_sim"] = f_entry["class_mean_sim"]
+                    provenance[eid]["nearest_alt"] = f_entry["nearest_class"]
 
-        assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
+            if not flagged:
+                _flush_print(f"  No disagreements in {round_label} — skipping arbitration.")
+                break
+
+            if skip_arbitrate:
+                _flush_print(f"  [ABLATION] Skipping arbitration — {len(flagged)} flagged but not re-typed")
+            else:
+                pre_arb = dict(assignments)
+                assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
+                # Record arbitration outcomes
+                for eid in assignments:
+                    if eid in pre_arb and assignments[eid] != pre_arb[eid]:
+                        if eid in provenance:
+                            provenance[eid]["arbitrated"] = True
+                            provenance[eid]["pre_arb_class"] = pre_arb[eid]
 
     # Phase 4a: LLM-guided class consolidation (merge semantically similar classes)
-    assignments = consolidate_classes(assignments, entities, llm)
+    pre_consolidate = dict(assignments)
+    if skip_consolidate:
+        _flush_print("\n--- [ABLATION] Skipping class consolidation ---")
+    else:
+        assignments = consolidate_classes(assignments, entities, llm)
+
+    # Record consolidation changes
+    for eid in assignments:
+        if eid in pre_consolidate and assignments[eid] != pre_consolidate[eid]:
+            if eid in provenance:
+                provenance[eid]["consolidated_from"] = pre_consolidate[eid]
 
     # Phase 4b: Merge remaining small classes structurally
     assignments = merge_small_classes(assignments, features, entity_ids)
 
     # Phase 4c: Derive hierarchy
     hierarchy = derive_hierarchy(assignments, llm)
+
+    # Final provenance: record final class for each entity
+    for eid, cls in assignments.items():
+        if eid in provenance:
+            provenance[eid]["final_type"] = cls
 
     # Phase 5: Write to Neo4j
     neo4j_stats = write_ontology(assignments, hierarchy)
@@ -1388,16 +1455,36 @@ def run_sv_loi(
         "mode": "zone3_sv_loi",
         "model": model,
         "suffix": suffix,
+        "seed": seed,
         "elapsed_seconds": round(elapsed, 2),
         "entity_count": len(entities),
         "class_vocab_discovered": class_vocab,
         "classes_final": sorted(final_dist.keys()),
         "class_distribution": dict(final_dist),
         "flagged_count": total_flagged,
-        "flagged_entities": flagged[:50],
         "hierarchy": [{"child": c, "parent": p} for c, p in hierarchy],
         "neo4j_stats": neo4j_stats,
+        "ablation": {
+            "skip_verify": skip_verify,
+            "skip_arbitrate": skip_arbitrate,
+            "skip_consolidate": skip_consolidate,
+        },
+        "provenance_stats": {
+            "total_entities": len(provenance),
+            "flagged": sum(1 for p in provenance.values() if p.get("flagged")),
+            "arbitrated": sum(1 for p in provenance.values() if p.get("arbitrated")),
+            "consolidated": sum(1 for p in provenance.values() if p.get("consolidated_from")),
+            "type_changed_by_verification": sum(
+                1 for eid, p in provenance.items()
+                if p.get("final_type") != p.get("llm_type")
+            ),
+        },
     }
+    # Save full provenance log separately (large — for error taxonomy analysis)
+    prov_path = os.path.join(config.RESULTS_DIR, f"svloi_provenance_{suffix}.json")
+    with open(prov_path, "w") as f:
+        json.dump(provenance, f, indent=2, default=str)
+    _flush_print(f"  ✓ Decision provenance saved → {prov_path}")
     out_path = os.path.join(config.RESULTS_DIR, f"zone3_svloi_summary_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2, default=str)
@@ -1436,6 +1523,21 @@ After running, evaluate with:
         "--suffix", default="zone3_svloi",
         help="Suffix for result files (default: zone3_svloi)"
     )
+    parser.add_argument("--skip-verify", action="store_true",
+                        help="[ABLATION] Skip Phase 2 structural verification")
+    parser.add_argument("--skip-arbitrate", action="store_true",
+                        help="[ABLATION] Skip Phase 3 disagreement arbitration")
+    parser.add_argument("--skip-consolidate", action="store_true",
+                        help="[ABLATION] Skip Phase 4a LLM-guided consolidation")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
 
-    run_sv_loi(model=args.model, suffix=args.suffix)
+    run_sv_loi(
+        model=args.model,
+        suffix=args.suffix,
+        skip_verify=args.skip_verify,
+        skip_arbitrate=args.skip_arbitrate,
+        skip_consolidate=args.skip_consolidate,
+        seed=args.seed,
+    )

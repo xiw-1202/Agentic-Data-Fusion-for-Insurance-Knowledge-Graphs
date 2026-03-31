@@ -286,6 +286,7 @@ def measure_riskine_alignment(
     llm: ChatOllama,
     riskine_classes: list[dict],
     suffix: str = "zone1",
+    use_all_classes: bool = False,
 ) -> dict:
     """
     Compute Riskine alignment P/R/F1 against the live Neo4j graph.
@@ -424,9 +425,9 @@ def measure_riskine_alignment(
         print(f"  [entity-assignment] WARNING: entity assignment eval failed: {exc}")
 
     # Standard ontology metrics (OLLM NeurIPS'24, AutoSchemaKG'25)
-    # Fuzzy F1, Continuous F1, Graph F1, BERTScore, Taxonomy Edge F1, Wu-Palmer
+    # Fuzzy F1, Continuous F1, Graph F1, BERTScore, Taxonomy Edge F1, Wu-Palmer, AUC
     try:
-        schemas = riskine_loader.fetch_and_cache()
+        schemas = riskine_loader.fetch_and_cache(use_all=use_all_classes)
         std_metrics = ontology_metrics.evaluate_ontology(graph, schemas, riskine_classes)
         result["standard_metrics"] = std_metrics
     except Exception as exc:
@@ -461,9 +462,15 @@ if __name__ == "__main__":
         "--model", default=config.OLLAMA_MODEL,
         help=f"Ollama model for LLM judge (default: {config.OLLAMA_MODEL})"
     )
+    parser.add_argument(
+        "--all-classes", action="store_true",
+        help="Use ALL 26 Riskine classes (not just 10 flood-relevant) for evaluation"
+    )
     args = parser.parse_args()
 
-    print(f"Riskine Alignment Evaluation — suffix={args.suffix}, model={args.model}")
+    use_all = getattr(args, 'all_classes', False)
+    n_classes = "26 (full)" if use_all else "10 (flood)"
+    print(f"Riskine Alignment Evaluation — suffix={args.suffix}, model={args.model}, classes={n_classes}")
     print("=" * 60)
 
     graph = Neo4jGraph(
@@ -474,10 +481,12 @@ if __name__ == "__main__":
     )
     llm = ChatOllama(model=args.model, base_url=config.OLLAMA_BASE_URL, temperature=0)
 
-    schemas = riskine_loader.fetch_and_cache()
+    schemas = riskine_loader.fetch_and_cache(use_all=use_all)
     riskine_classes = riskine_loader.extract_riskine_classes(schemas)
 
-    result = measure_riskine_alignment(graph, llm, riskine_classes, suffix=args.suffix)
+    result = measure_riskine_alignment(
+        graph, llm, riskine_classes, suffix=args.suffix, use_all_classes=use_all,
+    )
 
     print(f"\n{'=' * 60}")
     print(f"RISKINE ALIGNMENT SUMMARY  [{args.suffix}]")
@@ -505,5 +514,21 @@ if __name__ == "__main__":
         print(f"    Continuous F1:   {sm.get('continuous_f1', 0):.3f}")
         print(f"    Fuzzy F1:        {sm.get('fuzzy_f1', 0):.3f}")
         print(f"    Wu-Palmer:       {sm.get('avg_wu_palmer', 0):.3f}")
+        # AUC metrics (threshold-independent)
+        if "auc_macro" in sm:
+            print(f"  AUC-ROC class alignment (threshold-independent):")
+            print(f"    AUC macro:       {sm.get('auc_macro', 0):.3f}")
+            print(f"    AUC weighted:    {sm.get('auc_weighted', 0):.3f}")
+            print(f"    mAP:             {sm.get('map_score', 0):.3f}")
+            print(f"    Classes w/ AUC:  {sm.get('auc_classes_evaluated', 0)}/{sm.get('auc_classes_total', 0)}")
+        # Per-class confusion (top matches)
+        if "confusion_matrix" in sm:
+            print(f"  Per-class confusion (reference → best induced match):")
+            for entry in sm["confusion_matrix"]:
+                ref = entry["reference"]
+                best = entry.get("best_match", "—")
+                sim_val = entry.get("best_similarity", 0)
+                marker = "✓" if sim_val >= 0.5 else "✗"
+                print(f"    {marker} {ref:<20} → {best:<20} (sim={sim_val:.3f})")
     # Legacy name-based F1 still computed for backward compat but not highlighted
     print(f"  (Legacy name-based F1: {result['f1']:.3f} — deprecated, see F-07)")

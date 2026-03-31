@@ -389,14 +389,20 @@ def run_query_tasks(graph: Neo4jGraph) -> list[dict]:
 # Main
 # ---------------------------------------------------------------------------
 
-def run_evaluation(suffix: str = "original", run_riskine: bool = False, model: str = config.OLLAMA_MODEL):
+def run_evaluation(
+    suffix: str = "original",
+    run_riskine: bool = False,
+    model: str = config.OLLAMA_MODEL,
+    use_all_classes: bool = False,
+):
     """
     Run evaluation against the current Neo4j graph.
 
     Args:
-        suffix:       'original' | 'zone1' | 'zone1_qwen' — output filename label
-        run_riskine:  if True, run step [5/5] Riskine alignment (slow, needs Ollama)
-        model:        Ollama model name for LLM judge in Riskine step
+        suffix:           'original' | 'zone1' | 'zone1_qwen' — output filename label
+        run_riskine:      if True, run step [5/5] Riskine alignment (slow, needs Ollama)
+        model:            Ollama model name for LLM judge in Riskine step
+        use_all_classes:  if True, use ALL 26 Riskine classes (not just 10 flood-relevant)
     """
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
@@ -477,14 +483,15 @@ def run_evaluation(suffix: str = "original", run_riskine: bool = False, model: s
     # --- Riskine alignment (optional) ---
     riskine_detail: dict = {}
     if run_riskine:
-        print("\n[5/5] Riskine ontology alignment...")
+        n_cls = "26 (full)" if use_all_classes else "10 (flood)"
+        print(f"\n[5/5] Riskine ontology alignment ({n_cls} classes)...")
         import riskine_loader
         import riskine_eval
-        schemas = riskine_loader.fetch_and_cache()
+        schemas = riskine_loader.fetch_and_cache(use_all=use_all_classes)
         riskine_classes = riskine_loader.extract_riskine_classes(schemas)
         llm = ChatOllama(model=model, base_url=config.OLLAMA_BASE_URL, temperature=0)
         riskine_result = riskine_eval.measure_riskine_alignment(
-            graph, llm, riskine_classes, suffix=suffix
+            graph, llm, riskine_classes, suffix=suffix, use_all_classes=use_all_classes,
         )
         metrics.riskine_precision = riskine_result["precision"]
         metrics.riskine_recall    = riskine_result["recall"]
@@ -549,5 +556,10 @@ if __name__ == "__main__":
                         help="Run Riskine ontology alignment step [5/5] (slow, needs Ollama)")
     parser.add_argument("--model", default=config.OLLAMA_MODEL,
                         help=f"Ollama model for Riskine LLM judge (default: {config.OLLAMA_MODEL})")
+    parser.add_argument("--all-classes", action="store_true",
+                        help="Use ALL 26 Riskine classes for evaluation (default: 10 flood-relevant)")
     args = parser.parse_args()
-    run_evaluation(suffix=args.suffix, run_riskine=args.riskine, model=args.model)
+    run_evaluation(
+        suffix=args.suffix, run_riskine=args.riskine,
+        model=args.model, use_all_classes=getattr(args, 'all_classes', False),
+    )

@@ -1,0 +1,10 @@
+{
+  "round": 4,
+  "threadId": "019d4502-d32a-75e2-84f7-5220c2d29ad5",
+  "status": "completed",
+  "last_score": 7.0,
+  "last_verdict": "credible ISWC paper path",
+  "pending_experiments": ["slurm_ablations", "cross_domain_auto", "multi_seed", "sigma_sensitivity"],
+  "timestamp": "2026-03-31T18:10:00",
+  "score_progression": [4.0, 5.5, 6.25, 7.0]
+}

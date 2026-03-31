@@ -177,5 +177,103 @@ def compare():
             print(f"    Larger sections may overwhelm the LLMGraphTransformer — check chunk sizes.")
 
 
+def compare_zone3():
+    """Compare Zone 3 ontology induction methods — comprehensive table
+    including AUC, F1, BERTScore, and ablation results."""
+    print("=" * 80)
+    print("CS584 Capstone — Zone 3 Ontology Induction Comparison")
+    print("=" * 80)
+
+    # Discover all riskine_eval_zone3*.json files
+    result_dir = Path(RESULTS_DIR)
+    z3_files = sorted(result_dir.glob("riskine_eval_zone3*.json"))
+    if not z3_files:
+        print("No Zone 3 evaluation results found. Run eval.py --riskine first.")
+        return
+
+    results: dict[str, dict] = {}
+    for f in z3_files:
+        with open(f) as fh:
+            data = json.load(fh)
+        suffix = data.get("suffix", f.stem.replace("riskine_eval_", ""))
+        results[suffix] = data
+
+    if not results:
+        print("No results loaded.")
+        return
+
+    suffixes = list(results.keys())
+    col_w = 18
+
+    # Header
+    header = f"{'Metric':<30}" + "".join(f"{s:>{col_w}}" for s in suffixes)
+    print(header)
+    print("-" * len(header))
+
+    def _get(data: dict, *keys, default=0.0):
+        """Safely navigate nested keys."""
+        for k in keys:
+            if isinstance(data, dict):
+                data = data.get(k, default)
+            else:
+                return default
+        return data
+
+    def row(name: str, getter, fmt_str: str = "{:.3f}"):
+        vals = []
+        for s in suffixes:
+            v = getter(results[s])
+            if v is None:
+                vals.append("N/A")
+            else:
+                vals.append(fmt_str.format(v))
+        print(f"{name:<30}" + "".join(f"{v:>{col_w}}" for v in vals))
+
+    # --- Name-based metrics ---
+    print("\n  Name-based alignment (legacy):")
+    row("  Name Precision", lambda d: d.get("precision"))
+    row("  Name Recall", lambda d: d.get("recall"))
+    row("  Name F1", lambda d: d.get("f1"))
+
+    # --- Entity Assignment ---
+    print("\n  Entity Assignment:")
+    row("  EA Precision", lambda d: d.get("entity_assignment_precision"))
+    row("  EA Recall", lambda d: d.get("entity_assignment_recall"))
+    row("  EA F1 (full)", lambda d: d.get("entity_assignment_f1"))
+    row("  EA F1 (present)", lambda d: d.get("entity_assignment_f1_present"))
+    row("  Evidenced classes", lambda d: d.get("entity_assignment_evidenced_count"), fmt_str="{:.0f}")
+
+    # --- Standard metrics ---
+    print("\n  Standard ontology metrics:")
+    row("  BERTScore F1", lambda d: _get(d, "standard_metrics", "bertscore_f1"))
+    row("  Graph F1", lambda d: _get(d, "standard_metrics", "graph_f1"))
+    row("  Continuous F1", lambda d: _get(d, "standard_metrics", "continuous_f1"))
+    row("  Fuzzy F1", lambda d: _get(d, "standard_metrics", "fuzzy_f1"))
+    row("  Wu-Palmer", lambda d: _get(d, "standard_metrics", "avg_wu_palmer"))
+
+    # --- AUC metrics ---
+    print("\n  AUC-ROC (threshold-independent):")
+    row("  AUC macro", lambda d: _get(d, "standard_metrics", "auc_macro"))
+    row("  AUC weighted", lambda d: _get(d, "standard_metrics", "auc_weighted"))
+    row("  mAP", lambda d: _get(d, "standard_metrics", "map_score"))
+    row("  AUC classes eval'd", lambda d: _get(d, "standard_metrics", "auc_classes_evaluated"), fmt_str="{:.0f}")
+
+    # --- Summary ---
+    print("\n  Summary:")
+    row("  Induced labels", lambda d: d.get("induced_label_count"), fmt_str="{:.0f}")
+    row("  Riskine classes", lambda d: d.get("riskine_class_count"), fmt_str="{:.0f}")
+    row("  Riskine covered", lambda d: d.get("riskine_covered_count"), fmt_str="{:.0f}")
+
+    print(f"\n{'=' * 80}")
+
+
 if __name__ == "__main__":
-    compare()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--zone3", action="store_true",
+                        help="Compare Zone 3 ontology induction results")
+    args = parser.parse_args()
+
+    if args.zone3:
+        compare_zone3()
+    else:
+        compare()

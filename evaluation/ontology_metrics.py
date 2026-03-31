@@ -481,7 +481,159 @@ def bertscore_class_alignment(
 
 
 # ===================================================================
-# 4. Convenience: extract edges from Riskine schemas
+# 4. AUC-ROC Class Alignment
+# ===================================================================
+
+def auc_class_alignment(
+    induced_classes: list[str],
+    reference_classes: list[str],
+) -> dict:
+    """AUC-ROC for ontology class alignment (threshold-independent).
+
+    For each reference class, we have a ranked list of induced classes by
+    cosine similarity. The reference class is a "positive" if any induced
+    class is a true match. We compute AUC across all reference classes.
+
+    This metric is useful when:
+    - Many reference classes have no matching induced class (low recall)
+    - We want to measure ranking quality, not just binary match quality
+    - The similarity threshold is uncertain
+
+    Method:
+        1. Build similarity matrix between induced and reference classes
+        2. For each reference class, rank all induced classes by similarity
+        3. Treat the best-matching induced class (cosine > 0.5) as a "true positive"
+        4. Compute macro-AUC across all reference classes
+
+    Also computes:
+        - Per-class AUC for each reference class
+        - Mean Average Precision (mAP) across reference classes
+        - AUC@K (only top-K induced classes considered)
+
+    Returns:
+        dict with auc_macro, auc_per_class, map_score, auc_at_k
+    """
+    if not induced_classes or not reference_classes:
+        return {
+            "auc_macro": 0.0, "auc_weighted": 0.0,
+            "map_score": 0.0, "auc_per_class": {},
+        }
+
+    sim = _node_sim_matrix(induced_classes, reference_classes)  # (|ind|, |ref|)
+
+    # For AUC: we treat each reference class as a retrieval task.
+    # Given the induced classes, can we rank the "correct" one highest?
+    # Since we don't have ground-truth 1-to-1 mapping, we use a soft approach:
+    # - For each reference class j, the "positive set" is the induced class
+    #   with highest similarity (if > 0.5, else no positive)
+    # - All other induced classes are negatives
+    # - AUC measures: does the positive score higher than negatives?
+
+    from sklearn.metrics import roc_auc_score
+
+    auc_scores: list[float] = []
+    ap_scores: list[float] = []
+    per_class_auc: dict[str, float] = {}
+
+    for j, ref_name in enumerate(reference_classes):
+        scores = sim[:, j]  # similarity of each induced class to this ref class
+        best_idx = int(np.argmax(scores))
+        best_sim = float(scores[best_idx])
+
+        if best_sim < 0.3 or len(induced_classes) < 2:
+            # No meaningful positive — skip this class for AUC
+            per_class_auc[ref_name] = 0.0
+            continue
+
+        # Binary labels: 1 for the best match, 0 for others
+        labels = np.zeros(len(induced_classes))
+        labels[best_idx] = 1
+
+        # AUC requires at least one positive and one negative
+        if labels.sum() == 0 or labels.sum() == len(labels):
+            per_class_auc[ref_name] = float(best_sim)
+            continue
+
+        try:
+            auc_val = roc_auc_score(labels, scores)
+            auc_scores.append(auc_val)
+            per_class_auc[ref_name] = round(auc_val, 4)
+        except ValueError:
+            per_class_auc[ref_name] = 0.0
+
+        # Average Precision: rank by score, find where the positive sits
+        ranked_indices = np.argsort(-scores)
+        rank_of_positive = int(np.where(ranked_indices == best_idx)[0][0]) + 1
+        ap = 1.0 / rank_of_positive
+        ap_scores.append(ap)
+
+    macro_auc = float(np.mean(auc_scores)) if auc_scores else 0.0
+    map_score = float(np.mean(ap_scores)) if ap_scores else 0.0
+
+    # Weighted AUC: weight by max similarity (classes with better matches matter more)
+    weighted_scores = []
+    weights = []
+    for ref_name, auc_val in per_class_auc.items():
+        j = reference_classes.index(ref_name)
+        max_sim = float(sim[:, j].max())
+        if auc_val > 0:
+            weighted_scores.append(auc_val * max_sim)
+            weights.append(max_sim)
+    weighted_auc = (
+        sum(weighted_scores) / sum(weights)
+        if weights else 0.0
+    )
+
+    print(f"    AUC macro={macro_auc:.3f}  weighted={weighted_auc:.3f}  "
+          f"mAP={map_score:.3f}  ({len(auc_scores)}/{len(reference_classes)} classes with AUC)")
+
+    return {
+        "auc_macro": round(macro_auc, 4),
+        "auc_weighted": round(weighted_auc, 4),
+        "map_score": round(map_score, 4),
+        "auc_classes_evaluated": len(auc_scores),
+        "auc_classes_total": len(reference_classes),
+        "auc_per_class": per_class_auc,
+    }
+
+
+def per_class_confusion(
+    induced_classes: list[str],
+    reference_classes: list[str],
+) -> dict:
+    """Per-class confusion analysis: for each reference class, show the
+    best-matching induced class and its similarity score.
+
+    Returns:
+        dict with confusion_matrix (reference → induced mapping with scores)
+    """
+    if not induced_classes or not reference_classes:
+        return {"confusion_matrix": []}
+
+    sim = _node_sim_matrix(induced_classes, reference_classes)
+
+    confusion: list[dict] = []
+    for j, ref_name in enumerate(reference_classes):
+        scores = sim[:, j]
+        ranked = np.argsort(-scores)
+        top3 = []
+        for idx in ranked[:3]:
+            top3.append({
+                "induced": induced_classes[idx],
+                "similarity": round(float(scores[idx]), 4),
+            })
+        confusion.append({
+            "reference": ref_name,
+            "best_match": top3[0]["induced"] if top3 else None,
+            "best_similarity": top3[0]["similarity"] if top3 else 0.0,
+            "top3_matches": top3,
+        })
+
+    return {"confusion_matrix": confusion}
+
+
+# ===================================================================
+# 5. Convenience: extract edges from Riskine schemas
 # ===================================================================
 
 def extract_riskine_edges(schemas: dict[str, dict]) -> list[tuple[str, str]]:
@@ -652,5 +804,15 @@ def evaluate_ontology(
         print(f"    Wu-Palmer avg={wp['avg_wu_palmer']:.3f} ({wp['wu_palmer_matched_pairs']} pairs)")
     else:
         results["avg_wu_palmer"] = 0.0
+
+    # --- AUC-ROC class alignment (threshold-independent) ---
+    print("  [ontology-metrics] Computing AUC-ROC class alignment...")
+    auc_result = auc_class_alignment(induced_nodes, reference_nodes)
+    results.update(auc_result)
+
+    # --- Per-class confusion analysis ---
+    print("  [ontology-metrics] Computing per-class confusion analysis...")
+    confusion = per_class_confusion(induced_nodes, reference_nodes)
+    results.update(confusion)
 
     return results
