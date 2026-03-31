@@ -1023,9 +1023,9 @@ def build_pipeline():
     builder.add_edge("bootstrap_vocab",          "extract_triples")
     builder.add_edge("extract_triples",          "canonicalize_relations")
     builder.add_edge("canonicalize_relations",   "zone25_entity_resolution")
-    builder.add_edge("zone25_entity_resolution", "insert_to_neo4j")
-    builder.add_edge("insert_to_neo4j",          "cross_source_link")
-    builder.add_edge("cross_source_link",        END)
+    builder.add_edge("zone25_entity_resolution", "cross_source_link")
+    builder.add_edge("cross_source_link",        "insert_to_neo4j")
+    builder.add_edge("insert_to_neo4j",          END)
     return builder.compile()
 
 
@@ -1101,7 +1101,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
         print(f"  ✓ Loaded {len(triples)} cached triples")
         print(f"  ✓ Skipping: load_chunks, extract_structured, bootstrap_vocab, "
               f"extract_triples, canonicalize_relations")
-        print(f"  → Running: entity_resolution → insert_to_neo4j → cross_source_link")
+        print(f"  → Running: entity_resolution → cross_source_link → insert_to_neo4j")
 
         start = time.time()
 
@@ -1112,7 +1112,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
         else:
             deduplicated, resolution_stats = triples, {"merged": 0}
 
-        # Neo4j insertion.
+        # Cross-source linking (in-memory — adds LINKED_TO triples).
         result_state = {
             "triples": deduplicated,
             "resolution_stats": resolution_stats,
@@ -1126,12 +1126,12 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "num_passes": num_passes,
         }
 
-        neo4j_result = insert_to_neo4j(result_state)
-        result_state.update(neo4j_result)
-
-        # Cross-source linking.
         link_result = cross_source_link(result_state)
         result_state.update(link_result)
+
+        # Neo4j insertion (final — writes everything including LINKED_TO).
+        neo4j_result = insert_to_neo4j(result_state)
+        result_state.update(neo4j_result)
 
         elapsed = time.time() - start
         result = result_state
