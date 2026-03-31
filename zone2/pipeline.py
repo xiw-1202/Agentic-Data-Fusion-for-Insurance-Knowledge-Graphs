@@ -80,7 +80,6 @@ class Zone2State(TypedDict):
 # Constants — ALL DOMAIN-AGNOSTIC
 # ---------------------------------------------------------------------------
 
-PDF_SOURCE_KEY      = "fema_F-123-general-property-SFIP_2021.pdf"
 CHUNK_CONTENT_LIMIT = 3000  # chars
 
 # Remap common LLM paraphrases → canonical form (domain-agnostic synonyms)
@@ -515,10 +514,39 @@ _DAYS_RE     = re.compile(r'\b(\d+)[‐\-]?[ ]?day[s]?\b', re.IGNORECASE)
 _PERCENT_RE  = re.compile(r'\b(\d+(?:\.\d+)?)\s*(?:percent|%)', re.IGNORECASE)
 
 
+def _extract_subject_from_context(text: str, match_start: int) -> str:
+    """Extract the most likely subject noun phrase from text near a numeric value.
+
+    Domain-agnostic: looks for the nearest capitalized noun phrase or
+    section header before the match position.
+    """
+    # Look backwards from match for a likely subject.
+    before = text[max(0, match_start - 120):match_start]
+
+    # Try section hierarchy (e.g., "Coverage A—Building" from chunk header).
+    # Look for capitalized multi-word phrases.
+    caps_phrases = re.findall(r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', before)
+    if caps_phrases:
+        # Take the last (closest to the number) capitalized phrase.
+        return caps_phrases[-1].strip()
+
+    # Try the nearest noun-like word before a colon or "is" or "of".
+    for pattern in [r'(\w[\w\s]{2,30}):\s*$', r'(\w[\w\s]{2,30})\s+(?:is|of|for)\s']:
+        m = re.search(pattern, before, re.IGNORECASE)
+        if m:
+            return m.group(1).strip().title()
+
+    return ""
+
+
 def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[dict]:
     """
     Regex fallback: extract numeric triples (dollar amounts, time periods,
     percentages) that the LLM typically misses (F-01 fix).
+
+    Domain-agnostic: derives subjects from surrounding text context
+    instead of hardcoded entity names. Relations are pattern-based
+    (HAS_COVERAGE_LIMIT, HAS_DEADLINE, etc.) using generic keywords.
 
     Only creates triples when the surrounding context is unambiguous.
     Returns [] for chunks with no numeric content or ambiguous context.
@@ -526,125 +554,123 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
     triples: list[dict] = []
     text_lo = text.lower()
 
+    # Generic keyword groups (not tied to any specific insurance LOB).
+    _DEDUCTIBLE_KWS = ("deductible",)
+    _LIMIT_KWS = ("maximum", "limit", "up to", "not to exceed", "coverage")
+    _WAITING_KWS = ("waiting", "takes effect", "before coverage", "effective after")
+    _DEADLINE_KWS = ("proof of loss", "file", "submit", "deadline", "within")
+    _NOTIFY_KWS = ("notify", "notification", "report", "notice")
+    _APPEAL_KWS = ("appeal", "dispute", "request review", "appraisal")
+    _COINSURANCE_KWS = ("replacement cost", "insured to value", "coinsurance")
+
     # --- Dollar amounts ---
     for m in _DOLLAR_RE.finditer(text):
-        val  = f"${m.group(1)}"
+        val = f"${m.group(1)}"
         span = text[max(0, m.start() - 80): m.end() + 20][:120]
 
-        # Sentence-level context for all pattern matching.
+        # Sentence-level context.
         sent_start = max(0, text.rfind('.', 0, m.start()),
                          text.rfind('\n', 0, m.start()))
-        sent_end   = text.find('.', m.end())
+        sent_end = text.find('.', m.end())
         if sent_end == -1:
             sent_end = len(text)
         sentence = text_lo[sent_start: sent_end + 1]
 
-        # Within the sentence, use the text immediately before and after the amount.
-        # "before" = from the last clause separator (,/;/and) up to the amount.
-        clause_start = max(
-            sent_start,
-            text.rfind(',', sent_start, m.start()),
-            text.rfind(';', sent_start, m.start()),
-            text.rfind(' and ', sent_start, m.start()),
-        )
-        near_before = text_lo[clause_start: m.start()]
-        near_after  = text_lo[m.end(): min(len(text_lo), m.end() + 35)]
-
-        building_kws = ("building", "structure", "dwelling", "residential")
-        contents_kws = ("content", "personal property", "household goods")
-
-        if "deductible" in sentence:
-            subj, rel = "Policy", "HAS_DEDUCTIBLE"
-        elif any(kw in near_before for kw in contents_kws):
-            # "personal property coverage of $X"
-            subj, rel = "Contents Coverage", "HAS_COVERAGE_LIMIT"
-        elif any(kw in near_before for kw in building_kws):
-            # "building coverage is $X"
-            subj, rel = "Building Coverage", "HAS_COVERAGE_LIMIT"
-        elif any(kw in near_after for kw in contents_kws):
-            # "$X contents limit"
-            subj, rel = "Contents Coverage", "HAS_COVERAGE_LIMIT"
-        elif any(kw in near_after for kw in building_kws):
-            # "$X building coverage"
-            subj, rel = "Building Coverage", "HAS_COVERAGE_LIMIT"
-        elif any(kw in sentence for kw in contents_kws):
-            # fallback: "For contents coverage, the maximum is $X" (keyword elsewhere in sentence)
-            subj, rel = "Contents Coverage", "HAS_COVERAGE_LIMIT"
-        elif any(kw in sentence for kw in building_kws):
-            subj, rel = "Building Coverage", "HAS_COVERAGE_LIMIT"
-        elif any(kw in sentence for kw in ("maximum", "limit", "up to", "not to exceed")):
-            subj, rel = "Policy", "HAS_COVERAGE_LIMIT"
+        # Determine relation from context keywords.
+        if any(kw in sentence for kw in _DEDUCTIBLE_KWS):
+            rel = "HAS_DEDUCTIBLE"
+        elif any(kw in sentence for kw in _LIMIT_KWS):
+            rel = "HAS_COVERAGE_LIMIT"
         else:
             continue  # ambiguous context — skip
 
+        # Derive subject from surrounding text (domain-agnostic).
+        subj = _extract_subject_from_context(text, m.start())
+        if not subj:
+            continue  # can't determine subject — skip
+
         triples.append({
-            "subject":    subj,
-            "relation":   rel,
-            "object":     val,
-            "span":       span.strip(),
-            "confidence": 0.82,
-            "chunk_id":   chunk_id,
-            "source":     source,
+            "subject":      subj,
+            "subject_type": "Unknown",
+            "relation":     rel,
+            "object":       val,
+            "object_type":  "Currency",
+            "span":         span.strip(),
+            "confidence":   0.82,
+            "chunk_id":     chunk_id,
+            "source":       source,
+            "source_type":  "regex",
         })
 
     # --- Day periods ---
     for m in _DAYS_RE.finditer(text):
         days = m.group(1)
-        val  = f"{days} days"
+        val = f"{days} days"
         span = text[max(0, m.start() - 80): m.end() + 30][:120]
 
-        # Use sentence-level context to avoid bleeding across sentence boundaries.
         s_start = max(0, text.rfind('.', 0, m.start()),
                       text.rfind('\n', 0, m.start()))
-        s_end   = text.find('.', m.end())
+        s_end = text.find('.', m.end())
         if s_end == -1:
             s_end = len(text)
         sent = text_lo[s_start: s_end + 1]
-        # Also extend 60 chars before sentence start to catch multi-sentence phrasing
-        near  = text_lo[max(0, s_start - 60): s_end + 1]
 
-        if any(kw in sent for kw in ("waiting", "takes effect", "before coverage")):
-            subj, rel = "Policy", "HAS_WAITING_PERIOD"
-        elif any(kw in sent for kw in ("proof of loss", "file a proof", "submit proof")):
-            subj, rel = "Proof of Loss", "HAS_DEADLINE"
-        elif any(kw in sent for kw in ("notify", "notification", "report the loss")):
-            subj, rel = "Loss Notification", "HAS_DEADLINE"
-        elif any(kw in sent for kw in ("appeal", "dispute", "request review")):
-            subj, rel = "Appeal", "HAS_DEADLINE"
+        if any(kw in sent for kw in _WAITING_KWS):
+            rel = "HAS_WAITING_PERIOD"
+        elif any(kw in sent for kw in _DEADLINE_KWS):
+            rel = "HAS_DEADLINE"
+        elif any(kw in sent for kw in _NOTIFY_KWS):
+            rel = "HAS_DEADLINE"
+        elif any(kw in sent for kw in _APPEAL_KWS):
+            rel = "HAS_DEADLINE"
         else:
             continue  # ambiguous — skip
 
-        triples.append({
-            "subject":    subj,
-            "relation":   rel,
-            "object":     val,
-            "span":       span.strip(),
-            "confidence": 0.80,
-            "chunk_id":   chunk_id,
-            "source":     source,
-        })
-
-    # --- Percentages (e.g., "80 percent replacement cost") ---
-    for m in _PERCENT_RE.finditer(text):
-        pct  = f"{m.group(1)}%"
-        ctx  = text_lo[max(0, m.start() - 180): m.end() + 80]
-        span = text[max(0, m.start() - 80): m.end() + 30][:120]
-
-        if any(kw in ctx for kw in ("replacement cost", "insured to value", "coinsurance")):
-            subj, rel = "Building Coverage", "HAS_COINSURANCE_REQUIREMENT"
-        elif any(kw in ctx for kw in ("deductible", "applies")):
-            subj, rel = "Policy", "HAS_DEDUCTIBLE_RATE"
-        else:
+        subj = _extract_subject_from_context(text, m.start())
+        if not subj:
             continue
 
         triples.append({
-            "subject":    subj,
-            "relation":   rel,
-            "object":     pct,
-            "span":       span.strip(),
-            "confidence": 0.78,
-            "chunk_id":   chunk_id,
-            "source":     source,
+            "subject":      subj,
+            "subject_type": "Unknown",
+            "relation":     rel,
+            "object":       val,
+            "object_type":  "Duration",
+            "span":         span.strip(),
+            "confidence":   0.80,
+            "chunk_id":     chunk_id,
+            "source":       source,
+            "source_type":  "regex",
+        })
+
+    # --- Percentages ---
+    for m in _PERCENT_RE.finditer(text):
+        pct = f"{m.group(1)}%"
+        ctx = text_lo[max(0, m.start() - 180): m.end() + 80]
+        span = text[max(0, m.start() - 80): m.end() + 30][:120]
+
+        if any(kw in ctx for kw in _COINSURANCE_KWS):
+            rel = "HAS_COINSURANCE_REQUIREMENT"
+        elif any(kw in ctx for kw in _DEDUCTIBLE_KWS):
+            rel = "HAS_DEDUCTIBLE_RATE"
+        else:
+            continue
+
+        subj = _extract_subject_from_context(text, m.start())
+        if not subj:
+            continue
+
+        triples.append({
+            "subject":      subj,
+            "subject_type": "Unknown",
+            "relation":     rel,
+            "object":       pct,
+            "object_type":  "Percentage",
+            "span":         span.strip(),
+            "confidence":   0.78,
+            "chunk_id":     chunk_id,
+            "source":       source,
+            "source_type":  "regex",
         })
 
     return triples
