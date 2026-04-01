@@ -104,7 +104,9 @@ data/results/      All eval output JSONs
 
 ### Zone 3 Method Comparison (72b, primary results)
 
-All methods use the same Zone 2 extraction (qwen2.5:72b, 1,351 entities, 1,749 relationships).
+All methods use the same Zone 2 extraction (qwen2.5:72b, 7,415 entities, ~28K relationships).
+
+**10-class Riskine evaluation** (flood-relevant subset):
 
 | Metric | Leiden (baseline) | RSI-LCR | **SV-LOI** (novel) |
 |--------|:-:|:-:|:-:|
@@ -116,10 +118,24 @@ All methods use the same Zone 2 extraction (qwen2.5:72b, 1,351 entities, 1,749 r
 | Continuous F1 | 0.069 | 0.081 | **0.122** |
 | Wu-Palmer | 0.653 | 0.723 | **0.752** |
 | Induced classes | 11 | 30 | 7 |
-| Query accuracy | 95% | 95% | 95% |
+| Query accuracy (20Q) | 95% | 95% | 95% |
 | Type inconsistency | 8.3% | 2.1% | 2.2% |
 
-**SV-LOI (Structurally-Verified LLM Ontology Induction)** is the primary novel contribution. It uses two-stage LLM class discovery (detect domain, then propose classes) and LLM-guided class consolidation to achieve the best results across all metrics. See F-15 through F-18 for detailed findings.
+**26-class Riskine evaluation** (full ontology — SV-LOI SEAF run, 24 induced classes):
+
+| Metric | SV-LOI (SEAF) |
+|--------|:--:|
+| BERTScore F1 | 0.592 |
+| Graph F1 | **0.746** |
+| Continuous F1 | **0.288** |
+| Wu-Palmer | **0.812** |
+| Entity Assignment F1 (full 26-class) | 0.131 |
+| Entity Assignment F1 (present-class) | 0.264 |
+| Induced classes | 24 |
+| Query accuracy (40Q) | **82.5%** |
+| Type inconsistency | 8.7% |
+
+**SV-LOI (Structurally-Verified LLM Ontology Induction)** is the primary novel contribution. It uses two-stage LLM class discovery (detect domain, then propose classes), structural consensus verification, disagreement arbitration, and LLM-guided class consolidation. See F-15 through F-18 for detailed findings.
 
 ---
 
