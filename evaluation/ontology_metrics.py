@@ -487,33 +487,28 @@ def bertscore_class_alignment(
 def auc_class_alignment(
     induced_classes: list[str],
     reference_classes: list[str],
+    gt_alignment: list[dict] | None = None,
 ) -> dict:
     """AUC-ROC for ontology class alignment (threshold-independent).
 
-    Measures how well embedding similarity scores discriminate true
-    name-matches from non-matches across all induced-reference pairs.
+    Ground truth comes from an INDEPENDENT signal — either:
+      (a) LLM judge verdicts (MATCH/PARTIAL) from riskine_eval alignment_table
+      (b) Exact normalized string matching (fallback)
 
-    Ground truth is derived from **name overlap** (exact substring or
-    Hungarian optimal matching with a high threshold ≥ 0.75) — this is
-    independent of the similarity scores used for AUC computation because
-    we use a STRICT name-matching criterion as ground truth, then evaluate
-    whether the CONTINUOUS similarity scores rank true matches above
-    non-matches.
+    Scores are embedding cosine similarities (all-MiniLM-L6-v2).
 
-    Method:
-        1. Build similarity matrix (|induced| × |reference|)
-        2. Establish ground truth via optimal 1-to-1 matching (Hungarian)
-           with a strict threshold (cosine ≥ 0.75 = name-level match)
-        3. Flatten into a binary classification: each (induced, reference)
-           pair is positive if matched, negative otherwise
-        4. Compute AUC-ROC on the flattened scores vs labels
+    This avoids the circular evaluation bug where GT was derived from the
+    same similarity matrix used as scores.
 
-    Also computes:
-        - Per-reference-class retrieval metrics (Recall@1, Recall@3)
-        - Mean Reciprocal Rank (MRR)
+    Args:
+        induced_classes: class names from the induced ontology
+        reference_classes: class names from the reference ontology
+        gt_alignment: optional alignment_table from riskine_eval.measure_riskine_alignment()
+            Each entry: {"induced": str, "riskine": str, "verdict": str, "score": float}
+            If provided, uses LLM judge verdicts as GT. If None, uses exact string match.
 
     Returns:
-        dict with auc_roc, mrr, recall_at_1, recall_at_3, per_class details
+        dict with auc_roc, mrr, recall_at_1, recall_at_3, hits_at_k, per_class details
     """
     if not induced_classes or not reference_classes:
         return {
@@ -522,49 +517,48 @@ def auc_class_alignment(
             "auc_per_class": {},
         }
 
-    from scipy.optimize import linear_sum_assignment
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import roc_auc_score, average_precision_score
 
     sim = _node_sim_matrix(induced_classes, reference_classes)  # (|ind|, |ref|)
 
-    # --- Ground truth via Hungarian matching with strict threshold ---
-    # This gives us an independent "true match" label.
-    # Threshold 0.75 = strong name similarity (e.g. "Coverage" ↔ "Coverage")
-    MATCH_THRESHOLD = 0.75
-    cost = -sim
-    row_ind, col_ind = linear_sum_assignment(cost)
+    # --- Build ground truth from independent signal ---
+    ind_idx = {n: i for i, n in enumerate(induced_classes)}
+    ref_idx = {n: i for i, n in enumerate(reference_classes)}
 
-    # Build ground truth match set
     gt_matches: set[tuple[int, int]] = set()
-    for r, c in zip(row_ind, col_ind):
-        if sim[r, c] >= MATCH_THRESHOLD:
-            gt_matches.add((r, c))
+    gt_source = "unknown"
+
+    if gt_alignment:
+        # Use LLM judge verdicts (MATCH or PARTIAL) as ground truth
+        gt_source = "llm_judge"
+        for entry in gt_alignment:
+            induced_name = entry.get("induced")
+            riskine_name = entry.get("riskine")
+            verdict = entry.get("verdict", "NO_MATCH")
+            if verdict in ("MATCH", "PARTIAL") and induced_name and riskine_name:
+                i = ind_idx.get(induced_name)
+                j = ref_idx.get(riskine_name)
+                if i is not None and j is not None:
+                    gt_matches.add((i, j))
+    else:
+        # Fallback: exact normalized string matching
+        gt_source = "exact_string_match"
+        for i, ind_name in enumerate(induced_classes):
+            for j, ref_name in enumerate(reference_classes):
+                if ind_name.lower().strip() == ref_name.lower().strip():
+                    gt_matches.add((i, j))
 
     if not gt_matches:
-        # No strong matches at all — AUC is undefined
-        # Fall back to per-class retrieval metrics only
-        print(f"    AUC: no matches above threshold {MATCH_THRESHOLD} — AUC undefined")
-
-        # Still compute MRR and Recall@K using relaxed matching
-        RELAXED_THRESHOLD = 0.50
-        relaxed_matches: set[tuple[int, int]] = set()
-        for r, c in zip(row_ind, col_ind):
-            if sim[r, c] >= RELAXED_THRESHOLD:
-                relaxed_matches.add((r, c))
-
-        if not relaxed_matches:
-            return {
-                "auc_roc": 0.0, "mrr": 0.0,
-                "recall_at_1": 0.0, "recall_at_3": 0.0,
-                "auc_per_class": {},
-                "gt_matches": 0,
-                "match_threshold": MATCH_THRESHOLD,
-            }
-        gt_matches = relaxed_matches
-        print(f"    Using relaxed threshold {RELAXED_THRESHOLD}: {len(gt_matches)} matches")
+        print(f"    AUC: no GT matches found (source={gt_source}) — AUC undefined")
+        return {
+            "auc_roc": 0.0, "mrr": 0.0,
+            "recall_at_1": 0.0, "recall_at_3": 0.0,
+            "auc_per_class": {},
+            "gt_matches": 0,
+            "gt_source": gt_source,
+        }
 
     # --- Flatten for global AUC ---
-    # Each (induced_i, reference_j) pair gets a score and a label
     all_scores = []
     all_labels = []
     for i in range(len(induced_classes)):
@@ -575,22 +569,26 @@ def auc_class_alignment(
     all_scores_arr = np.array(all_scores)
     all_labels_arr = np.array(all_labels)
 
-    # Compute global AUC
+    # AUC-ROC
     try:
         auc_val = float(roc_auc_score(all_labels_arr, all_scores_arr))
     except ValueError:
         auc_val = 0.0
 
+    # PR-AUC (better for imbalanced — few positives among many negatives)
+    try:
+        pr_auc_val = float(average_precision_score(all_labels_arr, all_scores_arr))
+    except ValueError:
+        pr_auc_val = 0.0
+
     # --- Per-reference-class retrieval metrics ---
-    # For each reference class: what rank does its true match get?
-    matched_ref_classes = {c for _, c in gt_matches}
+    matched_ref_indices = {c for _, c in gt_matches}
     reciprocal_ranks = []
     recall_at_1_hits = 0
     recall_at_3_hits = 0
     per_class_detail: dict[str, dict] = {}
 
     for j, ref_name in enumerate(reference_classes):
-        # Find the ground-truth induced class for this reference class
         gt_induced = [i for (i, jj) in gt_matches if jj == j]
         if not gt_induced:
             per_class_detail[ref_name] = {
@@ -601,7 +599,6 @@ def auc_class_alignment(
             continue
 
         gt_i = gt_induced[0]
-        # Rank all induced classes by similarity to this reference class
         ranked = np.argsort(-sim[:, j])
         rank = int(np.where(ranked == gt_i)[0][0]) + 1
 
@@ -618,23 +615,24 @@ def auc_class_alignment(
             "rank": rank,
         }
 
-    n_matched_refs = len(matched_ref_classes)
+    n_matched_refs = len(matched_ref_indices)
     mrr = float(np.mean(reciprocal_ranks)) if reciprocal_ranks else 0.0
     recall_at_1 = recall_at_1_hits / n_matched_refs if n_matched_refs > 0 else 0.0
     recall_at_3 = recall_at_3_hits / n_matched_refs if n_matched_refs > 0 else 0.0
 
-    print(f"    AUC-ROC={auc_val:.3f}  MRR={mrr:.3f}  "
+    print(f"    AUC-ROC={auc_val:.3f}  PR-AUC={pr_auc_val:.3f}  MRR={mrr:.3f}  "
           f"R@1={recall_at_1:.3f}  R@3={recall_at_3:.3f}  "
           f"({n_matched_refs}/{len(reference_classes)} refs matched, "
-          f"threshold={MATCH_THRESHOLD})")
+          f"GT={gt_source}, {len(gt_matches)} pairs)")
 
     return {
         "auc_roc": round(auc_val, 4),
+        "pr_auc": round(pr_auc_val, 4),
         "mrr": round(mrr, 4),
         "recall_at_1": round(recall_at_1, 4),
         "recall_at_3": round(recall_at_3, 4),
         "gt_matches": len(gt_matches),
-        "match_threshold": MATCH_THRESHOLD,
+        "gt_source": gt_source,
         "auc_classes_matched": n_matched_refs,
         "auc_classes_total": len(reference_classes),
         "auc_per_class": per_class_detail,
@@ -779,6 +777,7 @@ def evaluate_ontology(
     graph,
     riskine_schemas: dict[str, dict],
     riskine_classes: list[dict],
+    alignment_table: list[dict] | None = None,
 ) -> dict:
     """Run all standard ontology metrics.
 
@@ -786,6 +785,8 @@ def evaluate_ontology(
         graph: Neo4jGraph instance
         riskine_schemas: raw Riskine JSON schemas (from riskine_loader.fetch_and_cache)
         riskine_classes: extracted class descriptors (from riskine_loader.extract_riskine_classes)
+        alignment_table: LLM judge alignment results (from riskine_eval.measure_riskine_alignment)
+            Used as independent GT for AUC computation. If None, falls back to exact string match.
 
     Returns:
         dict with all metric results
@@ -849,9 +850,11 @@ def evaluate_ontology(
     else:
         results["avg_wu_palmer"] = 0.0
 
-    # --- AUC-ROC class alignment (threshold-independent, independent GT) ---
+    # --- AUC-ROC class alignment (independent GT from LLM judge or exact match) ---
     print("  [ontology-metrics] Computing AUC-ROC class alignment...")
-    auc_result = auc_class_alignment(induced_nodes, reference_nodes)
+    auc_result = auc_class_alignment(
+        induced_nodes, reference_nodes, gt_alignment=alignment_table,
+    )
     results.update(auc_result)
 
     # --- Per-class confusion analysis ---

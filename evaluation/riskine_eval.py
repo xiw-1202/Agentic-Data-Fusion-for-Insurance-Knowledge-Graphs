@@ -428,7 +428,10 @@ def measure_riskine_alignment(
     # Fuzzy F1, Continuous F1, Graph F1, BERTScore, Taxonomy Edge F1, Wu-Palmer, AUC
     try:
         schemas = riskine_loader.fetch_and_cache(use_all=use_all_classes)
-        std_metrics = ontology_metrics.evaluate_ontology(graph, schemas, riskine_classes)
+        std_metrics = ontology_metrics.evaluate_ontology(
+            graph, schemas, riskine_classes,
+            alignment_table=alignment_table,
+        )
         result["standard_metrics"] = std_metrics
     except Exception as exc:
         print(f"  [ontology-metrics] WARNING: standard metrics failed: {exc}")
