@@ -45,6 +45,20 @@ Evaluated against the **full 26-class Riskine ontology** using standard metrics 
 
 **SV-LOI achieves the best Graph F1 (0.746), Continuous F1 (0.288), and Wu-Palmer (0.812)** -- the three structure-aware metrics from OLLM. The 40-query evaluation tests PDF knowledge retrieval (Q1-20), structured CSV data lookups (Q21-30), and cross-source entity linkage (Q31-40).
 
+### Zone 2 Extraction Quality
+
+| Metric | Value |
+|--------|:-----:|
+| Triple Precision (LLM-as-judge) | **78.7%** |
+| Fact Recall | **57.2%** |
+| Source Grounding Rate | **92.0%** |
+| Vocabulary Coverage | 49.7% |
+| Entities | 7,407 (208 concept + 7,199 structured) |
+| Relationships | 27,150 |
+| Relation Types | 76 |
+
+Extraction quality evaluated using AutoSchemaKG-style LLM-as-judge protocol: 100 sampled triples judged CORRECT/INCORRECT/UNCERTAIN, plus fact recall against LLM-extracted reference facts from source chunks.
+
 ### Pipeline Progression
 
 | Stage | Query Acc | Entities | Rels | BERTScore F1 | Graph F1 | Key Improvement |
