@@ -47,13 +47,12 @@ Evaluated against the **full 26-class Riskine ontology** using standard metrics 
 
 ### Pipeline Progression
 
-| Stage | Query Acc | Entities | Key Improvement |
-|-------|:---------:|:--------:|-----------------|
-| Baseline (LLMGraphTransformer) | 35% | ~60 | Fixed 512-token chunks |
-| + Zone 1 (section-aware chunking) | 50% | ~60 | tau=0.85 semantic merge |
-| + Zone 2 (domain-agnostic Open IE) | 95% | 1,351 | Bootstrapped vocab, 72b model |
-| + Zone 2 SEAF (PDF + CSV) | 95% | 7,415 | Claims + policy CSV ingestion |
-| + Zone 3 SV-LOI | 82.5% | 7,415 | 24-class ontology (harder 40Q eval) |
+| Stage | Query Acc | Entities | Rels | BERTScore F1 | Graph F1 | Key Improvement |
+|-------|:---------:|:--------:|:----:|:------------:|:--------:|-----------------|
+| Baseline (LLMGraphTransformer) | 35% | ~60 | ~90 | -- | -- | Fixed 512-token chunks |
+| + Zone 1 (section-aware chunking) | 50% | ~60 | ~90 | -- | -- | tau=0.85 semantic merge |
+| + Zone 2 (domain-agnostic Open IE) | 56.7% | 7,407 | 27,150 | 0.487 | 0.404 | Bootstrapped vocab, PDF+CSV, 72b model |
+| + Zone 3 SV-LOI | **82.5%** | 7,415 | 27,150 | **0.592** | **0.746** | 24-class ontology, structural verification |
 
 ---
 
