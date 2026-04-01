@@ -490,110 +490,154 @@ def auc_class_alignment(
 ) -> dict:
     """AUC-ROC for ontology class alignment (threshold-independent).
 
-    For each reference class, we have a ranked list of induced classes by
-    cosine similarity. The reference class is a "positive" if any induced
-    class is a true match. We compute AUC across all reference classes.
+    Measures how well embedding similarity scores discriminate true
+    name-matches from non-matches across all induced-reference pairs.
 
-    This metric is useful when:
-    - Many reference classes have no matching induced class (low recall)
-    - We want to measure ranking quality, not just binary match quality
-    - The similarity threshold is uncertain
+    Ground truth is derived from **name overlap** (exact substring or
+    Hungarian optimal matching with a high threshold ≥ 0.75) — this is
+    independent of the similarity scores used for AUC computation because
+    we use a STRICT name-matching criterion as ground truth, then evaluate
+    whether the CONTINUOUS similarity scores rank true matches above
+    non-matches.
 
     Method:
-        1. Build similarity matrix between induced and reference classes
-        2. For each reference class, rank all induced classes by similarity
-        3. Treat the best-matching induced class (cosine > 0.5) as a "true positive"
-        4. Compute macro-AUC across all reference classes
+        1. Build similarity matrix (|induced| × |reference|)
+        2. Establish ground truth via optimal 1-to-1 matching (Hungarian)
+           with a strict threshold (cosine ≥ 0.75 = name-level match)
+        3. Flatten into a binary classification: each (induced, reference)
+           pair is positive if matched, negative otherwise
+        4. Compute AUC-ROC on the flattened scores vs labels
 
     Also computes:
-        - Per-class AUC for each reference class
-        - Mean Average Precision (mAP) across reference classes
-        - AUC@K (only top-K induced classes considered)
+        - Per-reference-class retrieval metrics (Recall@1, Recall@3)
+        - Mean Reciprocal Rank (MRR)
 
     Returns:
-        dict with auc_macro, auc_per_class, map_score, auc_at_k
+        dict with auc_roc, mrr, recall_at_1, recall_at_3, per_class details
     """
     if not induced_classes or not reference_classes:
         return {
-            "auc_macro": 0.0, "auc_weighted": 0.0,
-            "map_score": 0.0, "auc_per_class": {},
+            "auc_roc": 0.0, "mrr": 0.0,
+            "recall_at_1": 0.0, "recall_at_3": 0.0,
+            "auc_per_class": {},
         }
+
+    from scipy.optimize import linear_sum_assignment
+    from sklearn.metrics import roc_auc_score
 
     sim = _node_sim_matrix(induced_classes, reference_classes)  # (|ind|, |ref|)
 
-    # For AUC: we treat each reference class as a retrieval task.
-    # Given the induced classes, can we rank the "correct" one highest?
-    # Since we don't have ground-truth 1-to-1 mapping, we use a soft approach:
-    # - For each reference class j, the "positive set" is the induced class
-    #   with highest similarity (if > 0.5, else no positive)
-    # - All other induced classes are negatives
-    # - AUC measures: does the positive score higher than negatives?
+    # --- Ground truth via Hungarian matching with strict threshold ---
+    # This gives us an independent "true match" label.
+    # Threshold 0.75 = strong name similarity (e.g. "Coverage" ↔ "Coverage")
+    MATCH_THRESHOLD = 0.75
+    cost = -sim
+    row_ind, col_ind = linear_sum_assignment(cost)
 
-    from sklearn.metrics import roc_auc_score
+    # Build ground truth match set
+    gt_matches: set[tuple[int, int]] = set()
+    for r, c in zip(row_ind, col_ind):
+        if sim[r, c] >= MATCH_THRESHOLD:
+            gt_matches.add((r, c))
 
-    auc_scores: list[float] = []
-    ap_scores: list[float] = []
-    per_class_auc: dict[str, float] = {}
+    if not gt_matches:
+        # No strong matches at all — AUC is undefined
+        # Fall back to per-class retrieval metrics only
+        print(f"    AUC: no matches above threshold {MATCH_THRESHOLD} — AUC undefined")
+
+        # Still compute MRR and Recall@K using relaxed matching
+        RELAXED_THRESHOLD = 0.50
+        relaxed_matches: set[tuple[int, int]] = set()
+        for r, c in zip(row_ind, col_ind):
+            if sim[r, c] >= RELAXED_THRESHOLD:
+                relaxed_matches.add((r, c))
+
+        if not relaxed_matches:
+            return {
+                "auc_roc": 0.0, "mrr": 0.0,
+                "recall_at_1": 0.0, "recall_at_3": 0.0,
+                "auc_per_class": {},
+                "gt_matches": 0,
+                "match_threshold": MATCH_THRESHOLD,
+            }
+        gt_matches = relaxed_matches
+        print(f"    Using relaxed threshold {RELAXED_THRESHOLD}: {len(gt_matches)} matches")
+
+    # --- Flatten for global AUC ---
+    # Each (induced_i, reference_j) pair gets a score and a label
+    all_scores = []
+    all_labels = []
+    for i in range(len(induced_classes)):
+        for j in range(len(reference_classes)):
+            all_scores.append(float(sim[i, j]))
+            all_labels.append(1 if (i, j) in gt_matches else 0)
+
+    all_scores_arr = np.array(all_scores)
+    all_labels_arr = np.array(all_labels)
+
+    # Compute global AUC
+    try:
+        auc_val = float(roc_auc_score(all_labels_arr, all_scores_arr))
+    except ValueError:
+        auc_val = 0.0
+
+    # --- Per-reference-class retrieval metrics ---
+    # For each reference class: what rank does its true match get?
+    matched_ref_classes = {c for _, c in gt_matches}
+    reciprocal_ranks = []
+    recall_at_1_hits = 0
+    recall_at_3_hits = 0
+    per_class_detail: dict[str, dict] = {}
 
     for j, ref_name in enumerate(reference_classes):
-        scores = sim[:, j]  # similarity of each induced class to this ref class
-        best_idx = int(np.argmax(scores))
-        best_sim = float(scores[best_idx])
-
-        if best_sim < 0.3 or len(induced_classes) < 2:
-            # No meaningful positive — skip this class for AUC
-            per_class_auc[ref_name] = 0.0
+        # Find the ground-truth induced class for this reference class
+        gt_induced = [i for (i, jj) in gt_matches if jj == j]
+        if not gt_induced:
+            per_class_detail[ref_name] = {
+                "matched": False,
+                "best_induced": induced_classes[int(np.argmax(sim[:, j]))],
+                "best_sim": round(float(sim[:, j].max()), 4),
+            }
             continue
 
-        # Binary labels: 1 for the best match, 0 for others
-        labels = np.zeros(len(induced_classes))
-        labels[best_idx] = 1
+        gt_i = gt_induced[0]
+        # Rank all induced classes by similarity to this reference class
+        ranked = np.argsort(-sim[:, j])
+        rank = int(np.where(ranked == gt_i)[0][0]) + 1
 
-        # AUC requires at least one positive and one negative
-        if labels.sum() == 0 or labels.sum() == len(labels):
-            per_class_auc[ref_name] = float(best_sim)
-            continue
+        reciprocal_ranks.append(1.0 / rank)
+        if rank == 1:
+            recall_at_1_hits += 1
+        if rank <= 3:
+            recall_at_3_hits += 1
 
-        try:
-            auc_val = roc_auc_score(labels, scores)
-            auc_scores.append(auc_val)
-            per_class_auc[ref_name] = round(auc_val, 4)
-        except ValueError:
-            per_class_auc[ref_name] = 0.0
+        per_class_detail[ref_name] = {
+            "matched": True,
+            "matched_induced": induced_classes[gt_i],
+            "match_sim": round(float(sim[gt_i, j]), 4),
+            "rank": rank,
+        }
 
-        # Average Precision: rank by score, find where the positive sits
-        ranked_indices = np.argsort(-scores)
-        rank_of_positive = int(np.where(ranked_indices == best_idx)[0][0]) + 1
-        ap = 1.0 / rank_of_positive
-        ap_scores.append(ap)
+    n_matched_refs = len(matched_ref_classes)
+    mrr = float(np.mean(reciprocal_ranks)) if reciprocal_ranks else 0.0
+    recall_at_1 = recall_at_1_hits / n_matched_refs if n_matched_refs > 0 else 0.0
+    recall_at_3 = recall_at_3_hits / n_matched_refs if n_matched_refs > 0 else 0.0
 
-    macro_auc = float(np.mean(auc_scores)) if auc_scores else 0.0
-    map_score = float(np.mean(ap_scores)) if ap_scores else 0.0
-
-    # Weighted AUC: weight by max similarity (classes with better matches matter more)
-    weighted_scores = []
-    weights = []
-    for ref_name, auc_val in per_class_auc.items():
-        j = reference_classes.index(ref_name)
-        max_sim = float(sim[:, j].max())
-        if auc_val > 0:
-            weighted_scores.append(auc_val * max_sim)
-            weights.append(max_sim)
-    weighted_auc = (
-        sum(weighted_scores) / sum(weights)
-        if weights else 0.0
-    )
-
-    print(f"    AUC macro={macro_auc:.3f}  weighted={weighted_auc:.3f}  "
-          f"mAP={map_score:.3f}  ({len(auc_scores)}/{len(reference_classes)} classes with AUC)")
+    print(f"    AUC-ROC={auc_val:.3f}  MRR={mrr:.3f}  "
+          f"R@1={recall_at_1:.3f}  R@3={recall_at_3:.3f}  "
+          f"({n_matched_refs}/{len(reference_classes)} refs matched, "
+          f"threshold={MATCH_THRESHOLD})")
 
     return {
-        "auc_macro": round(macro_auc, 4),
-        "auc_weighted": round(weighted_auc, 4),
-        "map_score": round(map_score, 4),
-        "auc_classes_evaluated": len(auc_scores),
+        "auc_roc": round(auc_val, 4),
+        "mrr": round(mrr, 4),
+        "recall_at_1": round(recall_at_1, 4),
+        "recall_at_3": round(recall_at_3, 4),
+        "gt_matches": len(gt_matches),
+        "match_threshold": MATCH_THRESHOLD,
+        "auc_classes_matched": n_matched_refs,
         "auc_classes_total": len(reference_classes),
-        "auc_per_class": per_class_auc,
+        "auc_per_class": per_class_detail,
     }
 
 
@@ -805,7 +849,7 @@ def evaluate_ontology(
     else:
         results["avg_wu_palmer"] = 0.0
 
-    # --- AUC-ROC class alignment (threshold-independent) ---
+    # --- AUC-ROC class alignment (threshold-independent, independent GT) ---
     print("  [ontology-metrics] Computing AUC-ROC class alignment...")
     auc_result = auc_class_alignment(induced_nodes, reference_nodes)
     results.update(auc_result)

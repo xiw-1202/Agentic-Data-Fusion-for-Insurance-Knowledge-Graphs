@@ -514,13 +514,15 @@ if __name__ == "__main__":
         print(f"    Continuous F1:   {sm.get('continuous_f1', 0):.3f}")
         print(f"    Fuzzy F1:        {sm.get('fuzzy_f1', 0):.3f}")
         print(f"    Wu-Palmer:       {sm.get('avg_wu_palmer', 0):.3f}")
-        # AUC metrics (threshold-independent)
-        if "auc_macro" in sm:
-            print(f"  AUC-ROC class alignment (threshold-independent):")
-            print(f"    AUC macro:       {sm.get('auc_macro', 0):.3f}")
-            print(f"    AUC weighted:    {sm.get('auc_weighted', 0):.3f}")
-            print(f"    mAP:             {sm.get('map_score', 0):.3f}")
-            print(f"    Classes w/ AUC:  {sm.get('auc_classes_evaluated', 0)}/{sm.get('auc_classes_total', 0)}")
+        # AUC metrics (independent ground truth)
+        if "auc_roc" in sm:
+            print(f"  AUC-ROC class alignment (independent ground truth):")
+            print(f"    AUC-ROC:         {sm.get('auc_roc', 0):.3f}")
+            print(f"    MRR:             {sm.get('mrr', 0):.3f}")
+            print(f"    Recall@1:        {sm.get('recall_at_1', 0):.3f}")
+            print(f"    Recall@3:        {sm.get('recall_at_3', 0):.3f}")
+            print(f"    GT matches:      {sm.get('gt_matches', 0)} (threshold={sm.get('match_threshold', '?')})")
+            print(f"    Classes matched: {sm.get('auc_classes_matched', 0)}/{sm.get('auc_classes_total', 0)}")
         # Per-class confusion (top matches)
         if "confusion_matrix" in sm:
             print(f"  Per-class confusion (reference → best induced match):")

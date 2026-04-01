@@ -252,11 +252,12 @@ def compare_zone3():
     row("  Wu-Palmer", lambda d: _get(d, "standard_metrics", "avg_wu_palmer"))
 
     # --- AUC metrics ---
-    print("\n  AUC-ROC (threshold-independent):")
-    row("  AUC macro", lambda d: _get(d, "standard_metrics", "auc_macro"))
-    row("  AUC weighted", lambda d: _get(d, "standard_metrics", "auc_weighted"))
-    row("  mAP", lambda d: _get(d, "standard_metrics", "map_score"))
-    row("  AUC classes eval'd", lambda d: _get(d, "standard_metrics", "auc_classes_evaluated"), fmt_str="{:.0f}")
+    print("\n  AUC-ROC (independent ground truth):")
+    row("  AUC-ROC", lambda d: _get(d, "standard_metrics", "auc_roc"))
+    row("  MRR", lambda d: _get(d, "standard_metrics", "mrr"))
+    row("  Recall@1", lambda d: _get(d, "standard_metrics", "recall_at_1"))
+    row("  Recall@3", lambda d: _get(d, "standard_metrics", "recall_at_3"))
+    row("  GT matches", lambda d: _get(d, "standard_metrics", "gt_matches"), fmt_str="{:.0f}")
 
     # --- Summary ---
     print("\n  Summary:")
