@@ -1634,6 +1634,19 @@ def run_sv_loi(
     # Phase 4b: Merge remaining small classes structurally
     assignments = merge_small_classes(assignments, features, entity_ids)
 
+    # Phase 4c: Dedicated hierarchy derivation
+    # The 5-way inference produces some hierarchy edges but is too conservative.
+    # Supplement with a dedicated hierarchy pass on the final class set.
+    _flush_print("\n[Phase 4c] Supplementing hierarchy with dedicated derivation...")
+    existing_edges = set(hierarchy)
+    extra_hierarchy = derive_hierarchy(assignments, llm)
+    for edge in extra_hierarchy:
+        if edge not in existing_edges:
+            hierarchy.append(edge)
+            existing_edges.add(edge)
+    _flush_print(f"  Total hierarchy: {len(hierarchy)} edges "
+                 f"({len(hierarchy) - len(extra_hierarchy)} from 5-way + {len(extra_hierarchy)} from dedicated)")
+
     # Final provenance: record final class for each entity
     for eid, cls in assignments.items():
         if eid in provenance:

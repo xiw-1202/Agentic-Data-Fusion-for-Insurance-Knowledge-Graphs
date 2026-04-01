@@ -535,5 +535,17 @@ if __name__ == "__main__":
                 sim_val = entry.get("best_similarity", 0)
                 marker = "✓" if sim_val >= 0.5 else "✗"
                 print(f"    {marker} {ref:<20} → {best:<20} (sim={sim_val:.3f})")
+        # Intrinsic quality metrics (no reference needed)
+        if "intrinsic" in sm:
+            iq = sm["intrinsic"]
+            print(f"  Intrinsic Ontology Quality (reference-free):")
+            print(f"    Class coverage:  {iq.get('class_coverage', 0):.1%} "
+                  f"({iq.get('entities_labeled', 0)}/{iq.get('entities_total', 0)} entities)")
+            print(f"    Class coherence: {iq.get('class_coherence', 0):.3f}")
+            print(f"    Class balance:   {iq.get('class_balance_entropy', 0):.3f}")
+            print(f"    Hierarchy:       {iq.get('n_hierarchy_edges', 0)} edges, "
+                  f"depth {iq.get('hierarchy_max_depth', 0)}")
+            print(f"    Classes:         {iq.get('n_classes', 0)}, "
+                  f"avg size {iq.get('avg_class_size', 0):.1f}")
     # Legacy name-based F1 still computed for backward compat but not highlighted
     print(f"  (Legacy name-based F1: {result['f1']:.3f} — deprecated, see F-07)")

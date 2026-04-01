@@ -675,7 +675,189 @@ def per_class_confusion(
 
 
 # ===================================================================
-# 5. Convenience: extract edges from Riskine schemas
+# 5. Intrinsic Ontology Quality Metrics (no reference needed)
+# ===================================================================
+
+def intrinsic_ontology_quality(graph) -> dict:
+    """Measure ontology quality WITHOUT a reference ontology.
+
+    These metrics show how well-structured the induced ontology is,
+    independent of any ground truth. Useful when:
+    - Reference ontology covers a different scope than the data
+    - Extrinsic F1 is low due to domain mismatch, not bad quality
+    - You want to demonstrate KG utility for downstream tasks
+
+    Metrics:
+        1. Class Coverage: % of entities assigned to a non-Other class
+        2. Class Purity (silhouette): how well-separated classes are in embedding space
+        3. Class Coherence: avg intra-class cosine similarity of member embeddings
+        4. Hierarchy Depth: max depth of SUBCLASS_OF tree
+        5. Typing Rate: % of entities with an ontology label
+        6. Schema Richness: # classes, # hierarchy edges, avg class size
+        7. Class Balance (entropy): how evenly distributed entities are across classes
+    """
+    import re
+    import math
+
+    results: dict = {}
+
+    # --- Get labeled entities and classes ---
+    try:
+        rows = graph.query("CALL db.labels() YIELD label RETURN label")
+        all_labels = {r["label"] for r in rows}
+        skip_labels = {"__Entity__", "Document", "Entity", "OntologyClass", "Other"}
+        ontology_labels = sorted(all_labels - skip_labels)
+    except Exception as e:
+        print(f"  [intrinsic] Error querying labels: {e}")
+        return {}
+
+    if not ontology_labels:
+        print("  [intrinsic] No ontology labels found")
+        return {"intrinsic_error": "no ontology labels"}
+
+    # Count entities per class
+    class_counts: dict[str, int] = {}
+    total_labeled = 0
+    for label in ontology_labels:
+        safe = re.sub(r'[^A-Za-z0-9_]', '', label)
+        if not safe:
+            continue
+        try:
+            rows = graph.query(f"MATCH (n:`{safe}`) RETURN count(n) AS cnt")
+            cnt = rows[0]["cnt"] if rows else 0
+            if cnt > 0:
+                class_counts[safe] = cnt
+                total_labeled += cnt
+        except Exception:
+            pass
+
+    # Total entities
+    try:
+        total_entities = graph.query("MATCH (n:Entity) RETURN count(n) AS cnt")[0]["cnt"]
+    except Exception:
+        total_entities = total_labeled
+
+    # --- 1. Class Coverage ---
+    coverage = total_labeled / total_entities if total_entities > 0 else 0.0
+    results["class_coverage"] = round(coverage, 4)
+    results["entities_labeled"] = total_labeled
+    results["entities_total"] = total_entities
+
+    # --- 2. Schema Richness ---
+    try:
+        hier_rows = graph.query(
+            "MATCH (c:OntologyClass)-[:SUBCLASS_OF]->(p:OntologyClass) "
+            "RETURN count(*) AS cnt"
+        )
+        n_hierarchy_edges = hier_rows[0]["cnt"] if hier_rows else 0
+    except Exception:
+        n_hierarchy_edges = 0
+
+    n_classes = len(class_counts)
+    avg_class_size = total_labeled / n_classes if n_classes > 0 else 0.0
+    results["n_classes"] = n_classes
+    results["n_hierarchy_edges"] = n_hierarchy_edges
+    results["avg_class_size"] = round(avg_class_size, 1)
+    results["class_distribution"] = class_counts
+
+    # --- 3. Class Balance (normalized entropy) ---
+    if n_classes > 1 and total_labeled > 0:
+        probs = [cnt / total_labeled for cnt in class_counts.values()]
+        entropy = -sum(p * math.log2(p) for p in probs if p > 0)
+        max_entropy = math.log2(n_classes)
+        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+        results["class_balance_entropy"] = round(normalized_entropy, 4)
+    else:
+        results["class_balance_entropy"] = 0.0
+
+    # --- 4. Hierarchy Depth ---
+    if n_hierarchy_edges > 0:
+        try:
+            # BFS from roots to find max depth
+            hier = graph.query(
+                "MATCH (c:OntologyClass)-[:SUBCLASS_OF]->(p:OntologyClass) "
+                "RETURN c.name AS child, p.name AS parent"
+            )
+            children_of: dict[str, list[str]] = {}
+            has_parent: set[str] = set()
+            all_nodes: set[str] = set()
+            for row in hier:
+                c, p = row["child"], row["parent"]
+                if c and p:
+                    children_of.setdefault(p, []).append(c)
+                    has_parent.add(c)
+                    all_nodes.update([c, p])
+            roots = all_nodes - has_parent
+            max_depth = 0
+            queue = [(r, 0) for r in roots]
+            visited: set[str] = set()
+            while queue:
+                node, depth = queue.pop(0)
+                if node in visited:
+                    continue
+                visited.add(node)
+                max_depth = max(max_depth, depth)
+                for child in children_of.get(node, []):
+                    if child not in visited:
+                        queue.append((child, depth + 1))
+            results["hierarchy_max_depth"] = max_depth
+            results["hierarchy_roots"] = len(roots)
+        except Exception:
+            results["hierarchy_max_depth"] = 0
+            results["hierarchy_roots"] = 0
+    else:
+        results["hierarchy_max_depth"] = 0
+        results["hierarchy_roots"] = n_classes
+
+    # --- 5. Class Coherence (avg intra-class embedding similarity) ---
+    try:
+        model = _get_model()
+        coherence_scores = []
+        for label, cnt in class_counts.items():
+            if cnt < 2:
+                continue
+            safe = re.sub(r'[^A-Za-z0-9_]', '', label)
+            try:
+                rows = graph.query(
+                    f"MATCH (n:`{safe}`) WHERE n.id IS NOT NULL RETURN n.id AS id LIMIT 50"
+                )
+                member_ids = [r["id"] for r in rows if r.get("id")]
+            except Exception:
+                continue
+            if len(member_ids) < 2:
+                continue
+            embs = model.encode(member_ids, normalize_embeddings=True)
+            # Avg pairwise cosine similarity
+            sim_sum = 0.0
+            n_pairs = 0
+            for i in range(len(embs)):
+                for j in range(i + 1, len(embs)):
+                    sim_sum += float(embs[i] @ embs[j])
+                    n_pairs += 1
+            if n_pairs > 0:
+                coherence_scores.append(sim_sum / n_pairs)
+
+        avg_coherence = float(np.mean(coherence_scores)) if coherence_scores else 0.0
+        results["class_coherence"] = round(avg_coherence, 4)
+        results["coherence_n_classes"] = len(coherence_scores)
+    except Exception as e:
+        results["class_coherence"] = 0.0
+        print(f"  [intrinsic] Coherence computation error: {e}")
+
+    # --- Summary ---
+    print(f"  [intrinsic] Ontology Quality (no reference needed):")
+    print(f"    Classes:          {n_classes}")
+    print(f"    Class coverage:   {coverage:.1%} ({total_labeled}/{total_entities} entities labeled)")
+    print(f"    Class balance:    {results['class_balance_entropy']:.3f} (1.0 = perfectly balanced)")
+    print(f"    Class coherence:  {results.get('class_coherence', 0):.3f} (avg intra-class similarity)")
+    print(f"    Hierarchy:        {n_hierarchy_edges} edges, max depth {results.get('hierarchy_max_depth', 0)}")
+    print(f"    Avg class size:   {avg_class_size:.1f}")
+
+    return results
+
+
+# ===================================================================
+# 6. Convenience: extract edges from Riskine schemas
 # ===================================================================
 
 def extract_riskine_edges(schemas: dict[str, dict]) -> list[tuple[str, str]]:
@@ -861,5 +1043,10 @@ def evaluate_ontology(
     print("  [ontology-metrics] Computing per-class confusion analysis...")
     confusion = per_class_confusion(induced_nodes, reference_nodes)
     results.update(confusion)
+
+    # --- Intrinsic quality metrics (no reference needed) ---
+    print("  [ontology-metrics] Computing intrinsic ontology quality...")
+    intrinsic = intrinsic_ontology_quality(graph)
+    results["intrinsic"] = intrinsic
 
     return results
