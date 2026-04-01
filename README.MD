@@ -188,21 +188,6 @@ Key findings documented in `docs/FINDINGS.md`:
 
 ---
 
-## Cluster Setup (Emory Turing)
-
-- 2x 48GB Quadro RTX 8000 GPUs
-- Models: qwen2.5:72b (primary), llama3.3:70b (backup)
-- Scripts: `scripts/cluster_setup_v2.sh`, `scripts/slurm_sv_loi.sh`, `scripts/slurm_eval_only.sh`
-
-```bash
-# Sync to cluster
-bash scripts/sync_to_cluster.sh xwa2284
-
-# Fetch results
-bash scripts/sync_to_cluster.sh xwa2284 --fetch
-```
-
----
 
 ## Timeline
 
