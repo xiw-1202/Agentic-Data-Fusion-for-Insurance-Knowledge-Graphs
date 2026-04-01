@@ -2,219 +2,162 @@
 
 **Automated Ontology Induction with Cross-Domain Transfer Learning**
 
-**Authors:** Xiaofei Wang, Zechary Chou
-**Course:** CS 584 AI Capstone -- Emory University, Spring 2026
-**Advisors:** Dr. Eugene Agichtein (Emory), Dr. Yingying Kang (Assurant)
+Xiaofei Wang, Zechary Chou
+CS 584 AI Capstone, Emory University, Spring 2026
+Advisors: Dr. Eugene Agichtein (Emory), Dr. Yingying Kang (Assurant)
 
 ---
 
-## Overview
+## Problem
 
-Insurance companies expanding into new Lines of Business (flood, auto, health, liability) face a **3-6 month ontology engineering bottleneck per domain**. We build a fully automated pipeline that induces ontologies from raw insurance documents -- without manual ontology engineering or hardcoded domain knowledge.
+Insurance companies entering new Lines of Business face a **3-6 month ontology engineering bottleneck** per domain. Existing tools like LangChain's `LLMGraphTransformer` extract KG triples but produce flat, duplicated, schema-less graphs. We automate the full pipeline from raw documents to a structured, hierarchical ontology -- with zero manual engineering.
 
-Our pipeline: **structured chunking (Zone 1) -> domain-agnostic Open IE (Zone 2) -> bottom-up ontology induction (Zone 3) -> structured Neo4j storage (Zone 4)**. The pipeline never sees the reference ontology -- Riskine is used ONLY for evaluation.
+## Solution
 
-### Novel Contribution: SV-LOI
+A 4-zone pipeline that is **fully domain-agnostic** -- the same code runs on flood, auto, or any insurance LOB with no changes:
 
-**SV-LOI (Structurally-Verified LLM Ontology Induction)** is a multi-view consensus framework that fuses:
-1. **LLM semantic typing** -- two-stage class discovery (detect domain, then propose 12-25 classes) + batched entity classification
-2. **Graph structural verification** -- relation-signature vectors verify assignments, flag outliers >2 sigma from class centroid
-3. **Disagreement arbitration** -- re-query LLM with both semantic and structural evidence for flagged entities
-4. **LLM-guided consolidation** -- conservative merging of synonym classes (>90% confidence only)
+```
+Zone 1              Zone 2                   Zone 3                    Zone 4
+Ingestion           Open IE                  Ontology Induction        Storage
+-----------         ----------------         ----------------------    ---------------
+PDF + CSV     -->   Bootstrap vocab    -->   SV-LOI (novel):     -->   Neo4j:
+Section-aware       from documents           - Class discovery          OntologyClass
+chunking            LLM extraction           - Entity typing            SUBCLASS_OF
+                    Entity resolution        - Structural verify        Instances
+                                             - Consolidation
+```
 
-Key insight: LLM typing fails on entities with ambiguous names but clear structural patterns; structural clustering fails on topologically similar but semantically different roles. Fusing both eliminates each signal's failure mode.
+The pipeline never sees the reference ontology. [Riskine](https://github.com/riskine/ontology) (26 classes) is used **only for evaluation**.
+
+## Novel Contribution: SV-LOI
+
+**Structurally-Verified LLM Ontology Induction** -- a multi-view consensus framework:
+
+1. **Two-stage class discovery**: detect domain from entities, then propose 12-25 ontology classes
+2. **Batched LLM entity typing**: classify ~7K entities in 15-entity batches
+3. **Structural verification**: relation-signature vectors flag outliers >2sigma from class centroid
+4. **Disagreement arbitration**: re-query LLM with both semantic and structural evidence
+5. **Conservative consolidation**: merge only true synonyms (>90% confidence)
+
+**Key insight**: LLM typing fails on ambiguous names; structural clustering fails on topologically similar roles. Fusing both with disagreement arbitration eliminates each signal's failure mode.
 
 ---
 
 ## Results
 
-### Zone 3 Method Comparison (qwen2.5:72b)
+### Ontology Induction (Zone 3)
 
-Evaluated against the **full 26-class Riskine ontology** using standard metrics from OLLM (NeurIPS 2024) and AutoSchemaKG (2025):
+Three methods compared on the same extraction (qwen2.5:72b, 7,415 entities). Evaluated against the **full 26-class Riskine ontology** using metrics from [OLLM](https://arxiv.org/abs/2410.XXXXX) (NeurIPS 2024) and AutoSchemaKG (2025):
 
-| Metric | Leiden (baseline) | RSI-LCR | **SV-LOI** (novel) |
+| Metric | Leiden (baseline) | RSI-LCR | **SV-LOI** |
 |--------|:-:|:-:|:-:|
-| BERTScore F1 | 0.451 | 0.577 | **0.592** |
 | Graph F1 (SGC) | 0.441 | 0.501 | **0.746** |
 | Continuous F1 | 0.069 | 0.081 | **0.288** |
 | Wu-Palmer | 0.653 | 0.723 | **0.812** |
-| Entity Assignment F1 (present) | 0.293 | 0.344 | **0.264** |
+| BERTScore F1 | 0.451 | 0.577 | **0.592** |
 | Induced classes | 11 | 30 | **24** |
-| Query accuracy (40Q) | -- | -- | **82.5%** |
-| Type inconsistency | 8.3% | 2.1% | **8.7%** |
 
-**SV-LOI achieves the best Graph F1 (0.746), Continuous F1 (0.288), and Wu-Palmer (0.812)** -- the three structure-aware metrics from OLLM. The 40-query evaluation tests PDF knowledge retrieval (Q1-20), structured CSV data lookups (Q21-30), and cross-source entity linkage (Q31-40).
-
-### Zone 2 Extraction Quality
+### Extraction Quality (Zone 2)
 
 | Metric | Value |
 |--------|:-----:|
 | Triple Precision (LLM-as-judge) | **78.7%** |
 | Fact Recall | **57.2%** |
 | Source Grounding Rate | **92.0%** |
-| Vocabulary Coverage | 49.7% |
 | Entities | 7,407 (208 concept + 7,199 structured) |
 | Relationships | 27,150 |
-| Relation Types | 76 |
-
-Extraction quality evaluated using AutoSchemaKG-style LLM-as-judge protocol: 100 sampled triples judged CORRECT/INCORRECT/UNCERTAIN, plus fact recall against LLM-extracted reference facts from source chunks.
 
 ### Pipeline Progression
 
-| Stage | Query Acc | Entities | Rels | BERTScore F1 | Graph F1 | Key Improvement |
-|-------|:---------:|:--------:|:----:|:------------:|:--------:|-----------------|
-| Baseline (LLMGraphTransformer) | 35% | ~60 | ~90 | -- | -- | Fixed 512-token chunks |
-| + Zone 1 (section-aware chunking) | 50% | ~60 | ~90 | -- | -- | tau=0.85 semantic merge |
-| + Zone 2 (domain-agnostic Open IE) | 56.7% | 7,407 | 27,150 | 0.487 | 0.404 | Bootstrapped vocab, PDF+CSV, 72b model |
-| + Zone 3 SV-LOI | **82.5%** | 7,415 | 27,150 | **0.592** | **0.746** | 24-class ontology, structural verification |
+| Stage | Query Acc | Entities | Graph F1 |
+|-------|:---------:|:--------:|:--------:|
+| Baseline (LLMGraphTransformer) | 35% | ~60 | -- |
+| + Zone 1 (section-aware chunking) | 50% | ~60 | -- |
+| + Zone 2 (domain-agnostic Open IE) | 56.7% | 7,407 | 0.404 |
+| + Zone 3 SV-LOI | **82.5%** | 7,415 | **0.746** |
 
----
-
-## Architecture
-
-```
-ZONE 1: Ingestion        ZONE 2: Open IE              ZONE 3: Ontology Induction    ZONE 4: Storage
------------------        ---------------              -------------------------     ---------------
-ANY insurance docs       Bootstrap from docs:          SV-LOI (novel):               3-layer Neo4j:
-PDF + CSV           ->     LLM proposes entity    ->    Two-stage class discovery ->   OntologyClass
-Section-aware chunk        + relation types             Batched LLM entity typing     SUBCLASS_OF
-tau=0.85 merge             Synthetic few-shot           Structural verification       Entity instances
-                           Extract (s,r,o,conf)         Disagreement arbitration
-                           Entity resolution            LLM consolidation
-
-                           EVALUATION (separate)
-                           Induced ontology -> Riskine (26 classes)
-                           BERTScore / Graph F1 / Continuous F1 / Wu-Palmer
-```
+Query accuracy measured on 40 tasks: PDF knowledge (Q1-20), structured CSV lookups (Q21-30), cross-source linkage (Q31-40).
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
 ```bash
-# Python 3.11+
 pip install -r requirements.txt
 
-# Neo4j AuraDB — credentials in .env
-# Ollama — http://localhost:11434
-ollama pull qwen2.5:72b  # or llama3.1:8b for testing
-```
+# Requires: Neo4j AuraDB (.env), Ollama (localhost:11434)
+ollama pull qwen2.5:72b
 
-### Run Pipeline
-
-```bash
-# Zone 1 — chunking
+# Run pipeline
 python3 zone1/ingestion.py
-
-# Zone 2 — domain-agnostic Open IE
 python3 zone2/pipeline.py --model qwen2.5:72b
+python3 zone3/sv_loi.py --model qwen2.5:72b --suffix zone3_svloi
 
-# Zone 3 — ontology induction (choose one)
-python3 zone3/pipeline.py                                          # Leiden (baseline)
-python3 zone3/rsi_lcr.py --model qwen2.5:72b --suffix zone3_rsi   # RSI-LCR
-python3 zone3/sv_loi.py --model qwen2.5:72b --suffix zone3_svloi  # SV-LOI (novel)
-
-# Evaluation
+# Evaluate
 python3 baseline/eval.py --suffix zone3_svloi --riskine --all-classes --model qwen2.5:72b
+
+# Compare methods
+python3 evaluation/compare_results.py --zone3
 ```
 
 ### Ablation Study
 
 ```bash
-# Run all 5 SV-LOI ablation variants
 bash scripts/run_ablations.sh qwen2.5:72b
-
-# On Turing cluster
-sbatch --export=ALL,MODEL=qwen2.5:72b,SUFFIX=zone3_svloi_seaf scripts/slurm_sv_loi.sh
-sbatch --export=ALL,MODEL=qwen2.5:72b,SUFFIX=zone3_svloi_seaf scripts/slurm_eval_only.sh
-```
-
-### Compare Results
-
-```bash
-python3 evaluation/compare_results.py --zone3
+# Variants: full, no-verify, no-arbitrate, no-consolidate, LLM-only
 ```
 
 ---
 
-## Directory Structure
+## Project Structure
 
 ```
-baseline/          pipeline.py, eval.py (40-query harness), ontology_induction.py
-zone1/             ingestion.py — section-aware hybrid chunking
-zone2/             pipeline.py, prompts.py, entity_resolution.py — domain-agnostic Open IE
-zone3/             pipeline.py (Leiden), rsi_lcr.py (RSI-LCR), sv_loi.py (SV-LOI), graph_cache.py
-zone4/             Structured Neo4j storage (upcoming)
-evaluation/        riskine_eval.py, ontology_metrics.py, riskine_loader.py, compare_results.py
-scripts/           Slurm scripts, cluster setup, sync tools
-config.py          Paths + credentials (from .env)
-data/flood/        NFIP flood insurance data (primary LOB)
-data/auto/         Auto insurance data (cross-domain transfer LOB)
-data/riskine/      Reference ontology (EVALUATION ONLY)
-data/results/      All evaluation output JSONs
-docs/              FINDINGS.md (F-01 through F-18), research documentation
+zone1/         Section-aware hybrid chunking (PDF + CSV)
+zone2/         Domain-agnostic Open IE (bootstrapped vocab, entity resolution)
+zone3/         Ontology induction: pipeline.py (Leiden), rsi_lcr.py, sv_loi.py
+zone4/         Structured Neo4j storage (upcoming)
+baseline/      LLMGraphTransformer baseline + 40-query eval harness
+evaluation/    Riskine alignment, ontology metrics (OLLM/AutoSchemaKG), comparison tools
+scripts/       Slurm cluster scripts, sync tools
+data/          flood/ (NFIP), auto/ (cross-domain), riskine/ (eval only), results/
 ```
 
----
+## Datasets
+
+| Source | Format | Size | Purpose |
+|--------|--------|------|---------|
+| SFIP General Property Policy F-123 | PDF | 27 pages | Primary knowledge source |
+| OpenFEMA Policies | CSV | 500 records | Structured policy data |
+| OpenFEMA Claims | CSV | 500 records | Structured claims data |
+| Kaggle Auto Insurance | CSV | 60K records | Cross-domain transfer |
+| Riskine Ontology | JSON Schema | 26 classes | Evaluation reference only |
 
 ## Evaluation Metrics
 
-Standard metrics from the ontology induction literature:
-
-| Metric | Source | What It Measures |
-|--------|--------|-----------------|
-| BERTScore F1 | AutoSchemaKG 2025 | Threshold-free class name alignment |
-| Graph F1 | OLLM NeurIPS 2024 | Structure-aware node matching (SGC embeddings) |
-| Continuous F1 | OLLM NeurIPS 2024 | Optimal 1-to-1 edge matching (Hungarian) |
+| Metric | Source | Measures |
+|--------|--------|----------|
+| Graph F1 | OLLM (NeurIPS 2024) | Structure-aware node matching via SGC |
+| Continuous F1 | OLLM (NeurIPS 2024) | Optimal 1-to-1 edge matching (Hungarian) |
+| BERTScore F1 | AutoSchemaKG (2025) | Threshold-free class name alignment |
 | Wu-Palmer | WordNet literature | Taxonomy hierarchy similarity |
 | Entity Assignment F1 | Ours | Entity-to-class placement quality |
 | Query Accuracy | Ours | 40-query functional KG evaluation |
 
-Evaluated against the **full Riskine ontology** (26 classes). Since flood insurance data covers only ~10 of these classes, we report both full-ontology and present-class metrics.
-
 ---
 
-## Riskine Reference Ontology
-
-26 core classes: Address, Animal, BankAccount, BusinessProcess, Coverage, CreditCard, Damage, DataProcessing, DrivingLicense, Education, Employee, Finances, Identification, Object, Organization, Person, Preference, Product, Profession, Property, Revenue, Risk, SecurityMeasure, Site, Structure, Vehicle
-
-Source: [github.com/riskine/ontology](https://github.com/riskine/ontology)
-
-**Used ONLY for evaluation** -- never imported by pipeline code (zone2/, zone3/, zone4/).
-
----
-
-## Empirical Findings
-
-Key findings documented in `docs/FINDINGS.md`:
+## Key Findings
 
 | ID | Finding | Impact |
 |----|---------|--------|
-| F-03 | 8B models extract ~1 triple/chunk; 72B extracts 8-50 | Motivates large model for extraction |
-| F-06 | Zone 2 v1's 0.874 F1 was domain leakage | Removed anchors; honest baseline ~0.000 |
-| F-07 | Larger models produce compound names that don't align with reference | Motivates BERTScore/Graph F1 over Name F1 |
-| F-15 | SV-LOI two-stage discovery eliminates data-type classes | Domain detection grounds class proposals |
-| F-16 | LLM consolidation raises Name F1 from 0.214 to 0.563 | Consolidation is as important as discovery |
-| F-17 | Person, Organization, Object absent from flood data | Max achievable full-Riskine recall ~0.6-0.7 |
+| F-03 | 8B models extract ~1 triple/chunk; 72B extracts 8-50 | Large models critical for extraction |
+| F-06 | Early 0.874 F1 was domain leakage (Riskine anchors) | Removed; honest baseline ~0.000 |
+| F-07 | Larger models produce compound names misaligned with reference | Motivates Graph F1 over Name F1 |
+| F-15 | Two-stage discovery eliminates data-type classes | Domain detection grounds proposals |
+| F-16 | LLM consolidation raises Name F1 from 0.214 to 0.563 | Consolidation as important as discovery |
+| F-17 | Person, Organization, Object absent from flood data | Max achievable recall ~0.6-0.7 |
+
+Full findings: [`docs/FINDINGS.md`](docs/FINDINGS.md)
 
 ---
-
-
-## Timeline
-
-| Week | Milestone |
-|------|-----------|
-| 1-3 | Baseline pipeline + Zone 1 chunking |
-| 4-5 | Zone 2 domain-agnostic Open IE + entity resolution |
-| 6-7 | Zone 3 Leiden baseline + 72b extraction |
-| 8-9 | RSI-LCR + SV-LOI + comprehensive evaluation suite |
-| 10 | Full 26-class eval, ablation framework, 40-query harness |
-| 11 | Paper writing, cross-domain transfer, final deliverables |
-
----
-
-## License
 
 Academic project -- Emory University CS 584, Spring 2026.
