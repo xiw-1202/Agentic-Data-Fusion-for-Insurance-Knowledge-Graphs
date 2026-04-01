@@ -4,7 +4,7 @@
 
 **Authors:** Xiaofei Wang, Zechary Chou
 **Course:** CS 584 AI Capstone -- Emory University, Spring 2026
-**Advisor:** Dr. Yingying Kang (Assurant)
+**Advisors:** Dr. Eugene Agichtein (Emory), Dr. Yingying Kang (Assurant)
 
 ---
 
