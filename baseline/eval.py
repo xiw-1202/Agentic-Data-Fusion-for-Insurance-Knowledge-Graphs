@@ -273,6 +273,79 @@ EVAL_TASKS = [
         "cypher": "MATCH (rec)-[:BELONGS_TO]->(prop:Entity {entity_type: 'Property'}) RETURN prop.id AS property_id, count(rec) AS linked_records ORDER BY linked_records DESC LIMIT 5",
         "keywords": ["PROP-"],
     },
+    # ── Deep Structured Data Queries (31-40) ─────────────────────────────
+    # Test entity-level lookups: given an ID, retrieve its attributes;
+    # given a condition, find matching records; cross-link claims ↔ policies.
+    {
+        "id": 31,
+        "category": "claim_lookup",
+        "question": "Given a specific claim ID, what flood event and damage amounts are associated with it?",
+        "cypher": "MATCH (c:Entity)-[r]->(v) WHERE c.id STARTS WITH 'CLM-' AND type(r) IN ['HAS_FLOOD_EVENT','HAS_BUILDING_DAMAGE_AMOUNT','HAS_CONTENTS_DAMAGE_AMOUNT'] RETURN c.id AS claim, type(r) AS attribute, v.id AS value LIMIT 15",
+        "keywords": ["CLM-", "HAS_"],
+    },
+    {
+        "id": 32,
+        "category": "claim_lookup",
+        "question": "What claims were caused by a specific flood event (Hurricane Ike)?",
+        "cypher": "MATCH (c:Entity)-[:HAS_FLOOD_EVENT]->(e) WHERE e.id CONTAINS 'Ike' RETURN c.id AS claim, e.id AS event LIMIT 10",
+        "keywords": ["CLM-", "Ike"],
+    },
+    {
+        "id": 33,
+        "category": "policy_lookup",
+        "question": "Given a policy, what is its coverage amount and flood zone?",
+        "cypher": "MATCH (p:Entity)-[r]->(v) WHERE p.id STARTS WITH 'POL-' AND type(r) IN ['HAS_TOTAL_BUILDING_INSURANCE_COVERAGE','HAS_RATED_FLOOD_ZONE'] RETURN p.id AS policy, type(r) AS attribute, v.id AS value LIMIT 10",
+        "keywords": ["POL-", "HAS_"],
+    },
+    {
+        "id": 34,
+        "category": "cross_source",
+        "question": "Find all claims belonging to the same property as a given policy?",
+        "cypher": "MATCH (p:Entity)-[:BELONGS_TO]->(prop:Entity)<-[:BELONGS_TO]-(c:Entity) WHERE p.id STARTS WITH 'POL-' AND c.id STARTS WITH 'CLM-' RETURN p.id AS policy, prop.id AS property, c.id AS claim LIMIT 10",
+        "keywords": ["POL-", "CLM-", "PROP-"],
+    },
+    {
+        "id": 35,
+        "category": "claim_lookup",
+        "question": "What is the total payment amount for claims with water depth greater than 10?",
+        "cypher": "MATCH (c:Entity)-[:HAS_WATER_DEPTH]->(d) WHERE toInteger(d.id) > 10 WITH c MATCH (c)-[:HAS_AMOUNT_PAID_ON_BUILDING_CLAIM]->(amt) RETURN c.id AS claim, amt.id AS payment LIMIT 10",
+        "keywords": ["CLM-"],
+    },
+    {
+        "id": 36,
+        "category": "policy_lookup",
+        "question": "Find policies in flood zone V (high-risk coastal)?",
+        "cypher": "MATCH (p:Entity)-[:HAS_RATED_FLOOD_ZONE]->(z) WHERE z.id STARTS WITH 'V' RETURN p.id AS policy, z.id AS zone LIMIT 10",
+        "keywords": ["POL-"],
+    },
+    {
+        "id": 37,
+        "category": "cross_source",
+        "question": "For a given property, list all associated policies and claims?",
+        "cypher": "MATCH (rec:Entity)-[:BELONGS_TO]->(prop:Entity {entity_type: 'Property'}) RETURN prop.id AS property, rec.id AS record, rec.entity_type AS type ORDER BY prop.id LIMIT 15",
+        "keywords": ["PROP-", "POL-"],
+    },
+    {
+        "id": 38,
+        "category": "claim_lookup",
+        "question": "What year had the most flood claims?",
+        "cypher": "MATCH (c:Entity)-[:HAS_YEAR_OF_LOSS]->(y) RETURN y.id AS year, count(c) AS claim_count ORDER BY claim_count DESC LIMIT 5",
+        "keywords": ["200", "claim_count"],
+    },
+    {
+        "id": 39,
+        "category": "policy_lookup",
+        "question": "What are the most common occupancy types for insured properties?",
+        "cypher": "MATCH (p:Entity)-[:HAS_OCCUPANCY_TYPE]->(o) RETURN o.id AS occupancy_type, count(p) AS policy_count ORDER BY policy_count DESC LIMIT 5",
+        "keywords": ["occupancy_type", "policy_count"],
+    },
+    {
+        "id": 40,
+        "category": "cross_source",
+        "question": "Which properties have both policies and claims (cross-source linkage)?",
+        "cypher": "MATCH (pol:Entity)-[:BELONGS_TO]->(prop:Entity)<-[:BELONGS_TO]-(clm:Entity) WHERE pol.id STARTS WITH 'POL-' AND clm.id STARTS WITH 'CLM-' RETURN prop.id AS property, count(DISTINCT pol) AS policies, count(DISTINCT clm) AS claims LIMIT 10",
+        "keywords": ["PROP-", "policies", "claims"],
+    },
 ]
 
 
@@ -459,7 +532,7 @@ def run_evaluation(
         print(f"  Examples: {tc['examples']}")
 
     # --- Query accuracy (20 tasks) ---
-    print("\n[4/4] Running 20 evaluation tasks...")
+    print(f"\n[4/4] Running {len(EVAL_TASKS)} evaluation tasks...")
     task_results = run_query_tasks(graph)
     metrics.tasks_total = len(task_results)
     metrics.tasks_with_results = sum(1 for t in task_results if t["has_results"])
