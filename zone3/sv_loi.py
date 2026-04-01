@@ -523,17 +523,27 @@ def rescue_other_entities(
     "Other" entities. Fully self-referential — uses only the pipeline's
     own induced classes and entities, no external ontology.
     """
-    other_ids = [eid for eid, cls in assignments.items() if cls == "Other"]
+    entity_map_full = {e["id"]: e for e in entities}
+
+    # Only rescue CONCEPT entities — never reclassify dates, numbers, or records
+    # that were correctly pre-assigned to "Other" by the value filter.
+    other_ids = [
+        eid for eid, cls in assignments.items()
+        if cls == "Other" and is_concept_entity(entity_map_full.get(eid, {"id": eid, "entity_type": "Unknown"}))
+    ]
     total = len(assignments)
+    all_other = sum(1 for cls in assignments.values() if cls == "Other")
     target_max = int(total * max_other_frac)
 
     if len(other_ids) <= target_max:
-        print(f"\n[Phase 1d] Other={len(other_ids)} ({100*len(other_ids)/total:.1f}%) — below threshold, skipping rescue.", flush=True)
+        print(f"\n[Phase 1d] Concept-Other={len(other_ids)}, Value-Other={all_other - len(other_ids)} "
+              f"— concept entities below threshold, skipping rescue.", flush=True)
         return assignments
 
-    print(f"\n[Phase 1d] Rescuing {len(other_ids)} 'Other' entities ({100*len(other_ids)/total:.1f}%)...", flush=True)
+    print(f"\n[Phase 1d] Rescuing {len(other_ids)} 'Other' CONCEPT entities "
+          f"(skipping {all_other - len(other_ids)} value entities)...", flush=True)
 
-    entity_map = {e["id"]: e for e in entities}
+    entity_map = entity_map_full
 
     # Build class descriptions from current assignments
     dist = Counter(v for v in assignments.values() if v != "Other")
@@ -1013,32 +1023,36 @@ def consolidate_classes(
         sample = members[:8]
         class_descs.append(f"  {cls} ({dist[cls]} members): {', '.join(sample)}")
 
-    prompt = f"""You have {len(class_names)} ontology classes from a knowledge graph. Review whether \
-any classes represent the EXACT SAME concept and should be merged.
+    prompt = f"""You have {len(class_names)} ontology classes from a knowledge graph. Some classes \
+may be synonyms or sub-types that should be merged into a broader class.
 
 CURRENT CLASSES:
 {chr(10).join(class_descs)}
 
-YOUR TASK: Propose merges ONLY for classes that clearly represent the SAME real-world concept.
+YOUR TASK: Review each class and propose consolidation.
 
-CONSERVATIVE MERGE RULES:
-- ONLY merge classes that are TRUE SYNONYMS (e.g., City + County + State → Address)
-- Renaming is allowed if the name is more standard (e.g., Policy → Product)
-- Mark data-type classes (Code, Year, Deadline) as Other ONLY if truly just data artifacts
-- KEEP 10-15 final classes — prefer more classes over fewer
-- DO NOT merge classes that are related but different (e.g., Coverage ≠ Product)
-- When in doubt, DO NOT MERGE
+MERGE RULES:
+1. Merge TRUE SYNONYMS — same concept, different names
+   Example: "Policy" and "InsurancePolicy" → "Product" (standard ontology term)
+2. Rename to standard ontology terms where appropriate
+   Example: "Policy" → "Product" (a policy IS a type of product)
+3. Merge sub-types into parent if they are too narrow
+   Example: "Consent" + "Notification" → "Process" (if members are similar)
+4. Mark pure data artifacts as Other: classes whose members are ALL dates, numbers, or codes
+5. Target 8-15 final classes — not too many, not too few
+
+IMPORTANT: You MUST propose at least one merge or rename if there are >15 classes.
+Look at the MEMBER NAMES to decide — if members of two classes look similar, merge them.
 
 OUTPUT FORMAT (JSON):
 {{
   "merges": [
-    {{"from": ["City", "County", "State"], "to": "Address", "reason": "all represent geographic locations"}}
+    {{"from": ["Policy"], "to": "Product", "reason": "insurance policies are products"}},
+    {{"from": ["Consent", "Notification"], "to": "Process", "reason": "both are procedural steps"}}
   ],
-  "keep_as_is": ["Coverage", "Risk", "Property", "Product", "Damage"],
-  "mark_other": ["Code"]
+  "keep_as_is": ["Coverage", "Risk", "Property", "Damage"],
+  "mark_other": ["Elevation", "Classification"]
 }}
-
-Be VERY conservative. Only merge when >90% confident classes are the same concept.
 """
     raw = _invoke_llm(llm, prompt)
     result = _parse_json_safely(raw)
