@@ -86,6 +86,15 @@ _STRUCTURED_PREFIXES = STRUCTURED_PREFIXES
 TARGET_CLASSES_MIN = 12
 TARGET_CLASSES_MAX = 25
 
+# Standard ontology terms — these can be merged INTO but never renamed away.
+# Derived from upper ontology vocabulary (schema.org, SUMO), NOT from Riskine.
+# This prevents consolidation from destroying exact matches with reference ontologies.
+PROTECTED_CLASS_NAMES = {
+    "person", "organization", "property", "structure", "coverage", "risk",
+    "damage", "product", "address", "object", "process", "document",
+    "claim", "payment", "agent", "place", "vehicle", "animal",
+}
+
 # Forbidden class names — data types masquerading as ontology classes
 FORBIDDEN_CLASS_NAMES = {
     "financialamount", "timperiod", "timeperiod", "measurement", "amount",
@@ -799,17 +808,17 @@ def build_structural_signatures(entities: list[dict]) -> tuple[np.ndarray, list[
     d = len(feature_names)
     features = np.zeros((n, d))
 
+    feat_idx = {name: idx for idx, name in enumerate(feature_names)}
     entity_ids = []
     for i, e in enumerate(entities):
         entity_ids.append(e["id"])
         for rt in rel_types:
-            j_out = feature_names.index(f"{rt}_OUT")
-            j_in = feature_names.index(f"{rt}_IN")
-            features[i, j_out] = e.get("out_rel_counts", {}).get(rt, 0)
-            features[i, j_in] = e.get("in_rel_counts", {}).get(rt, 0)
+            features[i, feat_idx[f"{rt}_OUT"]] = e.get("out_rel_counts", {}).get(rt, 0)
+            features[i, feat_idx[f"{rt}_IN"]] = e.get("in_rel_counts", {}).get(rt, 0)
         et = e["entity_type"]
-        if f"type_{et}" in feature_names:
-            features[i, feature_names.index(f"type_{et}")] = 1.0
+        type_key = f"type_{et}"
+        if type_key in feat_idx:
+            features[i, feat_idx[type_key]] = 1.0
 
     # L2 normalize
     norms = np.linalg.norm(features, axis=1, keepdims=True)
@@ -996,112 +1005,231 @@ Output one line per entity: entity_id -> CorrectClass
 # Phase 4: Post-processing — consolidate, merge small, derive hierarchy
 # ---------------------------------------------------------------------------
 
-def consolidate_classes(
+def infer_class_relations(
     assignments: dict[str, str],
     entities: list[dict],
     llm: ChatOllama,
-) -> dict[str, str]:
-    """LLM-guided consolidation: merge semantically similar fine-grained classes.
+) -> tuple[dict[str, str], list[tuple[str, str]]]:
+    """5-way typed relation inference between classes (Changes C+D+E unified).
 
-    Examples: City+County+State → Address, Premium+Limit+Deductible → Coverage
-    Also renames classes to standard ontology terms where appropriate.
+    Replaces separate consolidate_classes() + derive_hierarchy() with a single
+    pass that infers typed relations: equivalent / parent / child / overlap / distinct.
+
+    Only 'equivalent' triggers a merge. 'parent/child' become SUBCLASS_OF edges.
+    'overlap' and 'distinct' keep both classes separate.
+
+    Protected classes (standard ontology terms) can be merged INTO but never
+    renamed away — prevents destroying exact matches with reference ontologies.
+
+    Returns:
+        (updated_assignments, hierarchy_edges)
     """
-    print("\n[Phase 4a] LLM-guided class consolidation...", flush=True)
+    print("\n[Phase 4] Class relation inference (5-way)...", flush=True)
 
     dist = Counter(v for v in assignments.values() if v != "Other")
     class_names = sorted(dist.keys())
 
-    if len(class_names) < 3:
-        print("  ✓ Too few classes to consolidate")
-        return assignments
+    if len(class_names) < 2:
+        print("  ✓ Too few classes for relation inference")
+        return assignments, []
 
-    # Build class descriptions with member examples
+    # Build class descriptions with CONCEPT member examples only
     entity_map = {e["id"]: e for e in entities}
-    class_descs = []
+    class_descs: dict[str, str] = {}
     for cls in class_names:
-        members = [eid for eid, c in assignments.items() if c == cls]
-        sample = members[:8]
-        class_descs.append(f"  {cls} ({dist[cls]} members): {', '.join(sample)}")
+        concept_members = [
+            eid for eid, c in assignments.items()
+            if c == cls and is_concept_entity(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"}))
+        ]
+        # If no concept members, use first few record IDs as fallback context
+        if not concept_members:
+            all_members = [eid for eid, c in assignments.items() if c == cls]
+            sample = all_members[:5]
+        else:
+            sample = concept_members[:8]
+        # Include typical relations for context
+        rel_types: set[str] = set()
+        for eid in (concept_members or [eid for eid, c in assignments.items() if c == cls])[:20]:
+            e = entity_map.get(eid, {})
+            rel_types.update(e.get("out_rel_counts", {}).keys())
+            rel_types.update(e.get("in_rel_counts", {}).keys())
+        top_rels = sorted(rel_types)[:5]
 
-    prompt = f"""You have {len(class_names)} ontology classes from a knowledge graph. Some classes \
-may be synonyms or sub-types that should be merged into a broader class.
+        protected = "  [PROTECTED — standard term]" if cls.lower() in PROTECTED_CLASS_NAMES else ""
+        class_descs[cls] = (
+            f"  {cls} ({dist[cls]} members{protected}):\n"
+            f"    Examples: {', '.join(sample)}\n"
+            f"    Relations: {', '.join(top_rels) if top_rels else 'none'}"
+        )
 
-CURRENT CLASSES:
-{chr(10).join(class_descs)}
+    # --- Pairwise relation inference ---
+    # Only compare plausible pairs (blocking: skip obvious non-matches)
+    from sentence_transformers import SentenceTransformer
+    st_encoder = SentenceTransformer("all-MiniLM-L6-v2")
+    embs = st_encoder.encode([c for c in class_names], normalize_embeddings=True)
+    sim_matrix = np.dot(embs, embs.T)
 
-YOUR TASK: Review each class and propose consolidation.
+    # Block: only compare pairs with cosine > 0.25 (skip clearly unrelated)
+    BLOCK_THRESHOLD = 0.25
+    pairs_to_compare = []
+    for i in range(len(class_names)):
+        for j in range(i + 1, len(class_names)):
+            if sim_matrix[i, j] > BLOCK_THRESHOLD:
+                pairs_to_compare.append((class_names[i], class_names[j]))
 
-MERGE RULES:
-1. Merge TRUE SYNONYMS — same concept, different names
-   Example: "Policy" and "InsurancePolicy" → "Product" (standard ontology term)
-2. Rename to standard ontology terms where appropriate
-   Example: "Policy" → "Product" (a policy IS a type of product)
-3. Merge sub-types into parent if they are too narrow
-   Example: "Consent" + "Notification" → "Process" (if members are similar)
-4. Mark pure data artifacts as Other: classes whose members are ALL dates, numbers, or codes
-5. Target 8-15 final classes — not too many, not too few
+    print(f"  Comparing {len(pairs_to_compare)} class pairs (blocked from {len(class_names) * (len(class_names)-1) // 2})...", flush=True)
 
-IMPORTANT: You MUST propose at least one merge or rename if there are >15 classes.
-Look at the MEMBER NAMES to decide — if members of two classes look similar, merge them.
+    # Batch pairs into groups for efficient LLM calls
+    PAIRS_PER_BATCH = 5
+    all_relations: list[dict] = []
 
-OUTPUT FORMAT (JSON):
-{{
-  "merges": [
-    {{"from": ["Policy"], "to": "Product", "reason": "insurance policies are products"}},
-    {{"from": ["Consent", "Notification"], "to": "Process", "reason": "both are procedural steps"}}
-  ],
-  "keep_as_is": ["Coverage", "Risk", "Property", "Damage"],
-  "mark_other": ["Elevation", "Classification"]
-}}
-"""
-    raw = _invoke_llm(llm, prompt)
-    result = _parse_json_safely(raw)
+    for batch_start in range(0, len(pairs_to_compare), PAIRS_PER_BATCH):
+        batch = pairs_to_compare[batch_start:batch_start + PAIRS_PER_BATCH]
 
-    if not isinstance(result, dict):
-        print("  ✗ Could not parse consolidation response — skipping")
-        return assignments
+        pair_sections = []
+        for ci, cj in batch:
+            pair_sections.append(
+                f"PAIR: {ci} vs {cj}\n"
+                f"{class_descs[ci]}\n"
+                f"{class_descs[cj]}"
+            )
 
+        prompt = f"""For each pair of ontology classes, determine their relationship.
+
+Choose EXACTLY ONE for each pair:
+- "equivalent": same concept, different names → MERGE (keep the more standard name)
+- "parent_of": first class is a broader category containing the second → SUBCLASS_OF
+- "child_of": first class is a subtype of the second → SUBCLASS_OF
+- "overlapping": partial intersection, neither fully contains the other → keep both
+- "distinct": unrelated or sibling concepts → keep both
+
+IMPORTANT RULES:
+- Classes marked [PROTECTED] are standard ontology terms. They can ABSORB other classes
+  but must NEVER be renamed or merged INTO a non-standard name.
+- "equivalent" should be rare — only for true synonyms (e.g., "Policy" and "Product")
+- When unsure, choose "distinct" — it's safer to keep classes separate
+
+{chr(10).join(pair_sections)}
+
+Output JSON array, one entry per pair:
+[{{"class_a": "...", "class_b": "...", "relation": "...", "merge_into": "...", "reason": "..."}}]
+The "merge_into" field is only needed for "equivalent" — which name to keep."""
+
+        raw = _invoke_llm(llm, prompt)
+        parsed = _parse_json_safely(raw)
+
+        if isinstance(parsed, list):
+            all_relations.extend(parsed)
+        elif isinstance(parsed, dict):
+            all_relations.append(parsed)
+
+        if (batch_start // PAIRS_PER_BATCH + 1) % 5 == 0:
+            print(f"    Batch {batch_start // PAIRS_PER_BATCH + 1}/{(len(pairs_to_compare) + PAIRS_PER_BATCH - 1) // PAIRS_PER_BATCH}", flush=True)
+
+    # --- Process relations ---
     updated = dict(assignments)
-    changes = 0
+    hierarchy: list[tuple[str, str]] = []
+    merges_applied: list[str] = []
+    merge_count = 0
 
-    # Apply merges
-    merges = result.get("merges", [])
-    for merge in merges:
-        if not isinstance(merge, dict):
+    for rel_entry in all_relations:
+        if not isinstance(rel_entry, dict):
             continue
-        from_classes = merge.get("from", [])
-        to_class = merge.get("to", "")
-        if not from_classes or not to_class:
-            continue
-        to_class = _sanitize_label(to_class)
-        reason = merge.get("reason", "")
-        merged_count = 0
-        for eid in list(updated.keys()):
-            if updated[eid] in from_classes:
-                updated[eid] = to_class
-                merged_count += 1
-        if merged_count > 0:
-            print(f"  ✓ {' + '.join(from_classes)} → {to_class} ({merged_count} entities) — {reason}", flush=True)
-            changes += merged_count
+        ca = rel_entry.get("class_a", "")
+        cb = rel_entry.get("class_b", "")
+        relation = rel_entry.get("relation", "distinct").lower()
+        merge_into = rel_entry.get("merge_into", "")
+        reason = rel_entry.get("reason", "")
 
-    # Mark classes as Other
-    mark_other = result.get("mark_other", [])
-    for cls in mark_other:
-        other_count = 0
-        for eid in list(updated.keys()):
-            if updated[eid] == cls:
-                updated[eid] = "Other"
-                other_count += 1
-        if other_count > 0:
-            print(f"  ✓ {cls} → Other ({other_count} entities)", flush=True)
-            changes += other_count
+        if relation == "equivalent":
+            # Determine which name to keep (with validation)
+            valid_names = {ca, cb}
+            if merge_into:
+                sanitized_merge = _sanitize_label(merge_into)
+                # Validate: merge_into must match one of the two classes
+                if sanitized_merge.lower() in {ca.lower(), cb.lower()}:
+                    keep = ca if sanitized_merge.lower() == ca.lower() else cb
+                    absorb = cb if keep == ca else ca
+                else:
+                    # LLM proposed a third name — fall through to protected heuristic
+                    merge_into = ""
+
+            if not merge_into:
+                # Prefer protected names (standard ontology terms)
+                if ca.lower() in PROTECTED_CLASS_NAMES and cb.lower() not in PROTECTED_CLASS_NAMES:
+                    keep, absorb = ca, cb
+                elif cb.lower() in PROTECTED_CLASS_NAMES and ca.lower() not in PROTECTED_CLASS_NAMES:
+                    keep, absorb = cb, ca
+                elif ca.lower() in PROTECTED_CLASS_NAMES and cb.lower() in PROTECTED_CLASS_NAMES:
+                    # Both protected — skip merge, treat as distinct
+                    print(f"  ✗ Both {ca} and {cb} are protected — keeping separate", flush=True)
+                    continue
+                else:
+                    keep, absorb = ca, cb  # neither protected, keep first
+
+            # NEVER rename a protected class into a non-protected one
+            if absorb.lower() in PROTECTED_CLASS_NAMES and keep.lower() not in PROTECTED_CLASS_NAMES:
+                print(f"  ✗ Blocked: {absorb} is protected, cannot merge into {keep}", flush=True)
+                continue
+
+            # Apply merge
+            count = 0
+            for eid in list(updated.keys()):
+                if updated[eid] == absorb:
+                    updated[eid] = keep
+                    count += 1
+            if count > 0:
+                print(f"  ✓ EQUIVALENT: {absorb} → {keep} ({count} entities) — {reason}", flush=True)
+                merge_count += count
+                merges_applied.append(f"{absorb}→{keep}")
+
+        elif relation == "parent_of":
+            # ca is parent of cb
+            edge = (cb, ca)
+            if edge not in hierarchy:
+                hierarchy.append(edge)
+                print(f"  → PARENT: {ca} ⊃ {cb} — {reason}", flush=True)
+
+        elif relation == "child_of":
+            # ca is child of cb
+            edge = (ca, cb)
+            if edge not in hierarchy:
+                hierarchy.append(edge)
+                print(f"  → CHILD: {ca} ⊂ {cb} — {reason}", flush=True)
+
+        elif relation == "overlapping":
+            print(f"  ~ OVERLAP: {ca} ∩ {cb} — {reason}", flush=True)
+
+        # "distinct" → no action
+
+    # Also mark pure data-artifact classes as Other
+    for cls in list(set(updated.values())):
+        if cls == "Other":
+            continue
+        members = [eid for eid, c in updated.items() if c == cls]
+        concept_members = [
+            eid for eid in members
+            if is_concept_entity(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"}))
+        ]
+        if not concept_members and len(members) > 0:
+            # Class has zero concept members — all records/values
+            # Only mark as Other if it's not a protected name
+            if cls.lower() not in PROTECTED_CLASS_NAMES:
+                for eid in members:
+                    updated[eid] = "Other"
+                print(f"  ✓ {cls} → Other ({len(members)} entities, no concept members)", flush=True)
+                merge_count += len(members)
 
     new_dist = Counter(v for v in updated.values() if v != "Other")
-    print(f"  ✓ Consolidation complete: {changes} entities moved, {len(new_dist)} classes remain", flush=True)
+    print(f"\n  ✓ Relation inference complete:", flush=True)
+    print(f"    Merges: {len(merges_applied)} ({merge_count} entities moved)", flush=True)
+    print(f"    Hierarchy edges: {len(hierarchy)}", flush=True)
+    print(f"    Classes remaining: {len(new_dist)}", flush=True)
     for cls, cnt in new_dist.most_common():
-        print(f"    {cls}: {cnt}", flush=True)
+        protected = " [P]" if cls.lower() in PROTECTED_CLASS_NAMES else ""
+        print(f"      {cls}{protected}: {cnt}", flush=True)
 
-    return updated
+    return updated, hierarchy
 
 
 def merge_small_classes(
@@ -1385,6 +1513,7 @@ def run_sv_loi(
         return {"error": "no entities"}
 
     llm = get_llm(model)
+    entity_map_all = {e["id"]: e for e in entities}
 
     # Phase 1a: Discover class vocabulary (concept entities only)
     concept_entities = get_concept_entities(entities)
@@ -1448,14 +1577,55 @@ def run_sv_loi(
                             provenance[eid]["arbitrated"] = True
                             provenance[eid]["pre_arb_class"] = pre_arb[eid]
 
-    # Phase 4a: LLM-guided class consolidation (merge semantically similar classes)
+    # --- Change A: Two-lane pipeline ---
+    # Extract concept-only assignments for consolidation decisions.
+    # Records never influence class merging or naming.
+    concept_assignments = {
+        eid: cls for eid, cls in assignments.items()
+        if is_concept_entity(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"}))
+    }
+    _flush_print(f"\n  Two-lane: {len(concept_assignments)} concept entities drive consolidation, "
+                 f"{len(assignments) - len(concept_assignments)} records excluded")
+
+    # Phase 4: Unified class relation inference (5-way) + hierarchy (Changes C+D+E)
     pre_consolidate = dict(assignments)
     if skip_consolidate:
-        _flush_print("\n--- [ABLATION] Skipping class consolidation ---")
+        _flush_print("\n--- [ABLATION] Skipping class relation inference ---")
+        hierarchy = derive_hierarchy(assignments, llm)
     else:
-        assignments = consolidate_classes(assignments, entities, llm)
+        # Run relation inference on concept entities only
+        concept_assignments, hierarchy = infer_class_relations(
+            concept_assignments, entities, llm,
+        )
+        # Propagate concept consolidation decisions to ALL entities
+        # Build mapping: old_class → new_class (only unambiguous 1-to-1 remaps)
+        remap_candidates: dict[str, set[str]] = defaultdict(set)
+        for eid, new_cls in concept_assignments.items():
+            old_cls = pre_consolidate.get(eid, "Other")
+            if old_cls != new_cls and old_cls != "Other":
+                remap_candidates[old_cls].add(new_cls)
 
-    # Record consolidation changes
+        # Only propagate unambiguous remaps (one old class → one new class)
+        class_remap = {
+            old: next(iter(news))
+            for old, news in remap_candidates.items()
+            if len(news) == 1
+        }
+        ambiguous = {old: news for old, news in remap_candidates.items() if len(news) > 1}
+        if ambiguous:
+            _flush_print(f"  ⚠ Ambiguous remaps skipped: {dict(ambiguous)}")
+
+        if class_remap:
+            _flush_print(f"  Propagating {len(class_remap)} class remaps to all entities...")
+            for eid in list(assignments.keys()):
+                old = assignments[eid]
+                if old in class_remap:
+                    assignments[eid] = class_remap[old]
+        # Also apply concept assignments directly
+        for eid, cls in concept_assignments.items():
+            assignments[eid] = cls
+
+    # Record consolidation changes in provenance
     for eid in assignments:
         if eid in pre_consolidate and assignments[eid] != pre_consolidate[eid]:
             if eid in provenance:
@@ -1463,9 +1633,6 @@ def run_sv_loi(
 
     # Phase 4b: Merge remaining small classes structurally
     assignments = merge_small_classes(assignments, features, entity_ids)
-
-    # Phase 4c: Derive hierarchy
-    hierarchy = derive_hierarchy(assignments, llm)
 
     # Final provenance: record final class for each entity
     for eid, cls in assignments.items():
