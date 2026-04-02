@@ -53,6 +53,8 @@ from zone2.prompts import (
     PASS_FOCUS_INSTRUCTIONS,
     SINGLE_PASS_FOCUS,
     RECALL_PASS_PROMPT,
+    DECOMPOSITION_PROMPT,
+    SINGLE_FACT_EXTRACTION_PROMPT,
 )
 from zone2.entity_resolution import resolve_entities_in_memory
 from zone2.structured_mapper import extract_structured
@@ -984,89 +986,182 @@ def _verify_span_grounding(
 
 
 # ---------------------------------------------------------------------------
-# Recall-oriented Pass 2 (two-pass exhaustive extraction)
+# Decompose-then-Extract (CoDe-KG style, replaces failed recall pass)
 # ---------------------------------------------------------------------------
+# Root cause: json_mode + temp=0 produces 1-item JSON arrays for prose chunks.
+# Fix: Stage 1 decomposes chunk into facts (free-form, no json_mode).
+#      Stage 2 extracts 1 triple per fact (json_mode OK for single object).
+# Only runs on prose chunks where Pass 1 extracted ≤2 triples.
 
-def _run_recall_pass(
-    llm,
+_DECOMPOSE_THRESHOLD = 2  # Chunks with ≤ this many Pass 1 triples get decomposition.
+_MIN_FACT_LENGTH = 10     # Reject decomposed facts shorter than this.
+_MAX_FACTS_PER_CHUNK = 20 # Safety cap on facts from decomposition.
+
+
+def _parse_decomposed_facts(text: str) -> list[str]:
+    """Parse numbered facts from free-form LLM decomposition output.
+
+    Handles formats like:
+      1. Fact one here
+      2. Fact two here
+    or:
+      1) Fact one
+      2) Fact two
+    """
+    facts: list[str] = []
+    for line in text.strip().splitlines():
+        line = line.strip()
+        # Strip numbering: "1. ", "1) ", "- ", "• "
+        cleaned = re.sub(r'^(?:\d+[.)]\s*|[-•]\s*)', '', line).strip()
+        if len(cleaned) >= _MIN_FACT_LENGTH:
+            facts.append(cleaned)
+    return facts[:_MAX_FACTS_PER_CHUNK]
+
+
+def _decompose_then_extract(
+    model: str,
     chunks: list[dict],
     pass1_triples: list[dict],
+    vocab: list[str],
     errors: list[dict],
 ) -> list[dict]:
-    """Run recall-oriented Pass 2 on PDF chunks only.
+    """Decompose-then-extract for prose chunks that Pass 1 under-extracted.
 
-    For each chunk, shows the LLM what was already extracted in Pass 1,
-    then asks it to find additional explicit facts it missed.
-    Verifies each new triple via span-grounding before accepting.
+    Stage 1: LLM (NO json_mode) lists all facts as numbered plain text.
+    Stage 2: For each fact, LLM (json_mode) extracts 1 triple.
+    Span-grounding verification filters hallucinations.
 
-    Returns only verified new triples (not Pass 1 triples).
+    Only processes chunks where Pass 1 extracted ≤ _DECOMPOSE_THRESHOLD triples.
+
+    Args:
+        model: Ollama model name.
+        chunks: PDF chunks to process.
+        pass1_triples: All triples from Pass 1 (for counting per-chunk).
+        vocab: Bootstrapped relation vocabulary.
+        errors: Error accumulator.
+
+    Returns:
+        List of new verified triples (source_type='decompose').
     """
-    # Index Pass 1 triples by chunk_id for fast lookup.
-    triples_by_chunk: dict[str, list[dict]] = defaultdict(list)
-    for t in pass1_triples:
-        triples_by_chunk[t.get("chunk_id", "")].append(t)
+    # Count Pass 1 triples per chunk_id.
+    from collections import Counter
+    p1_counts = Counter(t.get("chunk_id") for t in pass1_triples)
 
-    recall_triples: list[dict] = []
-    n_rejected = 0
-    n_verified = 0
+    # Identify prose chunks that need decomposition.
+    prose_chunks = [
+        c for c in chunks
+        if p1_counts.get(c.get("chunk_id", ""), 0) <= _DECOMPOSE_THRESHOLD
+    ]
 
-    for i, chunk in enumerate(chunks):
+    if not prose_chunks:
+        print("    No prose chunks need decomposition (all extracted well)")
+        return []
+
+    print(f"    {len(prose_chunks)} prose chunks (≤{_DECOMPOSE_THRESHOLD} triples in Pass 1)")
+
+    # Stage 1 LLM: free-form decomposition (NO json_mode).
+    llm_freeform = get_llm(model, json_mode=False)
+    # Stage 2 LLM: single-object extraction (json_mode OK).
+    llm_json = get_llm(model, json_mode=True)
+
+    vocab_lines = "\n".join(f"  - {r}" for r in vocab)
+
+    all_new_triples: list[dict] = []
+    total_facts = 0
+    total_triples = 0
+    total_rejected = 0
+
+    for i, chunk in enumerate(prose_chunks):
         content = chunk["content"][:CHUNK_CONTENT_LIMIT]
         chunk_id = chunk.get("chunk_id", f"chunk_{i}")
         source = chunk.get("source", "")
         hierarchy = chunk.get("section_hierarchy", [])
         label = " > ".join(hierarchy) if hierarchy else f"chunk {i+1}"
+        p1_count = p1_counts.get(chunk_id, 0)
 
-        # Format existing triples for this chunk.
-        existing = triples_by_chunk.get(chunk_id, [])
-        if not existing:
-            # No Pass 1 triples for this chunk — skip recall (nothing to build on)
+        print(f"    [{i+1}/{len(prose_chunks)}] {label[:50]} (P1={p1_count})...",
+              end=" ", flush=True)
+
+        # --- Stage 1: Decompose into facts ---
+        try:
+            decomp_prompt = DECOMPOSITION_PROMPT.format(chunk_text=content)
+            response = llm_freeform.invoke([HumanMessage(content=decomp_prompt)])
+            facts = _parse_decomposed_facts(response.content)
+        except Exception as e:
+            print(f"✗ decomp error: {e}")
+            errors.append({"chunk_id": chunk_id, "pass": "decompose", "error": str(e)})
             continue
 
-        existing_str = "\n".join(
-            f"  - ({t['subject']}) --[{t['relation']}]--> ({t['object']})"
-            for t in existing
-        )
+        if not facts:
+            print("→ 0 facts")
+            continue
 
-        prompt = RECALL_PASS_PROMPT.format(
-            existing_triples=existing_str,
-            chunk_text=content,
-        )
+        total_facts += len(facts)
 
-        print(f"    Chunk {i+1}/{len(chunks)} [{label[:45]}]...", end=" ", flush=True)
+        # --- Stage 2: Extract 1 triple per fact ---
+        chunk_triples: list[dict] = []
+        chunk_rejected = 0
 
-        try:
-            response = llm.invoke([HumanMessage(content=prompt)])
-            parsed = _parse_json_list(response.content)
-            new_triples = _parse_chunk_triples(parsed, chunk_id, source)
+        for fact in facts:
+            try:
+                extract_prompt = SINGLE_FACT_EXTRACTION_PROMPT.format(
+                    vocab_lines=vocab_lines,
+                    fact_text=fact,
+                )
+                resp = llm_json.invoke([HumanMessage(content=extract_prompt)])
+                raw = resp.content.strip()
 
-            # Tag as recall pass and verify grounding.
-            verified: list[dict] = []
-            for t in new_triples:
-                grounded, conf_mult = _verify_span_grounding(t, content)
+                # Parse single JSON object (not array).
+                parsed = None
+                try:
+                    parsed = json.loads(raw)
+                except (json.JSONDecodeError, ValueError):
+                    # Try extracting from wrapper
+                    m = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
+                    if m:
+                        try:
+                            parsed = json.loads(m.group())
+                        except (json.JSONDecodeError, ValueError):
+                            pass
+
+                if not parsed or not isinstance(parsed, dict):
+                    continue
+
+                # Validate and normalize the triple.
+                validated = _parse_chunk_triples([parsed], chunk_id, source)
+                if not validated:
+                    continue
+
+                triple = validated[0]
+
+                # Span-grounding verification against source chunk.
+                grounded, conf_mult = _verify_span_grounding(triple, content)
                 if grounded:
-                    verified.append({
-                        **t,
-                        "source_type": "recall_pass",
-                        "confidence": round(t["confidence"] * conf_mult, 3),
+                    chunk_triples.append({
+                        **triple,
+                        "source_type": "decompose",
+                        "confidence": round(triple["confidence"] * conf_mult, 3),
                     })
-                    n_verified += 1
                 else:
-                    n_rejected += 1
+                    chunk_rejected += 1
 
-            print(f"→ +{len(verified)} verified ({len(new_triples) - len(verified)} rejected)")
-            recall_triples.extend(verified)
+            except Exception:
+                continue  # Skip individual fact extraction failures silently.
 
-        except Exception as e:
-            print(f"✗ ERROR: {e}")
-            errors.append({"chunk_id": chunk_id, "pass": "recall", "error": str(e)})
+            time.sleep(0.02)  # Small delay between per-fact calls.
 
-        time.sleep(0.05)
+        total_triples += len(chunk_triples)
+        total_rejected += chunk_rejected
+        all_new_triples.extend(chunk_triples)
 
-    print(f"  → Recall pass total: {len(recall_triples)} verified, {n_rejected} rejected "
-          f"(grounding rate: {n_verified / max(n_verified + n_rejected, 1):.0%})")
+        print(f"→ {len(facts)} facts → {len(chunk_triples)} triples "
+              f"({chunk_rejected} rejected)")
 
-    return recall_triples
+    grounding_rate = total_triples / max(total_triples + total_rejected, 1)
+    print(f"  → Decompose total: {total_facts} facts → {total_triples} triples, "
+          f"{total_rejected} rejected (grounding: {grounding_rate:.0%})")
+
+    return all_new_triples
 
 
 def _extract_one_pass(
@@ -1176,19 +1271,21 @@ def extract_triples(state: Zone2State) -> dict:
     else:
         print(f"\n  Regex numeric fallback skipped ({model} extracts numerics directly)")
 
-    # Recall-oriented Pass 2: find what Pass 1 missed (PDF chunks only).
+    # Decompose-then-extract for prose chunks that Pass 1 under-extracted.
+    # Bypasses json_mode 1-item array constraint by decomposing into facts first.
     # Only run on non-small models (small models benefit more from regex fallback).
     if not is_small_model:
-        # Filter to PDF-only chunks for recall pass.
         from zone2.structured_mapper import is_structured_chunk, is_schema_chunk
         pdf_chunks = [c for c in chunks if not is_structured_chunk(c) and not is_schema_chunk(c)]
         if pdf_chunks:
-            print(f"\n  Recall pass (Pass 2) — {len(pdf_chunks)} PDF chunks:")
-            recall_triples = _run_recall_pass(llm, pdf_chunks, all_raw_triples, errors)
-            all_raw_triples.extend(recall_triples)
-            print(f"  → Recall pass added {len(recall_triples)} new triples")
+            print(f"\n  Decompose-then-extract — {len(pdf_chunks)} PDF chunks:")
+            decomp_triples = _decompose_then_extract(
+                model, pdf_chunks, all_raw_triples, vocab, errors
+            )
+            all_raw_triples.extend(decomp_triples)
+            print(f"  → Decompose added {len(decomp_triples)} new triples")
         else:
-            print("\n  Recall pass skipped — no PDF chunks")
+            print("\n  Decompose-then-extract skipped — no PDF chunks")
 
     # Deduplicate across passes by normalized (subject, relation, object)
     seen_keys:   set[tuple]  = set()
