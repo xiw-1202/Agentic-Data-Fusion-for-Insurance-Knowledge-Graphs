@@ -331,99 +331,18 @@ Format: one line per triple, e.g. "1. CORRECT"
 # Metric 3: Fact Recall (MINE-1 style, embedding-based matching)
 # ---------------------------------------------------------------------------
 
-def _retrieve_subgraph_for_fact(
-    graph: Neo4jGraph,
-    fact_text: str,
-    entity_ids: list[str],
-    entity_embs: "np.ndarray",
-    emb_model: "SentenceTransformer",
-    top_k: int = 3,
-    hops: int = 2,
-) -> str:
-    """Retrieve a local subgraph around the most similar entities to a fact.
-
-    MINE-standard approach (KGGen NeurIPS 2025):
-      1. Embed the fact, find top-k most similar entity nodes
-      2. Expand to all nodes within `hops` relations
-      3. Return all (s, r, o) triples in that subgraph as text
-
-    Returns a text summary of the subgraph for LLM judging.
-    """
-    import numpy as np
-
-    # Embed the fact as a whole sentence (not split into S/O).
-    fact_emb = emb_model.encode([fact_text], normalize_embeddings=True, show_progress_bar=False)
-    sims = (fact_emb @ entity_embs.T).flatten()
-
-    # Top-k seed nodes.
-    top_indices = np.argsort(sims)[-top_k:][::-1]
-    seed_nodes = [entity_ids[i] for i in top_indices]
-
-    # Expand via graph traversal (2 hops).
-    # Use parameterized query to avoid injection.
-    try:
-        rows = graph.query(
-            f"""
-            UNWIND $seeds AS seed
-            MATCH (start:Entity {{id: seed}})
-            CALL apoc.path.subgraphAll(start, {{maxLevel: {hops}}})
-            YIELD relationships
-            UNWIND relationships AS r
-            WITH startNode(r) AS s, type(r) AS rel, endNode(r) AS o
-            RETURN DISTINCT s.id AS subject, rel AS relation, o.id AS object
-            LIMIT 50
-            """,
-            params={"seeds": seed_nodes},
-        )
-    except Exception:
-        # Fallback: simple 2-hop without APOC (AuraDB may not have APOC).
-        rows = graph.query(
-            """
-            UNWIND $seeds AS seed
-            MATCH (start:Entity {id: seed})-[r1]->(mid:Entity)
-            OPTIONAL MATCH (mid)-[r2]->(end:Entity)
-            WITH start, r1, mid, r2, end
-            RETURN DISTINCT
-                start.id AS s1, type(r1) AS r1_type, mid.id AS m,
-                mid.id AS s2, type(r2) AS r2_type, end.id AS o2
-            LIMIT 50
-            """,
-            params={"seeds": seed_nodes},
-        )
-        # Flatten into (s, r, o) triples.
-        triples_set: set[tuple[str, str, str]] = set()
-        for row in rows:
-            if row.get("s1") and row.get("r1_type") and row.get("m"):
-                triples_set.add((row["s1"], row["r1_type"], row["m"]))
-            if row.get("s2") and row.get("r2_type") and row.get("o2"):
-                triples_set.add((row["s2"], row["r2_type"], row["o2"]))
-        lines = [f"({s}) --[{r}]--> ({o})" for s, r, o in triples_set]
-        return "\n".join(lines[:50]) if lines else "(empty subgraph)"
-
-    # Format as text.
-    lines = [
-        f"({row['subject']}) --[{row['relation']}]--> ({row['object']})"
-        for row in rows if row.get("subject") and row.get("object")
-    ]
-    return "\n".join(lines[:50]) if lines else "(empty subgraph)"
-
-
 def measure_fact_recall(
     graph: Neo4jGraph,
     llm: ChatOllama,
     n_chunks: int = DEFAULT_RECALL_CHUNKS,
 ) -> dict:
-    """MINE-standard fact recall (KGGen NeurIPS 2025).
+    """MINE-1 style fact recall: for each source chunk, LLM extracts key facts,
+    then we check which facts are recoverable from the KG via embedding similarity.
 
-    For each source chunk:
-      1. LLM extracts key facts as short statements
-      2. For each fact: embed → find top-k similar entities → 2-hop subgraph
-      3. LLM judges: "Can this fact be inferred from the subgraph?" (binary)
-
-    This matches the KGGen MINE benchmark methodology: graph traversal +
-    LLM-as-judge, not hard cosine threshold on entity names.
+    Following KGGen: uses sentence-transformers embeddings for matching
+    instead of naive substring search.
     """
-    print(f"\n[Metric 3] Fact Recall — MINE standard (n_chunks={n_chunks})...", flush=True)
+    print(f"\n[Metric 3] Fact Recall — MINE-1 style (n_chunks={n_chunks})...", flush=True)
 
     chunks = _load_chunks()
     if not chunks:
@@ -449,11 +368,10 @@ def measure_fact_recall(
     # Build entity embedding index.
     entity_ids = _get_all_entity_ids(graph)
     print(f"  Building embedding index for {len(entity_ids)} entities...", flush=True)
-    emb_model = SentenceTransformer("all-MiniLM-L6-v2")
-    entity_embs = emb_model.encode(entity_ids, normalize_embeddings=True, show_progress_bar=False)
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    entity_embs = model.encode(entity_ids, normalize_embeddings=True, show_progress_bar=False)
 
-    TOP_K = 3       # seed nodes per fact
-    HOPS = 2        # graph traversal depth
+    MATCH_THRESHOLD = 0.75  # cosine similarity threshold for fact→entity match
 
     total_facts = 0
     found_facts = 0
@@ -463,43 +381,42 @@ def measure_fact_recall(
         text = chunk.get("content", chunk.get("text", ""))[:1500]
         chunk_id = chunk.get("chunk_id", "?")
 
-        # Step 1: LLM extracts key facts as short statements.
-        extract_prompt = f"""Read this text and list the {FACTS_PER_CHUNK} most important factual statements.
-Each fact should be a single, self-contained sentence that describes how one entity relates to another.
-Do NOT include facts not directly stated in the text.
+        # Step 1: LLM extracts key facts.
+        extract_prompt = f"""Read this text and list the {FACTS_PER_CHUNK} most important factual statements as simple (subject, relation, object) triples.
 
 TEXT:
 {text}
 
-Output one fact per line as a short sentence. No numbering, no bullet points.
+Output one triple per line in format: subject | relation | object
+Only include clear factual relationships, not vague statements.
 """
         raw_facts = _invoke_llm(llm, extract_prompt)
 
-        facts: list[str] = []
+        facts: list[dict[str, str]] = []
         for line in raw_facts.strip().splitlines():
-            line = line.strip().lstrip("0123456789.-) ")
-            if len(line) > 15:
-                facts.append(line)
-        facts = facts[:FACTS_PER_CHUNK]
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) == 3 and all(p for p in parts):
+                facts.append({"subject": parts[0], "relation": parts[1], "object": parts[2]})
 
-        # Step 2: For each fact, retrieve subgraph and LLM-judge.
+        # Step 2: Embedding match — check if subject AND object are in KG.
         chunk_found = 0
         for fact in facts:
-            subgraph_text = _retrieve_subgraph_for_fact(
-                graph, fact, entity_ids, entity_embs, emb_model,
-                top_k=TOP_K, hops=HOPS,
+            # Embed subject and object.
+            fact_embs = model.encode(
+                [fact["subject"], fact["object"]],
+                normalize_embeddings=True,
+                show_progress_bar=False,
             )
 
-            judge_prompt = (
-                "Determine whether the following fact can be inferred from ONLY "
-                "the information in the knowledge graph context below.\n\n"
-                f"FACT: {fact}\n\n"
-                f"KNOWLEDGE GRAPH CONTEXT:\n{subgraph_text}\n\n"
-                "Respond with ONLY '1' if the fact can be inferred, or '0' if not. "
-                "No explanation."
-            )
-            verdict = _invoke_llm(llm, judge_prompt).strip()
-            if verdict.startswith("1"):
+            # Find best match for subject.
+            subj_sims = fact_embs[0] @ entity_embs.T
+            subj_match = float(np.max(subj_sims)) >= MATCH_THRESHOLD
+
+            # Find best match for object.
+            obj_sims = fact_embs[1] @ entity_embs.T
+            obj_match = float(np.max(obj_sims)) >= MATCH_THRESHOLD
+
+            if subj_match and obj_match:
                 chunk_found += 1
 
         total_facts += len(facts)
@@ -525,9 +442,7 @@ Output one fact per line as a short sentence. No numbering, no bullet points.
         "total_facts": total_facts,
         "found_facts": found_facts,
         "chunks_sampled": len(sample),
-        "method": "MINE-standard (top-k + 2-hop + LLM judge)",
-        "top_k": TOP_K,
-        "hops": HOPS,
+        "match_threshold": MATCH_THRESHOLD,
         "chunk_results": chunk_results,
     }
 
