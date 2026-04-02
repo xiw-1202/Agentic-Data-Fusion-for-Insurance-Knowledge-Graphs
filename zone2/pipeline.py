@@ -841,116 +841,6 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
     return triples
 
 
-# ---------------------------------------------------------------------------
-# PDF↔CSV concept linking (Priority 3)
-# ---------------------------------------------------------------------------
-# PDF concept "Policy" and CSV records POL-xxx are disconnected. This step
-# links them with INSTANCE_OF triples derived from record_type metadata.
-# Domain-agnostic: maps record_type → concept name generically.
-
-def _create_concept_links(triples: list[dict]) -> list[dict]:
-    """Create INSTANCE_OF triples linking structured records to PDF-extracted concepts.
-
-    Algorithm:
-      1. Collect all record entity IDs and their record types from IS_A triples.
-      2. Collect class-candidate nodes: entities that appear as SUBJECTS in
-         PDF-extracted triples (not objects) — these are more likely to be
-         ontological concepts than arbitrary value mentions.
-      3. For each record type, find matching concept via fuzzy token-overlap.
-      4. Emit INSTANCE_OF triples: POL-xxx --INSTANCE_OF--> Policy
-
-    Domain-agnostic: uses record_type metadata, not hardcoded entity names.
-    Fuzzy matching via normalized token overlap (Jaccard-like) so
-    "Insurance Policy" still matches "PolicyRecord" → "Policy".
-    """
-    # Step 1: Collect record entities and their types.
-    record_entities: dict[str, str] = {}  # entity_id → record_type_label
-    for t in triples:
-        if t["relation"] == "IS_A" and t.get("source_type") == "structured":
-            record_entities[t["subject"]] = t["object"]  # e.g., "PolicyRecord"
-
-    if not record_entities:
-        return []
-
-    # Step 2: Collect class-candidate nodes — SUBJECTS of PDF-extracted triples.
-    # Objects are often values ("$250,000", "30 days") not class concepts.
-    # A node that appears as subject in a relation like COVERS or DEFINED_AS
-    # is much more likely to be a class-level concept.
-    pdf_subject_counts: dict[str, int] = defaultdict(int)
-    for t in triples:
-        if t.get("source_type") not in ("structured", "cross_source", "concept_link"):
-            pdf_subject_counts[t["subject"]] += 1
-
-    # Only consider nodes that appear as subjects at least twice (class-like).
-    class_candidates: set[str] = {
-        node for node, count in pdf_subject_counts.items() if count >= 2
-    }
-
-    if not class_candidates:
-        # Fallback: all PDF subjects
-        class_candidates = set(pdf_subject_counts.keys())
-
-    # Step 3: Fuzzy matching — token overlap between type label and concept name.
-    def _tokenize(name: str) -> set[str]:
-        """Normalize and tokenize: strip 'Record', lowercase, split."""
-        cleaned = name.replace("Record", "").replace("record", "")
-        return {t for t in re.split(r'[\s_-]+', cleaned.lower()) if len(t) > 1}
-
-    def _match_score(type_label: str, concept_name: str) -> float:
-        """Token-overlap Jaccard score between type label and concept."""
-        tokens_a = _tokenize(type_label)
-        tokens_b = _tokenize(concept_name)
-        if not tokens_a or not tokens_b:
-            return 0.0
-        intersection = tokens_a & tokens_b
-        union = tokens_a | tokens_b
-        return len(intersection) / len(union)
-
-    type_to_concept: dict[str, tuple[str, float]] = {}
-    type_counts: dict[str, int] = defaultdict(int)
-
-    for _, type_label in record_entities.items():
-        type_counts[type_label] += 1
-
-    for type_label in type_counts:
-        best_match = ""
-        best_score = 0.0
-
-        for candidate in class_candidates:
-            score = _match_score(type_label, candidate)
-            if score > best_score:
-                best_score = score
-                best_match = candidate
-
-        # Require minimum similarity threshold.
-        if best_score >= 0.3 and best_match:
-            type_to_concept[type_label] = (best_match, best_score)
-
-    if not type_to_concept:
-        return []
-
-    # Step 4: Emit INSTANCE_OF triples.
-    new_triples: list[dict] = []
-    for entity_id, type_label in record_entities.items():
-        match = type_to_concept.get(type_label)
-        if not match:
-            continue
-        concept, score = match
-        new_triples.append({
-            "subject": entity_id,
-            "subject_type": type_label,
-            "relation": "INSTANCE_OF",
-            "object": concept,
-            "object_type": "Concept",
-            "span": f"{type_label} → {concept} (score={score:.2f})",
-            "confidence": round(min(score + 0.5, 0.98), 2),
-            "chunk_id": "concept_link",
-            "source": "concept_linker",
-            "source_type": "concept_link",
-        })
-
-    return new_triples
-
 
 # ---------------------------------------------------------------------------
 # Post-extraction semantic validator (Priority 5)
@@ -1025,7 +915,7 @@ def _filter_semantic_errors(
 
     for t in triples:
         # Don't validate structured/deterministic triples — they're correct by construction.
-        if t.get("source_type") in ("structured", "cross_source", "concept_link"):
+        if t.get("source_type") in ("structured", "cross_source"):
             filtered.append(t)
             continue
 
@@ -1183,22 +1073,13 @@ def extract_triples(state: Zone2State) -> dict:
         for reason, count in sorted(semantic_stats.items(), key=lambda x: -x[1]):
             print(f"      {reason}: {count}")
 
-    # P3: PDF↔CSV concept linking.
-    concept_triples = _create_concept_links(all_triples)
-    if concept_triples:
-        all_triples = all_triples + concept_triples
-        # Count unique concepts linked.
-        linked_concepts = set(t["object"] for t in concept_triples)
-        print(f"\n  ✓ Concept linking: {len(concept_triples)} INSTANCE_OF triples "
-              f"→ {len(linked_concepts)} concepts ({', '.join(sorted(linked_concepts))})")
-
     per_chunk = len(all_triples) / max(len(chunks), 1)
 
     print(f"\n  ✓ LLM raw triples (all passes): {len(all_raw_triples)}")
-    llm_count = len(all_triples) - len(structured) - len(concept_triples) if concept_triples else len(all_triples) - len(structured)
+    llm_count = len(all_triples) - len(structured)
     print(f"  ✓ LLM after dedup + filter:     {llm_count} "
           f"(removed {dedup_removed} duplicates, {n_removed} placeholders)")
-    print(f"  ✓ Total triples (structured + LLM + links): {len(all_triples)}")
+    print(f"  ✓ Total triples (structured + LLM): {len(all_triples)}")
     print(f"  ✗ Errors:                   {len(errors)} chunk-passes failed")
     vq = evaluate_vocab_quality(all_triples, vocab)
     print(f"  ✓ Vocab coverage: {vq['types_used']}/{vq['vocab_size']} "
@@ -1491,8 +1372,8 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
         print(f"  ✓ Loaded {len(triples)} cached triples")
         print(f"  ✓ Skipping: load_chunks, extract_structured, bootstrap_vocab, "
               f"extract_triples, canonicalize_relations")
-        print(f"  → Running: placeholder_filter → entity_resolution → "
-              f"cross_source_link → concept_link → insert_to_neo4j")
+        print(f"  → Running: placeholder_filter → semantic_validator → "
+              f"entity_resolution → cross_source_link → insert_to_neo4j")
 
         start = time.time()
 
@@ -1513,14 +1394,6 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             print(f"\n  ✓ Semantic validator: rejected {n_sem} triples")
             for reason, count in sorted(sem_stats.items(), key=lambda x: -x[1]):
                 print(f"      {reason}: {count}")
-
-        # Concept linking (P3).
-        concept_triples = _create_concept_links(triples)
-        if concept_triples:
-            triples = triples + concept_triples
-            linked = set(t["object"] for t in concept_triples)
-            print(f"\n  ✓ Concept linking: {len(concept_triples)} INSTANCE_OF → "
-                  f"{', '.join(sorted(linked))}")
 
         # Entity resolution (in-memory).
         print("\n[4.5] Zone 2.5 — Entity Resolution (in-memory)...")
