@@ -223,16 +223,19 @@ def analyze_record_evidence(all_entities: list[dict]) -> str:
         if top_rels:
             lines.append(f"  - {stats['count']} {label} records with relations: {', '.join(top_rels)}")
 
-    # Also summarize value entity patterns (locations, amounts)
+    # Also summarize value entity patterns using domain-agnostic keyword matching
+    geo_patterns = {"state", "city", "zip", "address", "county", "location", "community"}
+    financial_patterns = {"amount", "cost", "payment", "premium", "fee", "price", "value", "coverage"}
     location_count = 0
     amount_count = 0
     for e in all_entities:
         if get_entity_lane(e) != "value":
             continue
-        in_rels = set(e.get("in_rel_counts", {}).keys())
-        if in_rels & {"HAS_PROPERTY_STATE", "HAS_REPORTED_CITY", "HAS_REPORTED_ZIP_CODE", "HAS_STATE"}:
+        in_rels = set(r.lower().replace("_", " ") for r in e.get("in_rel_counts", {}).keys())
+        in_rels_str = " ".join(in_rels)
+        if any(p in in_rels_str for p in geo_patterns):
             location_count += 1
-        if in_rels & {"HAS_AMOUNT_PAID_ON_BUILDING_CLAIM", "HAS_TOTAL_BUILDING_INSURANCE_COVERAGE", "HAS_POLICY_COST"}:
+        if any(p in in_rels_str for p in financial_patterns):
             amount_count += 1
 
     if location_count > 0:
@@ -325,14 +328,14 @@ Propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes that categori
 entities by their REAL-WORLD ROLE in {domain}.
 
 For each entity, ask: "WHAT IS this thing in the real world?"
-- "Coverage B" → it IS a type of insurance coverage → Coverage
-- "$250,000" → it IS a financial limit on a policy → Limit
-- "Flood Zone A" → it IS a hazard/risk category → Risk
-- "NFIP" → it IS an organization → Organization
-- "Basement" → it IS part of a building → Structure
-- "John Smith" → it IS a person → Person
-- "123 Main St" → it IS an address → Address
-- "Water damage" → it IS a type of damage/peril → Damage
+- A named coverage type → it IS a type of insurance coverage → Coverage
+- A dollar amount → it IS a financial limit on a policy → Limit
+- A risk zone or hazard area → it IS a hazard/risk category → Risk
+- A government agency or company → it IS an organization → Organization
+- A building component → it IS part of a building → Structure
+- A named individual or role → it IS a person → Person
+- A street address, city, or zip code → it IS an address → Address
+- A type of loss or peril → it IS a type of damage/peril → Damage
 
 RULES:
 1. Classes = real-world roles, NOT data types
@@ -539,16 +542,10 @@ def batch_type_entities(
 
     assignments: dict[str, str] = {}
 
-    # Pre-assign value entities — most go to "Other", but location values
-    # (cities, states, zip codes) get assigned to "Address" if that class exists.
-    LOCATION_RELATIONS = {
-        "HAS_PROPERTY_STATE", "HAS_REPORTED_CITY", "HAS_REPORTED_ZIP_CODE",
-        "HAS_STATE", "HAS_CITY", "HAS_ZIP_CODE", "HAS_ADDRESS",
-        "HAS_NFIP_COMMUNITY_NAME",
-    }
-    has_address_class = "Address" in class_vocab
+    # Pre-assign value entities to "Other" — will be overridden by
+    # type_value_entities() (Phase 1f) using relation-range induction.
     for e in value_entities:
-        assignments[e["id"]] = "Other"  # default, may be overridden by type_value_entities()
+        assignments[e["id"]] = "Other"
 
     # Assign structured entities directly from their entity_type.
     # If entity_type is not in class_vocab, add it (prevents ghost classes).
@@ -599,10 +596,10 @@ AVAILABLE CLASSES: {class_list}, Other
 
 For each entity, ask: "What IS this thing in the insurance domain?"
 - A deductible is a feature of a product/coverage, not a financial amount
-- A flood zone is a risk classification, not just a location
+- A risk zone is a risk classification, not just a location
 - A building is a physical structure
-- "NFIP" is an organization
-- "Coverage B" is a type of coverage
+- A government agency is an organization
+- A named coverage type is a type of coverage
 
 ENTITIES:
 {chr(10).join(entity_descriptions)}
