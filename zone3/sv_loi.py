@@ -178,10 +178,81 @@ def load_entities() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Phase 0.5: Record Evidence Analysis
+# ---------------------------------------------------------------------------
+
+def analyze_record_evidence(all_entities: list[dict]) -> str:
+    """Analyze record entity relation patterns → natural-language evidence.
+
+    Records (POL-xxx, CLM-xxx, etc.) carry domain signals that should inform
+    class discovery without directly voting. This function summarizes their
+    relation patterns into a short evidence block for the discovery prompt.
+
+    Returns:
+        5-8 line natural-language summary of record patterns, e.g.:
+        "The graph also contains:
+         - 485 claim records with HAS_DATE_OF_LOSS, HAS_BUILDING_DAMAGE_AMOUNT
+         - 459 policy records with HAS_POLICY_COST, HAS_RATED_FLOOD_ZONE
+         - 854 property records with HAS_PROPERTY_STATE, HAS_REPORTED_CITY"
+    """
+    # Group records by prefix type
+    prefix_stats: dict[str, dict] = {}
+    for e in all_entities:
+        lane = get_entity_lane(e)
+        if lane != "record":
+            continue
+        # Determine record type from ID prefix
+        prefix = e["id"].split("-")[0] + "-" if "-" in e["id"] else "other"
+        if prefix not in prefix_stats:
+            prefix_stats[prefix] = {"count": 0, "rel_counts": Counter()}
+        prefix_stats[prefix]["count"] += 1
+        for rel_type in e.get("out_rel_counts", {}):
+            if rel_type != "IS_A":  # skip generic IS_A
+                prefix_stats[prefix]["rel_counts"][rel_type] += 1
+
+    if not prefix_stats:
+        return ""
+
+    # Build summary lines
+    lines = ["The graph also contains structured records with these patterns:"]
+    prefix_labels = {"POL-": "policy", "CLM-": "claim", "PROP-": "property",
+                     "REC-": "record", "PER-": "person"}
+    for prefix, stats in sorted(prefix_stats.items(), key=lambda x: -x[1]["count"]):
+        label = prefix_labels.get(prefix, prefix.rstrip("-"))
+        top_rels = [rel for rel, _ in stats["rel_counts"].most_common(4)]
+        if top_rels:
+            lines.append(f"  - {stats['count']} {label} records with relations: {', '.join(top_rels)}")
+
+    # Also summarize value entity patterns (locations, amounts)
+    location_count = 0
+    amount_count = 0
+    for e in all_entities:
+        if get_entity_lane(e) != "value":
+            continue
+        in_rels = set(e.get("in_rel_counts", {}).keys())
+        if in_rels & {"HAS_PROPERTY_STATE", "HAS_REPORTED_CITY", "HAS_REPORTED_ZIP_CODE", "HAS_STATE"}:
+            location_count += 1
+        if in_rels & {"HAS_AMOUNT_PAID_ON_BUILDING_CLAIM", "HAS_TOTAL_BUILDING_INSURANCE_COVERAGE", "HAS_POLICY_COST"}:
+            amount_count += 1
+
+    if location_count > 0:
+        lines.append(f"  - {location_count} location values (cities, states, zip codes) connected via geographic relations")
+    if amount_count > 0:
+        lines.append(f"  - {amount_count} financial values (coverage amounts, payments, costs)")
+
+    lines.append("Consider whether these record patterns suggest additional ontology classes.")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Phase 1: Class Discovery + Batched LLM Entity Typing
 # ---------------------------------------------------------------------------
 
-def discover_class_vocabulary(entities: list[dict], llm: ChatOllama) -> list[str]:
+def discover_class_vocabulary(
+    entities: list[dict],
+    llm: ChatOllama,
+    record_evidence: str = "",
+) -> list[str]:
     """Two-stage class discovery: detect domain → propose domain-role classes.
 
     Stage 1: Ask LLM what domain this KG is about.
@@ -234,6 +305,11 @@ What industry/domain is this knowledge graph about? Answer in 1-3 words."""
     # ---- Stage 2: Propose classes ----
     print("  Stage 2: Proposing ontology classes...", flush=True)
 
+    # Inject record evidence if available
+    evidence_block = ""
+    if record_evidence:
+        evidence_block = f"\n{record_evidence}\n"
+
     prompt = f"""You are designing a DOMAIN ONTOLOGY for a {domain} knowledge graph.
 
 Here are {len(name_sample)} entity names from the graph (domain concepts only):
@@ -244,7 +320,7 @@ Relationship types:
 
 Example triples:
 {chr(10).join(triple_examples)}
-
+{evidence_block}
 Propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes that categorize these \
 entities by their REAL-WORLD ROLE in {domain}.
 
@@ -1599,7 +1675,12 @@ def run_sv_loi(
 
     # Phase 1a: Discover class vocabulary (concept entities only)
     concept_entities = get_concept_entities(entities)
-    class_vocab = discover_class_vocabulary(concept_entities, llm)
+    # Phase 0.5: Analyze record relation signatures for class discovery evidence
+    record_evidence = analyze_record_evidence(entities)
+    if record_evidence:
+        _flush_print(f"\n[Phase 0.5] Record evidence:\n{record_evidence}")
+
+    class_vocab = discover_class_vocabulary(concept_entities, llm, record_evidence=record_evidence)
 
     # Phase 1b: Batch LLM entity typing
     assignments = batch_type_entities(entities, class_vocab, llm)
