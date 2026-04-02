@@ -1028,67 +1028,135 @@ def propagate_to_records(
     concept_assignments: dict[str, str],
     entities: list[dict],
     entity_map: dict[str, dict],
-    majority_threshold: float = 0.50,
+    class_vocab: list[str],
+    llm: Optional[ChatOllama] = None,
 ) -> dict[str, str]:
-    """Propagate concept entity types to records via neighbor-majority voting.
+    """Map record entities to induced ontology classes via schema mapping.
 
-    For each record entity, find its connected concept entities.
-    Majority-vote their classes (>threshold). Fallback: Zone 2 entity_type.
+    Records (POL-xxx, CLM-xxx, PROP-xxx) come from tabular data and exist in
+    a disconnected subgraph from concept entities — they connect only to value
+    entities (numbers, dates, categories), not to concepts. Neighbor-majority
+    voting therefore cannot work.
 
-    This replaces the Zone 2 entity_type pre-assignment, giving records
-    types that are verified by the concept-first pipeline.
+    Instead, we use schema mapping: group records by their Zone 2 entity_type,
+    collect each type's relation profile (what relations it participates in),
+    and ask the LLM which induced ontology class best fits each record type.
+    This is domain-agnostic — works for any tabular schema.
+
+    Algorithm:
+        1. Group record entities by Zone 2 entity_type
+        2. For each type, collect top relation names as a profile
+        3. Ask LLM: "Given classes [X, Y, Z], which class fits entities
+           that have relations [HAS_COVERAGE, HAS_DAMAGE_AMOUNT, ...]?"
+        4. Bulk-assign all records of that type to the mapped class
+
+    This is analogous to R2RML/OBDA schema mapping (Sequeda et al. 2012),
+    but learned from the induced ontology rather than a pre-existing one.
 
     Args:
         concept_assignments: verified concept entity → class mapping
         entities: all entities
         entity_map: {eid: entity_dict}
-        majority_threshold: fraction of concept neighbors needed (default: 0.50)
+        class_vocab: list of induced ontology class names
+        llm: LLM for schema mapping (optional; falls back to heuristic)
 
     Returns:
         {record_eid: class_name} for all record entities
     """
-    print(f"\n[Phase 1e] Propagating concept types to records (threshold={majority_threshold:.0%})...", flush=True)
+    print("\n[Phase 1e] Schema mapping: record types → induced classes...", flush=True)
 
-    record_assignments: dict[str, str] = {}
-    propagated = 0
-    fallback = 0
+    # Step 1: Group records by entity_type, collect relation profiles
+    type_records: dict[str, list[str]] = defaultdict(list)
+    type_relations: dict[str, Counter] = defaultdict(Counter)
 
     for e in entities:
         eid = e["id"]
         if get_entity_lane(e) != "record":
             continue
+        etype = e.get("entity_type", "Unknown")
+        type_records[etype].append(eid)
+        for rel_type, count in e.get("out_rel_counts", {}).items():
+            type_relations[etype][rel_type] += count
 
-        # Collect classes of connected concept entities
-        neighbor_classes: list[str] = []
-        for rel in e.get("out_rels", []):
-            tgt = rel.get("target", "")
-            tgt_cls = concept_assignments.get(tgt)
-            if tgt_cls and tgt_cls != "Other":
-                neighbor_classes.append(tgt_cls)
-        for rel in e.get("in_rels", []):
-            src = rel.get("source", "")
-            src_cls = concept_assignments.get(src)
-            if src_cls and src_cls != "Other":
-                neighbor_classes.append(src_cls)
+    if not type_records:
+        print("  No record entities found.", flush=True)
+        return {}
 
-        if neighbor_classes:
-            class_counts = Counter(neighbor_classes)
-            top_cls, top_count = class_counts.most_common(1)[0]
-            fraction = top_count / len(neighbor_classes)
+    print(f"  Found {len(type_records)} record types: "
+          f"{', '.join(f'{t} ({len(eids)})' for t, eids in type_records.items())}",
+          flush=True)
 
-            if fraction >= majority_threshold:
-                record_assignments[eid] = top_cls
-                propagated += 1
-                continue
+    # Step 2: Build schema mapping via LLM (or heuristic fallback)
+    type_to_class: dict[str, str] = {}
+    valid_classes = [c for c in class_vocab if c != "Other"]
 
-        # Fallback: use Zone 2 entity_type → sanitize → match vocab
-        et = e.get("entity_type", "Other")
-        sanitized = _sanitize_label(et) if et and et != "Unknown" else "Other"
-        record_assignments[eid] = sanitized
-        fallback += 1
+    if llm and valid_classes:
+        for etype, rel_counts in type_relations.items():
+            top_rels = [r for r, _ in rel_counts.most_common(12)]
+            rels_str = ", ".join(top_rels)
 
-    print(f"  ✓ {propagated} records typed by concept neighbors, "
-          f"{fallback} used Zone 2 fallback", flush=True)
+            prompt = (
+                "Schema mapping task: assign a record type to an ontology class.\n\n"
+                f"Record type: {etype}\n"
+                f"Typical relations: {rels_str}\n\n"
+                f"Available ontology classes: {', '.join(valid_classes)}\n\n"
+                "Which ONE ontology class best describes what this record type IS?\n"
+                "A PolicyRecord IS a policy/product. A ClaimRecord IS a claim.\n"
+                "Think about what the record represents, not what it connects to.\n\n"
+                "Answer with ONLY the class name, nothing else."
+            )
+
+            try:
+                response = llm.invoke(prompt)
+                answer = response.content.strip().strip('"').strip("'")
+                matched = None
+                for c in valid_classes:
+                    if c.lower() == answer.lower():
+                        matched = c
+                        break
+                if not matched:
+                    for c in valid_classes:
+                        if answer.lower() in c.lower() or c.lower() in answer.lower():
+                            matched = c
+                            break
+                if matched:
+                    type_to_class[etype] = matched
+                    print(f"  LLM: {etype} → {matched}", flush=True)
+                else:
+                    print(f"  LLM: {etype} → '{answer}' (no match in vocab)",
+                          flush=True)
+            except Exception as exc:
+                print(f"  LLM error for {etype}: {exc}", flush=True)
+
+    # Heuristic fallback for unmapped types
+    for etype in type_records:
+        if etype not in type_to_class:
+            sanitized = _sanitize_label(etype)
+            for c in valid_classes:
+                if c.lower() == sanitized.lower():
+                    type_to_class[etype] = c
+                    print(f"  Heuristic: {etype} → {c} (exact match)", flush=True)
+                    break
+            else:
+                type_to_class[etype] = "Other"
+                print(f"  Heuristic: {etype} → Other (no match)", flush=True)
+
+    # Step 3: Bulk-assign records
+    record_assignments: dict[str, str] = {}
+    mapped = 0
+    unmapped = 0
+
+    for etype, eids in type_records.items():
+        cls = type_to_class.get(etype, "Other")
+        for eid in eids:
+            record_assignments[eid] = cls
+            if cls != "Other":
+                mapped += 1
+            else:
+                unmapped += 1
+
+    print(f"  ✓ {mapped} records mapped to ontology classes, "
+          f"{unmapped} unmapped", flush=True)
     return record_assignments
 
 
@@ -1982,6 +2050,7 @@ def run_sv_loi(
         }
         record_assignments = propagate_to_records(
             concept_assignments_verified, entities, entity_map_all,
+            class_vocab=class_vocab, llm=llm,
         )
         for eid, cls in record_assignments.items():
             assignments[eid] = cls
