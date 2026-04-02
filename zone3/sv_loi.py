@@ -1090,19 +1090,25 @@ def propagate_to_records(
     type_to_class: dict[str, str] = {}
     valid_classes = [c for c in class_vocab if c != "Other"]
 
-    if llm and valid_classes:
+    # Exclude record-type names from valid target classes — they are schema
+    # types, not ontology classes. Without this, the LLM may map
+    # "PolicyRecord" → "PolicyRecord" (tautological).
+    record_type_names = {_sanitize_label(et).lower() for et in type_records}
+    target_classes = [c for c in valid_classes
+                      if c.lower() not in record_type_names]
+
+    if llm and target_classes:
         for etype, rel_counts in type_relations.items():
             top_rels = [r for r, _ in rel_counts.most_common(12)]
             rels_str = ", ".join(top_rels)
 
             prompt = (
-                "Schema mapping task: assign a record type to an ontology class.\n\n"
+                "Schema mapping task: assign a database record type to an ontology class.\n\n"
                 f"Record type: {etype}\n"
                 f"Typical relations: {rels_str}\n\n"
-                f"Available ontology classes: {', '.join(valid_classes)}\n\n"
+                f"Available ontology classes: {', '.join(target_classes)}\n\n"
                 "Which ONE ontology class best describes what this record type IS?\n"
-                "A PolicyRecord IS a policy/product. A ClaimRecord IS a claim.\n"
-                "Think about what the record represents, not what it connects to.\n\n"
+                "Think about what the record represents as a real-world concept.\n\n"
                 "Answer with ONLY the class name, nothing else."
             )
 
@@ -1110,12 +1116,12 @@ def propagate_to_records(
                 response = llm.invoke(prompt)
                 answer = response.content.strip().strip('"').strip("'")
                 matched = None
-                for c in valid_classes:
+                for c in target_classes:
                     if c.lower() == answer.lower():
                         matched = c
                         break
                 if not matched:
-                    for c in valid_classes:
+                    for c in target_classes:
                         if answer.lower() in c.lower() or c.lower() in answer.lower():
                             matched = c
                             break
@@ -1132,7 +1138,7 @@ def propagate_to_records(
     for etype in type_records:
         if etype not in type_to_class:
             sanitized = _sanitize_label(etype)
-            for c in valid_classes:
+            for c in target_classes:
                 if c.lower() == sanitized.lower():
                     type_to_class[etype] = c
                     print(f"  Heuristic: {etype} → {c} (exact match)", flush=True)
@@ -1141,13 +1147,21 @@ def propagate_to_records(
                 type_to_class[etype] = "Other"
                 print(f"  Heuristic: {etype} → Other (no match)", flush=True)
 
-    # Step 3: Bulk-assign records
+    # Step 3: Bulk-assign records AND redirect any entities already typed
+    # with the record-type class name (e.g., "PolicyRecord") to the mapped
+    # ontology class (e.g., "Product"). This cleans up record-type names
+    # that leaked into the class vocabulary during Phase 1a discovery.
     record_assignments: dict[str, str] = {}
+    redirects: dict[str, str] = {}  # old_class → new_class
     mapped = 0
     unmapped = 0
 
     for etype, eids in type_records.items():
         cls = type_to_class.get(etype, "Other")
+        # Record the redirect so caller can fix concept entities too
+        sanitized = _sanitize_label(etype)
+        if cls != "Other" and sanitized != cls:
+            redirects[sanitized] = cls
         for eid in eids:
             record_assignments[eid] = cls
             if cls != "Other":
@@ -1155,9 +1169,12 @@ def propagate_to_records(
             else:
                 unmapped += 1
 
+    if redirects:
+        print(f"  Class redirects: {redirects}", flush=True)
+
     print(f"  ✓ {mapped} records mapped to ontology classes, "
           f"{unmapped} unmapped", flush=True)
-    return record_assignments
+    return record_assignments, redirects
 
 
 def build_structural_signatures(entities: list[dict]) -> tuple[np.ndarray, list[str], list[str]]:
@@ -2048,12 +2065,29 @@ def run_sv_loi(
             eid: cls for eid, cls in assignments.items()
             if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
         }
-        record_assignments = propagate_to_records(
+        record_assignments, redirects = propagate_to_records(
             concept_assignments_verified, entities, entity_map_all,
             class_vocab=class_vocab, llm=llm,
         )
         for eid, cls in record_assignments.items():
             assignments[eid] = cls
+        # Apply redirects: fix any entity (concept or value) that was typed
+        # with a record-type class name (e.g., "PolicyRecord" → "Product")
+        if redirects:
+            redirected = 0
+            for eid in list(assignments.keys()):
+                old_cls = assignments[eid]
+                if old_cls in redirects:
+                    assignments[eid] = redirects[old_cls]
+                    redirected += 1
+            # Clean class_vocab: remove record-type names, ensure targets exist
+            for old_cls, new_cls in redirects.items():
+                if old_cls in class_vocab:
+                    class_vocab.remove(old_cls)
+                if new_cls not in class_vocab:
+                    class_vocab.append(new_cls)
+            _flush_print(f"  Redirected {redirected} entities, "
+                         f"cleaned vocab: removed {list(redirects.keys())}")
 
     # Phase 1f: Generalized value entity typing (AFTER record propagation
     # so value entities can see record neighbor classes for majority voting)
