@@ -133,16 +133,37 @@ def _llm_judge(llm: ChatOllama, induced: str, riskine_class: str, properties: li
 # Main alignment measurement
 # ---------------------------------------------------------------------------
 
-def _get_label_members(graph: Neo4jGraph, label: str) -> list[str]:
-    """Return entity IDs that carry a given Neo4j label (up to 30)."""
+# Prefixes for structured record entities (opaque IDs, not semantic names).
+# These are filtered from member lists for embedding-based evaluation because
+# "POL-3d2371dd" has no semantic content — it would add noise to class centroids.
+_RECORD_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
+
+
+def _get_label_members(
+    graph: Neo4jGraph, label: str, *, exclude_records: bool = True,
+) -> list[str]:
+    """Return entity IDs that carry a given Neo4j label.
+
+    Args:
+        graph: Neo4j connection.
+        label: Neo4j node label (PascalCase class name).
+        exclude_records: If True, filter out structured record IDs (POL-xxx, etc.)
+            that have no semantic content for embedding-based evaluation.
+
+    Returns:
+        Up to 30 semantic entity names for the class.
+    """
     safe = re.sub(r"[^A-Za-z0-9_]", "", label)
     if not safe:
         return []
     try:
         rows = graph.query(
-            f"MATCH (n:{safe}) WHERE n.id IS NOT NULL RETURN n.id AS id LIMIT 30"
+            f"MATCH (n:{safe}) WHERE n.id IS NOT NULL RETURN n.id AS id LIMIT 100"
         )
-        return [r["id"] for r in rows if r.get("id")]
+        members = [r["id"] for r in rows if r.get("id")]
+        if exclude_records:
+            members = [m for m in members if not m.startswith(_RECORD_PREFIXES)]
+        return members[:30]
     except Exception:
         return []
 
@@ -172,21 +193,23 @@ def measure_entity_assignment(
     MEMBER_CANDIDATE_THRESHOLD = 0.42   # centroid cosines are denser — lower threshold
     MEMBER_MATCH_THRESHOLD     = 0.58   # above this → MATCH (score 1.0), else PARTIAL (0.5)
 
-    print("\n  [entity-assignment] Building member-centroid embeddings...")
+    print("\n  [entity-assignment] Building member-centroid embeddings (v2: enriched + dual)...")
     centroids: list[np.ndarray] = []
     descriptions: list[str] = []
 
     for label in induced_labels:
         members = _get_label_members(graph, label)
+        human_label = _humanize_label(label)
         if members:
-            embs = embed_labels(members)                          # (M, 384)
-            centroid = embs.mean(axis=0)
-            norm = np.linalg.norm(centroid)
-            if norm > 0:
-                centroid = centroid / norm
-            # else: zero vector → ~0 similarity, which is correct
+            # Enriched representation: "ClassName: member1, member2, ..."
+            # Anchors embedding to class semantics while incorporating member evidence.
+            # Raw member-centroid averaging loses the class context and produces
+            # embeddings in a different semantic space from Riskine's property-based
+            # descriptions (see F-19: EA eval sensitivity).
+            enriched_text = f"{human_label}: {', '.join(members[:15])}"
+            centroid = embed_labels([enriched_text])[0]           # (384,)
         else:
-            centroid = embed_labels([_humanize_label(label)])[0]  # fallback: class name
+            centroid = embed_labels([human_label])[0]             # fallback: class name
         centroids.append(centroid)
         descriptions.append(
             f"{label}: [{', '.join(members[:5])}{'...' if len(members) > 5 else ''}]"
@@ -195,17 +218,26 @@ def measure_entity_assignment(
 
     induced_matrix = np.vstack(centroids)                         # (N, 384)
 
-    # Riskine representations: embed "<ClassName>: prop1, prop2, ..."
-    # This anchors to semantics (Person: name, address, nationality)
-    # rather than just the bare class name.
+    # Riskine dual representation: embed BOTH property-based and name-based
+    # descriptions, then take the element-wise max similarity.
+    # Rationale (see F-19): property descriptions ("Organization: business-name,
+    # founding-date, company-registry-number") live in a different semantic space
+    # from member entity names ("FEMA, Insurer"). Some classes match better on
+    # name similarity (Organization→Organization), others on property similarity
+    # (Coverage→is-included, sum-insured). Taking the max is fair to both.
     riskine_names = [c["name"] for c in riskine_classes]
-    riskine_texts = [
+    riskine_prop_texts = [
         f"{c['name']}: {', '.join(c['properties'][:8])}"
         for c in riskine_classes
     ]
-    riskine_embs = embed_labels(riskine_texts)                    # (K, 384)
+    riskine_name_texts = [_humanize_label(c["name"]) for c in riskine_classes]
 
-    sim_matrix = np.dot(induced_matrix, riskine_embs.T)          # (N, K)
+    riskine_prop_embs = embed_labels(riskine_prop_texts)          # (K, 384)
+    riskine_name_embs = embed_labels(riskine_name_texts)          # (K, 384)
+
+    sim_props = np.dot(induced_matrix, riskine_prop_embs.T)       # (N, K)
+    sim_names = np.dot(induced_matrix, riskine_name_embs.T)       # (N, K)
+    sim_matrix = np.maximum(sim_props, sim_names)                 # element-wise max
 
     scores: list[float] = []
     riskine_covered: set[str] = set()
