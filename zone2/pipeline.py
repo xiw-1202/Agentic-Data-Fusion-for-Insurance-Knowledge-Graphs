@@ -255,6 +255,171 @@ def keep_triple(t: dict) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------
+# Context-aware placeholder filtering (Priority 1)
+# ---------------------------------------------------------------------------
+# "Currently Unavailable" appears 2,000× as HAS_REPORTED_CITY target because
+# FEMA redacts city names. A global blocklist is wrong — the same string
+# could be meaningful in another relation context. Instead we check
+# (relation_type, value) heuristically.
+
+# Null-like patterns — ANCHORED matching (exact after normalization).
+# Substring matching causes false positives ("Unknown Road", "N/A Holdings").
+_NULL_EXACT_PATTERNS = frozenset({
+    "unavailable", "unknown", "n/a", "na", "not available",
+    "not applicable", "none", "null", "redacted",
+    "undetermined", "unspecified", "pending", "missing",
+    "not provided", "tbd", "unk", "-", "--", "*", ".",
+    "currently unavailable", "not reported",
+})
+
+# Sentinel date/numeric patterns that indicate missing data.
+_NULL_DATE_PATTERNS = frozenset({"0000-00-00", "9999-99-99", "99/99/9999"})
+_NULL_NUMERIC_PATTERNS = frozenset({"0", "000000", "-1", "999999"})
+
+# Relation datatype families — controls which null lexicon applies.
+# Each family uses anchored exact matching on normalized values.
+_TEXT_BEARING_HINTS = frozenset({
+    "city", "county", "state", "zip", "address", "street",
+    "country", "province", "region", "municipality", "town",
+    "name", "policyholder", "claimant", "insured", "agent",
+    "adjuster", "beneficiary", "contact", "description",
+    "type", "code", "class", "category", "zone", "status",
+    "occupancy", "construction", "valuation", "condition",
+})
+_DATE_BEARING_HINTS = frozenset({
+    "date", "effective", "termination", "expiration",
+    "loss", "construction", "cancellation", "original",
+})
+_AMOUNT_BEARING_HINTS = frozenset({
+    "amount", "cost", "coverage", "premium", "deductible",
+    "limit", "payment", "fee", "value", "rate",
+})
+
+# Prevalence threshold: a (rel, val) pair is suspicious if it accounts
+# for more than this fraction of a relation's total triples.
+_PREVALENCE_THRESHOLD = 0.20
+# Absolute floor — don't flag low-count pairs even if prevalence is high.
+_MIN_ABSOLUTE_COUNT = 50
+
+
+def _normalize_for_null_check(value: str) -> str:
+    """Normalize value for null-pattern matching: lowercase, strip, collapse punctuation."""
+    return value.strip().lower().strip(".-*/ ")
+
+
+def _is_placeholder_value(relation: str, value: str) -> bool:
+    """Detect placeholder values using (relation, value) context.
+
+    Rules (domain-agnostic, anchored matching):
+      1. Empty / whitespace-only → always filter
+      2. Short alphanumeric codes (≤3 chars) → never filter (FEMA codes, zips)
+      3. Text-bearing relations: exact null-pattern match → filter
+      4. Date-bearing relations: sentinel date patterns → filter
+      5. Amount-bearing relations: sentinel numeric patterns → filter
+    """
+    stripped = value.strip()
+
+    # Rule 1: empty or whitespace
+    if not stripped:
+        return True
+
+    # Rule 2: short codes are often meaningful (FEMA codes, zips)
+    # But check for null sentinels before skipping.
+    if len(stripped) <= 3:
+        norm = _normalize_for_null_check(stripped)
+        # Null sentinel tokens: "-", "na", "*", empty-after-strip
+        if norm in _NULL_EXACT_PATTERNS or norm == "":
+            return True
+        # Also check type-specific sentinels for short values.
+        rel_lower = relation.lower()
+        if any(h in rel_lower for h in _DATE_BEARING_HINTS) and norm in _NULL_DATE_PATTERNS:
+            return True
+        if any(h in rel_lower for h in _AMOUNT_BEARING_HINTS) and norm in _NULL_NUMERIC_PATTERNS:
+            return True
+        # Short alphanumeric code — likely meaningful
+        if stripped.replace(".", "").replace("-", "").isalnum():
+            return False
+
+    normalized = _normalize_for_null_check(stripped)
+    rel_lower = relation.lower()
+
+    # Rule 3: text-bearing relation + exact null match
+    if any(hint in rel_lower for hint in _TEXT_BEARING_HINTS):
+        if normalized in _NULL_EXACT_PATTERNS:
+            return True
+
+    # Rule 4: date-bearing relation + sentinel date
+    if any(hint in rel_lower for hint in _DATE_BEARING_HINTS):
+        if normalized in _NULL_DATE_PATTERNS:
+            return True
+
+    # Rule 5: amount-bearing relation + sentinel numeric
+    if any(hint in rel_lower for hint in _AMOUNT_BEARING_HINTS):
+        if normalized in _NULL_NUMERIC_PATTERNS:
+            return True
+
+    return False
+
+
+def _filter_placeholder_triples(
+    triples: list[dict],
+) -> tuple[list[dict], dict[str, int]]:
+    """Context-aware placeholder filtering on the full triple list.
+
+    Two-pass approach:
+      Pass 1: Detect high-prevalence (relation, value) pairs where:
+              - The pair accounts for >20% of that relation's total triples
+              - AND the pair appears ≥50 times (absolute floor)
+              - AND the value matches a null-like pattern (anchored exact)
+      Pass 2: Remove those triples + per-triple context checks.
+
+    Returns (filtered_triples, removal_stats).
+    """
+    # Pass 1: Count per-relation totals and per-(relation, value) frequencies.
+    rel_totals: dict[str, int] = defaultdict(int)
+    rel_val_counts: dict[tuple[str, str], int] = defaultdict(int)
+    for t in triples:
+        rel_totals[t["relation"]] += 1
+        rel_val_counts[(t["relation"], t["object"])] += 1
+
+    # Identify high-prevalence placeholders.
+    high_prevalence_placeholders: set[tuple[str, str]] = set()
+    for (rel, val), count in rel_val_counts.items():
+        if count < _MIN_ABSOLUTE_COUNT:
+            continue
+        prevalence = count / max(rel_totals[rel], 1)
+        if prevalence >= _PREVALENCE_THRESHOLD:
+            normalized = _normalize_for_null_check(val)
+            if normalized in _NULL_EXACT_PATTERNS:
+                high_prevalence_placeholders.add((rel, val))
+
+    # Pass 2: Filter.
+    removal_stats: dict[str, int] = defaultdict(int)
+    filtered: list[dict] = []
+    for t in triples:
+        rel, val = t["relation"], t["object"]
+
+        # Always remove empty/whitespace objects.
+        if not val.strip():
+            removal_stats["empty_value"] += 1
+            continue
+
+        # High-prevalence placeholder.
+        if (rel, val) in high_prevalence_placeholders:
+            removal_stats["high_prevalence_placeholder"] += 1
+            continue
+
+        # Per-triple context check (catches low-frequency placeholders too).
+        if _is_placeholder_value(rel, val):
+            removal_stats["context_placeholder"] += 1
+            continue
+
+        filtered.append(t)
+
+    return filtered, dict(removal_stats)
+
+
 def evaluate_vocab_quality(triples: list[dict], vocab: list[str]) -> dict:
     """Measure how useful the bootstrapped vocabulary is after extraction."""
     used = {t["relation"] for t in triples}
@@ -676,6 +841,203 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
     return triples
 
 
+# ---------------------------------------------------------------------------
+# PDF↔CSV concept linking (Priority 3)
+# ---------------------------------------------------------------------------
+# PDF concept "Policy" and CSV records POL-xxx are disconnected. This step
+# links them with INSTANCE_OF triples derived from record_type metadata.
+# Domain-agnostic: maps record_type → concept name generically.
+
+def _create_concept_links(triples: list[dict]) -> list[dict]:
+    """Create INSTANCE_OF triples linking structured records to PDF-extracted concepts.
+
+    Algorithm:
+      1. Collect all record entity IDs and their record types from IS_A triples.
+      2. Collect class-candidate nodes: entities that appear as SUBJECTS in
+         PDF-extracted triples (not objects) — these are more likely to be
+         ontological concepts than arbitrary value mentions.
+      3. For each record type, find matching concept via fuzzy token-overlap.
+      4. Emit INSTANCE_OF triples: POL-xxx --INSTANCE_OF--> Policy
+
+    Domain-agnostic: uses record_type metadata, not hardcoded entity names.
+    Fuzzy matching via normalized token overlap (Jaccard-like) so
+    "Insurance Policy" still matches "PolicyRecord" → "Policy".
+    """
+    # Step 1: Collect record entities and their types.
+    record_entities: dict[str, str] = {}  # entity_id → record_type_label
+    for t in triples:
+        if t["relation"] == "IS_A" and t.get("source_type") == "structured":
+            record_entities[t["subject"]] = t["object"]  # e.g., "PolicyRecord"
+
+    if not record_entities:
+        return []
+
+    # Step 2: Collect class-candidate nodes — SUBJECTS of PDF-extracted triples.
+    # Objects are often values ("$250,000", "30 days") not class concepts.
+    # A node that appears as subject in a relation like COVERS or DEFINED_AS
+    # is much more likely to be a class-level concept.
+    pdf_subject_counts: dict[str, int] = defaultdict(int)
+    for t in triples:
+        if t.get("source_type") not in ("structured", "cross_source", "concept_link"):
+            pdf_subject_counts[t["subject"]] += 1
+
+    # Only consider nodes that appear as subjects at least twice (class-like).
+    class_candidates: set[str] = {
+        node for node, count in pdf_subject_counts.items() if count >= 2
+    }
+
+    if not class_candidates:
+        # Fallback: all PDF subjects
+        class_candidates = set(pdf_subject_counts.keys())
+
+    # Step 3: Fuzzy matching — token overlap between type label and concept name.
+    def _tokenize(name: str) -> set[str]:
+        """Normalize and tokenize: strip 'Record', lowercase, split."""
+        cleaned = name.replace("Record", "").replace("record", "")
+        return {t for t in re.split(r'[\s_-]+', cleaned.lower()) if len(t) > 1}
+
+    def _match_score(type_label: str, concept_name: str) -> float:
+        """Token-overlap Jaccard score between type label and concept."""
+        tokens_a = _tokenize(type_label)
+        tokens_b = _tokenize(concept_name)
+        if not tokens_a or not tokens_b:
+            return 0.0
+        intersection = tokens_a & tokens_b
+        union = tokens_a | tokens_b
+        return len(intersection) / len(union)
+
+    type_to_concept: dict[str, tuple[str, float]] = {}
+    type_counts: dict[str, int] = defaultdict(int)
+
+    for _, type_label in record_entities.items():
+        type_counts[type_label] += 1
+
+    for type_label in type_counts:
+        best_match = ""
+        best_score = 0.0
+
+        for candidate in class_candidates:
+            score = _match_score(type_label, candidate)
+            if score > best_score:
+                best_score = score
+                best_match = candidate
+
+        # Require minimum similarity threshold.
+        if best_score >= 0.3 and best_match:
+            type_to_concept[type_label] = (best_match, best_score)
+
+    if not type_to_concept:
+        return []
+
+    # Step 4: Emit INSTANCE_OF triples.
+    new_triples: list[dict] = []
+    for entity_id, type_label in record_entities.items():
+        match = type_to_concept.get(type_label)
+        if not match:
+            continue
+        concept, score = match
+        new_triples.append({
+            "subject": entity_id,
+            "subject_type": type_label,
+            "relation": "INSTANCE_OF",
+            "object": concept,
+            "object_type": "Concept",
+            "span": f"{type_label} → {concept} (score={score:.2f})",
+            "confidence": round(min(score + 0.5, 0.98), 2),
+            "chunk_id": "concept_link",
+            "source": "concept_linker",
+            "source_type": "concept_link",
+        })
+
+    return new_triples
+
+
+# ---------------------------------------------------------------------------
+# Post-extraction semantic validator (Priority 5)
+# ---------------------------------------------------------------------------
+# Lightweight domain/range checks for known confusion patterns.
+# Rejects triples that are structurally valid but semantically wrong.
+# Domain-agnostic: checks relation TYPES, not specific entity names.
+
+# Relations that require a numeric/amount object (not an entity).
+_AMOUNT_RELATIONS = frozenset({
+    "HAS_DEDUCTIBLE", "HAS_COVERAGE_LIMIT", "HAS_MAXIMUM",
+    "HAS_PREMIUM", "HAS_COST", "HAS_FEE", "HAS_PAYMENT",
+})
+
+# Relations that require an entity subject, not an amount.
+_ENTITY_SUBJECT_RELATIONS = frozenset({
+    "COVERS", "EXCLUDED_FROM", "ADMINISTERS", "MUST_NOTIFY",
+    "MUST_FILE", "DEFINED_AS", "HAS_OPTION",
+})
+
+# Known confusion pairs: (wrong_relation, pattern) → should be different.
+# These catch the most common LLM extraction errors.
+_ASYMMETRIC_CHECKS: list[tuple[str, str, str]] = [
+    # (relation, subject_type_pattern, reason)
+    # An organization should ADMINISTER, not COVER
+    ("COVERS", "Organization", "organizations administer programs, not cover risks"),
+]
+
+
+def _validate_triple_semantics(t: dict) -> tuple[bool, str]:
+    """Validate a single triple for semantic correctness.
+
+    Returns (is_valid, reason). Domain-agnostic checks only.
+    """
+    rel = t.get("relation", "")
+    subj = t.get("subject", "")
+    obj = t.get("object", "")
+    subj_type = t.get("subject_type", "Unknown")
+    obj_type = t.get("object_type", "Unknown")
+
+    # Check 1: Amount relations should have numeric-like objects.
+    if rel in _AMOUNT_RELATIONS:
+        # Object should look like a number, currency, or percentage.
+        obj_stripped = obj.strip()
+        looks_numeric = bool(
+            re.match(r'^[\$]?[\d,]+(\.\d+)?(%)?$', obj_stripped)
+            or obj_type in ("Currency", "Numeric", "Percentage", "FinancialAmount")
+            or re.match(r'^\d+\s*(days?|months?|years?|hours?)$', obj_stripped, re.I)
+        )
+        if not looks_numeric and len(obj_stripped) > 5:
+            # Object is a long text string, likely an entity name → wrong
+            return False, f"{rel} expects numeric object, got '{obj_stripped[:30]}'"
+
+    # Check 2: Asymmetric relation checks.
+    for check_rel, type_pattern, reason in _ASYMMETRIC_CHECKS:
+        if rel == check_rel and type_pattern.lower() in subj_type.lower():
+            return False, reason
+
+    return True, ""
+
+
+def _filter_semantic_errors(
+    triples: list[dict],
+) -> tuple[list[dict], dict[str, int]]:
+    """Remove triples that fail semantic validation.
+
+    Only filters LLM-extracted triples (not structured or cross-source).
+    Returns (filtered_triples, error_stats).
+    """
+    error_stats: dict[str, int] = defaultdict(int)
+    filtered: list[dict] = []
+
+    for t in triples:
+        # Don't validate structured/deterministic triples — they're correct by construction.
+        if t.get("source_type") in ("structured", "cross_source", "concept_link"):
+            filtered.append(t)
+            continue
+
+        is_valid, reason = _validate_triple_semantics(t)
+        if is_valid:
+            filtered.append(t)
+        else:
+            error_stats[reason] += 1
+
+    return filtered, dict(error_stats)
+
+
 MAX_TRIPLES_PER_CHUNK = 50   # Safety cap per chunk (num_predict handles most cases)
 
 
@@ -803,12 +1165,40 @@ def extract_triples(state: Zone2State) -> dict:
         all_triples = structured + all_triples
         print(f"\n  ✓ Structured triples (SEAF-KG): {len(structured)}")
 
+    # P1: Context-aware placeholder filtering.
+    pre_filter_count = len(all_triples)
+    all_triples, placeholder_stats = _filter_placeholder_triples(all_triples)
+    n_removed = pre_filter_count - len(all_triples)
+    if n_removed > 0:
+        print(f"\n  ✓ Placeholder filter: removed {n_removed} triples")
+        for reason, count in sorted(placeholder_stats.items(), key=lambda x: -x[1]):
+            print(f"      {reason}: {count}")
+
+    # P5: Semantic validation.
+    pre_semantic = len(all_triples)
+    all_triples, semantic_stats = _filter_semantic_errors(all_triples)
+    n_semantic = pre_semantic - len(all_triples)
+    if n_semantic > 0:
+        print(f"\n  ✓ Semantic validator: rejected {n_semantic} triples")
+        for reason, count in sorted(semantic_stats.items(), key=lambda x: -x[1]):
+            print(f"      {reason}: {count}")
+
+    # P3: PDF↔CSV concept linking.
+    concept_triples = _create_concept_links(all_triples)
+    if concept_triples:
+        all_triples = all_triples + concept_triples
+        # Count unique concepts linked.
+        linked_concepts = set(t["object"] for t in concept_triples)
+        print(f"\n  ✓ Concept linking: {len(concept_triples)} INSTANCE_OF triples "
+              f"→ {len(linked_concepts)} concepts ({', '.join(sorted(linked_concepts))})")
+
     per_chunk = len(all_triples) / max(len(chunks), 1)
 
     print(f"\n  ✓ LLM raw triples (all passes): {len(all_raw_triples)}")
-    print(f"  ✓ LLM after dedup:              {len(all_triples) - len(structured)} "
-          f"(removed {dedup_removed} duplicates, {per_chunk:.1f}/chunk)")
-    print(f"  ✓ Total triples (structured + LLM): {len(all_triples)}")
+    llm_count = len(all_triples) - len(structured) - len(concept_triples) if concept_triples else len(all_triples) - len(structured)
+    print(f"  ✓ LLM after dedup + filter:     {llm_count} "
+          f"(removed {dedup_removed} duplicates, {n_removed} placeholders)")
+    print(f"  ✓ Total triples (structured + LLM + links): {len(all_triples)}")
     print(f"  ✗ Errors:                   {len(errors)} chunk-passes failed")
     vq = evaluate_vocab_quality(all_triples, vocab)
     print(f"  ✓ Vocab coverage: {vq['types_used']}/{vq['vocab_size']} "
@@ -1101,9 +1491,36 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
         print(f"  ✓ Loaded {len(triples)} cached triples")
         print(f"  ✓ Skipping: load_chunks, extract_structured, bootstrap_vocab, "
               f"extract_triples, canonicalize_relations")
-        print(f"  → Running: entity_resolution → cross_source_link → insert_to_neo4j")
+        print(f"  → Running: placeholder_filter → entity_resolution → "
+              f"cross_source_link → concept_link → insert_to_neo4j")
 
         start = time.time()
+
+        # Placeholder filtering (P1).
+        pre_filter = len(triples)
+        triples, ph_stats = _filter_placeholder_triples(triples)
+        n_removed = pre_filter - len(triples)
+        if n_removed > 0:
+            print(f"\n  ✓ Placeholder filter: removed {n_removed} triples")
+            for reason, count in sorted(ph_stats.items(), key=lambda x: -x[1]):
+                print(f"      {reason}: {count}")
+
+        # Semantic validation (P5).
+        pre_sem = len(triples)
+        triples, sem_stats = _filter_semantic_errors(triples)
+        n_sem = pre_sem - len(triples)
+        if n_sem > 0:
+            print(f"\n  ✓ Semantic validator: rejected {n_sem} triples")
+            for reason, count in sorted(sem_stats.items(), key=lambda x: -x[1]):
+                print(f"      {reason}: {count}")
+
+        # Concept linking (P3).
+        concept_triples = _create_concept_links(triples)
+        if concept_triples:
+            triples = triples + concept_triples
+            linked = set(t["object"] for t in concept_triples)
+            print(f"\n  ✓ Concept linking: {len(concept_triples)} INSTANCE_OF → "
+                  f"{', '.join(sorted(linked))}")
 
         # Entity resolution (in-memory).
         print("\n[4.5] Zone 2.5 — Entity Resolution (in-memory)...")

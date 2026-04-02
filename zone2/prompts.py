@@ -90,6 +90,14 @@ Rules:
 - Include confidence: 0.0–1.0
 - Include subject_type and object_type: assign one entity type from the list above to each (use "Unknown" if none fit)
 - Return [] only if the passage contains no factual insurance content
+- SEMANTIC ACCURACY (high priority — omit uncertain triples rather than guess wrong):
+  - An organization that ADMINISTERS a program vs one that PROVIDES coverage
+  - An exclusion from coverage vs a cause of damage (direction matters!)
+  - A deductible amount (numeric) vs the property the deductible applies to (structure)
+  - A peril being excluded FROM coverage vs a peril CAUSING a loss
+  - WRONG: "Agency COVERS Program" — agencies administer, policies cover
+  - WRONG: "Building HAS_DEDUCTIBLE Policy" — deductibles are dollar amounts, not structures
+  - WRONG: "Flood HAS_CAUSE_OF_DAMAGE Earth Movement" — reversed direction
 
 Output format — JSON array only:
 [{{"subject": "...", "subject_type": "...", "relation": "...", "object": "...", "object_type": "...", "span": "...", "confidence": 0.9}}]"""
@@ -262,5 +270,22 @@ FEW_SHOT_PAIRS: list[tuple[str, str]] = [
         '"span": "The insurer may repair, rebuild, or replace the damaged property", "confidence": 0.96}, '
         '{"subject": "Insurer", "subject_type": "Party", "relation": "HAS_OPTION", "object": "Replace Property", "object_type": "Procedure", '
         '"span": "The insurer may repair, rebuild, or replace the damaged property", "confidence": 0.96}]'
+    ),
+    # Pattern 8: Semantic accuracy — teaches correct role assignment + exclusion direction
+    (
+        "Text: The National Insurance Program, administered by the Federal Agency, "
+        "provides coverage for residential buildings. Earth movement, including "
+        "landslide and mudflow, is excluded from coverage. The deductible for building "
+        "coverage is $2,000.",
+        '[{"subject": "National Insurance Program", "subject_type": "InsurancePolicy", "relation": "COVERS", "object": "Residential Buildings", "object_type": "InsuredProperty", '
+        '"span": "provides coverage for residential buildings", "confidence": 0.97}, '
+        '{"subject": "Federal Agency", "subject_type": "Organization", "relation": "ADMINISTERS", "object": "National Insurance Program", "object_type": "InsurancePolicy", '
+        '"span": "administered by the Federal Agency", "confidence": 0.96}, '
+        '{"subject": "National Insurance Program", "subject_type": "InsurancePolicy", "relation": "EXCLUDED_FROM", "object": "Earth Movement", "object_type": "ExcludedPeril", '
+        '"span": "Earth movement, including landslide and mudflow, is excluded from coverage", "confidence": 0.97}, '
+        '{"subject": "National Insurance Program", "subject_type": "InsurancePolicy", "relation": "EXCLUDED_FROM", "object": "Landslide", "object_type": "ExcludedPeril", '
+        '"span": "Earth movement, including landslide and mudflow, is excluded", "confidence": 0.95}, '
+        '{"subject": "Building Coverage", "subject_type": "CoverageType", "relation": "HAS_DEDUCTIBLE", "object": "$2,000", "object_type": "FinancialAmount", '
+        '"span": "The deductible for building coverage is $2,000", "confidence": 0.99}]'
     ),
 ]

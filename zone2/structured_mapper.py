@@ -350,17 +350,99 @@ def detect_identity_fields(
     }
 
 
+# Canonical field categories for cross-source identity matching.
+# Maps (scope, attribute) to canonical category names.
+# Scope-aware: "property state" → ("property", "state"),
+#              "mailing address state" → ("mailing", "state") — different keys.
+_IDENTITY_CANONICAL_ATTRIBUTES: dict[str, str] = {
+    # Attribute keywords → canonical attribute name
+    "state": "state",
+    "zip": "zip",
+    "zip code": "zip",
+    "postal code": "zip",
+    "city": "city",
+    "county": "county",
+    "address": "address",
+    "street": "street",
+    "name": "name",
+    "first name": "first_name",
+    "last name": "last_name",
+    "full name": "name",
+    "email": "email",
+    "e-mail": "email",
+    "phone": "phone",
+    "telephone": "phone",
+    "mobile": "phone",
+}
+
+# Scope keywords — when present, they qualify the attribute.
+# "property state" → scope="property"; "mailing address state" → scope="mailing"
+_SCOPE_KEYWORDS = frozenset({
+    "property", "insured", "mailing", "billing", "loss",
+    "reported", "rated", "original", "primary", "secondary",
+    "policyholder", "claimant", "agent", "mortgagee",
+})
+
+
+def _canonicalize_identity_field(field_name: str) -> str:
+    """Map a field name to a (scope, attribute) canonical key.
+
+    'property state' → 'property:state'   (scope-qualified)
+    'reported zip code' → 'reported:zip'   (scope-qualified)
+    'state' → 'state'                      (no scope)
+    'mailing address state' → 'mailing:state'  (different from property:state)
+
+    Scope prevents collisions: "property state" and "mailing state"
+    produce different canonical keys because they have different scopes.
+    """
+    field_lower = field_name.lower()
+
+    # Extract scope (first matching scope keyword).
+    scope = ""
+    for kw in _SCOPE_KEYWORDS:
+        if kw in field_lower:
+            scope = kw
+            break
+
+    # Extract attribute (longest matching attribute keyword).
+    attribute = field_lower  # fallback
+    for pattern in sorted(_IDENTITY_CANONICAL_ATTRIBUTES.keys(),
+                          key=len, reverse=True):
+        if pattern in field_lower:
+            attribute = _IDENTITY_CANONICAL_ATTRIBUTES[pattern]
+            break
+
+    return f"{scope}:{attribute}" if scope else attribute
+
+
 def generate_identity_key(
     group: str,
     fields: dict[str, str],
 ) -> str:
     """Generate a stable key for an identity node.
 
-    Hashes sorted field values so the same person/property always
-    maps to the same node regardless of which record it appears in.
+    Hashes canonicalized (scope:attribute, value) pairs so the same
+    person/property produces the same key regardless of CSV schema.
+
+    Scope-aware: "property state" and "mailing state" are different
+    canonical keys, preventing false merges across different entity roles.
+
+    'property state' → 'property:state=fl'
+    'reported zip code' → 'reported:zip=33019'
+
+    POL- and CLM- records for the same physical property get the same
+    PROP- node even when CSV column headers differ.
     """
-    # Sort by field name for stability across records with different field order.
-    parts = [v.strip().lower() for _, v in sorted(fields.items()) if v.strip()]
+    # Canonicalize field names to (scope:attribute, value) pairs.
+    canonical_pairs = [
+        (_canonicalize_identity_field(field_name), v.strip().lower())
+        for field_name, v in fields.items()
+        if v.strip()
+    ]
+    # Sort by canonical key for stability.
+    canonical_pairs.sort(key=lambda x: x[0])
+    # Include category names in the hash so "property:state=fl|reported:zip=33019" is unique.
+    parts = [f"{cat}={val}" for cat, val in canonical_pairs]
     raw = "|".join(parts)
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
 
@@ -456,13 +538,36 @@ def identity_triples(
 # Triple generation
 # ---------------------------------------------------------------------------
 
+def _normalize_field_name(field_name: str) -> str:
+    """Strip only articles (determiners) that cause near-duplicate relation names.
+
+    'number of floors in the insured building' → 'number of floors in insured building'
+    'number of floors in insured building'     → 'number of floors in insured building'
+
+    IMPORTANT: Prepositions (of, in, for, by, etc.) are KEPT because they
+    carry semantic role information. Only articles are removed — they are
+    the sole source of CSV-header duplication (e.g., "in the" vs "in").
+
+    Domain-agnostic: safe for any CSV column naming convention.
+    """
+    # ONLY articles — prepositions encode semantic roles and must be preserved
+    # per ontology engineering best practice.
+    _ARTICLES = frozenset({"a", "an", "the"})
+    tokens = field_name.lower().split()
+    return " ".join(t for t in tokens if t not in _ARTICLES)
+
+
 def _field_to_relation(field_name: str) -> str:
     """Convert a human-readable field name to UPPER_SNAKE_CASE relation.
 
     'policy effective date' → 'HAS_POLICY_EFFECTIVE_DATE'
-    'rated flood zone' → 'HAS_RATED_FLOOD_ZONE'
+    'number of floors in the insured building' → 'HAS_NUMBER_OF_FLOORS_IN_INSURED_BUILDING'
+    'number of floors in insured building'     → 'HAS_NUMBER_OF_FLOORS_IN_INSURED_BUILDING'
+
+    Only articles (a/an/the) are stripped. Prepositions are preserved.
     """
-    normalized = re.sub(r"[^a-z0-9\s]", "", field_name.lower())
+    cleaned = _normalize_field_name(field_name)
+    normalized = re.sub(r"[^a-z0-9\s]", "", cleaned)
     snake = re.sub(r"\s+", "_", normalized.strip())
     return f"HAS_{snake.upper()}"
 
