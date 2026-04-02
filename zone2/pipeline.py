@@ -52,6 +52,7 @@ from zone2.prompts import (
     FEW_SHOT_PAIRS,
     PASS_FOCUS_INSTRUCTIONS,
     SINGLE_PASS_FOCUS,
+    RECALL_PASS_PROMPT,
 )
 from zone2.entity_resolution import resolve_entities_in_memory
 from zone2.structured_mapper import extract_structured
@@ -931,6 +932,143 @@ def _filter_semantic_errors(
 MAX_TRIPLES_PER_CHUNK = 50   # Safety cap per chunk (num_predict handles most cases)
 
 
+# ---------------------------------------------------------------------------
+# Span-grounding verification (recall pass precision guard)
+# ---------------------------------------------------------------------------
+
+def _normalize_for_span_match(text: str) -> str:
+    """Normalize text for span matching: lowercase, collapse whitespace, strip punctuation edges."""
+    text = text.lower().strip()
+    text = re.sub(r'\s+', ' ', text)
+    return text
+
+
+def _verify_span_grounding(
+    triple: dict,
+    chunk_text: str,
+    min_overlap: float = 0.80,
+) -> tuple[bool, float]:
+    """Check if a triple's span is grounded in the source chunk.
+
+    Returns (is_grounded, confidence_multiplier).
+    - Exact substring match → (True, 1.0)
+    - ≥80% character overlap → (True, 0.9)
+    - No match → (False, 0.0)
+    """
+    span = triple.get("span", "").strip()
+    if not span or len(span) < 5:
+        return False, 0.0
+
+    norm_span = _normalize_for_span_match(span)
+    norm_chunk = _normalize_for_span_match(chunk_text)
+
+    # Exact substring match.
+    if norm_span in norm_chunk:
+        return True, 1.0
+
+    # Fuzzy: token-based overlap. Split span into words and check how many
+    # appear in the chunk. More robust than character sliding window when
+    # the LLM paraphrases slightly or drops articles.
+    span_tokens = set(norm_span.split())
+    if len(span_tokens) < 2:
+        return False, 0.0
+
+    chunk_tokens = set(norm_chunk.split())
+    matched = span_tokens & chunk_tokens
+    overlap = len(matched) / len(span_tokens)
+
+    if overlap >= min_overlap:
+        return True, 0.9
+
+    return False, 0.0
+
+
+# ---------------------------------------------------------------------------
+# Recall-oriented Pass 2 (two-pass exhaustive extraction)
+# ---------------------------------------------------------------------------
+
+def _run_recall_pass(
+    llm,
+    chunks: list[dict],
+    pass1_triples: list[dict],
+    errors: list[dict],
+) -> list[dict]:
+    """Run recall-oriented Pass 2 on PDF chunks only.
+
+    For each chunk, shows the LLM what was already extracted in Pass 1,
+    then asks it to find additional explicit facts it missed.
+    Verifies each new triple via span-grounding before accepting.
+
+    Returns only verified new triples (not Pass 1 triples).
+    """
+    # Index Pass 1 triples by chunk_id for fast lookup.
+    triples_by_chunk: dict[str, list[dict]] = defaultdict(list)
+    for t in pass1_triples:
+        triples_by_chunk[t.get("chunk_id", "")].append(t)
+
+    recall_triples: list[dict] = []
+    n_rejected = 0
+    n_verified = 0
+
+    for i, chunk in enumerate(chunks):
+        content = chunk["content"][:CHUNK_CONTENT_LIMIT]
+        chunk_id = chunk.get("chunk_id", f"chunk_{i}")
+        source = chunk.get("source", "")
+        hierarchy = chunk.get("section_hierarchy", [])
+        label = " > ".join(hierarchy) if hierarchy else f"chunk {i+1}"
+
+        # Format existing triples for this chunk.
+        existing = triples_by_chunk.get(chunk_id, [])
+        if not existing:
+            # No Pass 1 triples for this chunk — skip recall (nothing to build on)
+            continue
+
+        existing_str = "\n".join(
+            f"  - ({t['subject']}) --[{t['relation']}]--> ({t['object']})"
+            for t in existing
+        )
+
+        prompt = RECALL_PASS_PROMPT.format(
+            existing_triples=existing_str,
+            chunk_text=content,
+        )
+
+        print(f"    Chunk {i+1}/{len(chunks)} [{label[:45]}]...", end=" ", flush=True)
+
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+            parsed = _parse_json_list(response.content)
+            new_triples = _parse_chunk_triples(parsed, chunk_id, source)
+
+            # Tag as recall pass and verify grounding.
+            verified: list[dict] = []
+            for t in new_triples:
+                grounded, conf_mult = _verify_span_grounding(t, content)
+                if grounded:
+                    verified.append({
+                        **t,
+                        "source_type": "recall_pass",
+                        "confidence": round(t["confidence"] * conf_mult, 3),
+                    })
+                    n_verified += 1
+                else:
+                    n_rejected += 1
+
+            print(f"→ +{len(verified)} verified ({len(new_triples) - len(verified)} rejected)")
+            recall_triples.extend(verified)
+
+        except Exception as e:
+            print(f"✗ ERROR: {e}")
+            errors.append({"chunk_id": chunk_id, "pass": "recall", "error": str(e)})
+
+        time.sleep(0.05)
+
+    print(f"  → Recall pass total: {len(recall_triples)} verified, {n_rejected} rejected "
+          f"(grounding rate: {n_verified / max(n_verified + n_rejected, 1):.0%})")
+
+    return recall_triples
+
+
 def _extract_one_pass(
     llm, base_messages: list, chunks: list[dict], pass_label: str, errors: list[dict]
 ) -> list[dict]:
@@ -1037,6 +1175,20 @@ def extract_triples(state: Zone2State) -> dict:
             print("  → No unambiguous numeric patterns found")
     else:
         print(f"\n  Regex numeric fallback skipped ({model} extracts numerics directly)")
+
+    # Recall-oriented Pass 2: find what Pass 1 missed (PDF chunks only).
+    # Only run on non-small models (small models benefit more from regex fallback).
+    if not is_small_model:
+        # Filter to PDF-only chunks for recall pass.
+        from zone2.structured_mapper import is_structured_chunk, is_schema_chunk
+        pdf_chunks = [c for c in chunks if not is_structured_chunk(c) and not is_schema_chunk(c)]
+        if pdf_chunks:
+            print(f"\n  Recall pass (Pass 2) — {len(pdf_chunks)} PDF chunks:")
+            recall_triples = _run_recall_pass(llm, pdf_chunks, all_raw_triples, errors)
+            all_raw_triples.extend(recall_triples)
+            print(f"  → Recall pass added {len(recall_triples)} new triples")
+        else:
+            print("\n  Recall pass skipped — no PDF chunks")
 
     # Deduplicate across passes by normalized (subject, relation, object)
     seen_keys:   set[tuple]  = set()
