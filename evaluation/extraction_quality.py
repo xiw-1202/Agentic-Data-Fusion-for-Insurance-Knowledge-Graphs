@@ -758,35 +758,39 @@ def run_extraction_quality(
     suffix: str = "zone2_seaf",
     sample_size: int = DEFAULT_PRECISION_SAMPLES,
 ) -> dict:
-    """Run all 5 extraction quality metrics."""
+    """Run Zone 2 extraction quality evaluation (3 metrics + graph stats).
+
+    Primary metrics (reported in paper):
+      1. Triple Precision — LLM-as-judge (AutoSchemaKG approach)
+      2. Fact Recall — G-BERTScore (Ghanem & Cruz KGSWC 2024)
+      3. Source Grounding — LLM-as-judge traceability
+
+    Supplementary:
+      - Graph Statistics — density, degree distribution, relation types
+    """
     print("=" * 60)
-    print("EXTRACTION QUALITY EVALUATION (5 metrics, domain-agnostic)")
+    print("ZONE 2 EXTRACTION QUALITY EVALUATION")
     print(f"Model: {model} | Suffix: {suffix} | Sample: {sample_size}")
     print("=" * 60)
 
     graph = _get_graph()
     llm = _get_llm(model)
-    chunks = _load_chunks()
 
-    # Metric 1: Vocabulary coverage (domain-agnostic).
-    coverage = measure_vocabulary_coverage(graph, chunks)
-
-    # Metric 2: Triple precision (LLM-as-judge).
+    # Metric 1: Triple precision (LLM-as-judge).
     precision = measure_triple_precision(graph, llm, sample_size)
 
-    # Metric 3: Fact recall (MINE-1 style, embedding match).
+    # Metric 2: Fact recall (G-BERTScore style).
     fact_recall = measure_fact_recall(graph, llm, n_chunks=DEFAULT_RECALL_CHUNKS)
 
-    # Metric 4: Source grounding.
+    # Metric 3: Source grounding.
     grounding = measure_source_grounding(graph, llm, sample_size=DEFAULT_GROUNDING_SAMPLES)
 
-    # Metric 5: Graph statistics.
+    # Supplementary: Graph statistics.
     stats = measure_graph_statistics(graph)
 
     result = {
         "suffix": suffix,
         "model": model,
-        "vocabulary_coverage": coverage,
         "triple_precision": precision,
         "fact_recall": fact_recall,
         "source_grounding": grounding,
@@ -804,8 +808,6 @@ def run_extraction_quality(
     print(f"\n{'=' * 60}")
     print(f"EXTRACTION QUALITY SUMMARY [{suffix}]")
     print(f"{'=' * 60}")
-    print(f"  Vocab Coverage:     {coverage.get('token_coverage', 0):.0%} "
-          f"({coverage.get('covered_terms', 0)}/{coverage.get('source_vocab_size', 0)} terms)")
     print(f"  Triple Precision:   {precision['precision']:.0%} "
           f"({precision['correct']}/{precision['correct']+precision['incorrect']} judged correct)")
     print(f"  Fact Recall:        {fact_recall['fact_recall']:.0%} "
@@ -813,7 +815,7 @@ def run_extraction_quality(
     print(f"  Source Grounding:   {grounding['grounding_rate']:.0%} "
           f"({grounding.get('supported', 0)}/{grounding['total_checked']} grounded)")
     print(f"  Graph: {stats['node_count']} nodes, {stats['edge_count']} edges, "
-          f"{stats['triples_per_entity']} triples/entity")
+          f"{stats['relation_types']} rel types, {stats['triples_per_entity']} triples/entity")
 
     return result
 
@@ -823,12 +825,11 @@ if __name__ == "__main__":
         description="Extraction Quality Evaluation — 5 domain-agnostic metrics",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Metrics (following KGGen, AutoSchemaKG, GraphJudge):
-  1. Vocabulary Coverage: source vocab tokens found in entity names
-  2. Triple Precision: LLM judges sample triples (AutoSchemaKG approach)
-  3. Fact Recall: LLM extracts facts, embedding match to KG (MINE-1 style)
-  4. Source Grounding: traces triples back to source text
-  5. Graph Statistics: density, degree distribution, relation types
+Metrics (following AutoSchemaKG 2025, Ghanem & Cruz KGSWC 2024):
+  1. Triple Precision: LLM-as-judge on sampled triples (AutoSchemaKG approach)
+  2. Fact Recall: G-BERTScore fact-vs-linearized-triple matching
+  3. Source Grounding: LLM-as-judge traceability to source text
+  + Graph Statistics: density, degree distribution, relation types
         """,
     )
     parser.add_argument("--suffix", default="zone2_seaf", help="Result file suffix")

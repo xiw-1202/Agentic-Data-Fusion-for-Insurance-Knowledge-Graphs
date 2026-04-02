@@ -144,12 +144,10 @@ try:
     fr = d.get('fact_recall', {})
     sg = d.get('source_grounding', {})
     gs = d.get('graph_statistics', {})
-    vc = d.get('vocabulary_coverage', {})
     print(f'=== Zone 2 Results ({suffix}) ===')
     print(f'  Triple Precision:   {tp.get(\"precision\", 0):.1%} ({tp.get(\"correct\", 0)}/{tp.get(\"correct\", 0)+tp.get(\"incorrect\", 0)} correct)')
     print(f'  Fact Recall:        {fr.get(\"fact_recall\", 0):.1%} ({fr.get(\"found_facts\", 0)}/{fr.get(\"total_facts\", 0)} facts)')
     print(f'  Source Grounding:   {sg.get(\"grounding_rate\", 0):.1%} ({sg.get(\"supported\", 0)}/{sg.get(\"total_checked\", 0)} grounded)')
-    print(f'  Vocab Coverage:     {vc.get(\"token_coverage\", 0):.1%}')
     print(f'  Graph:              {gs.get(\"node_count\", \"?\")} nodes, {gs.get(\"edge_count\", \"?\")} edges, {gs.get(\"relation_types\", \"?\")} rel types')
 except Exception as e: print(f'  (eval not found: {e})')
 "
