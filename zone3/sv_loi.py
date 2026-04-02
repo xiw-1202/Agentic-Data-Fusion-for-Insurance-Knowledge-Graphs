@@ -548,13 +548,7 @@ def batch_type_entities(
     }
     has_address_class = "Address" in class_vocab
     for e in value_entities:
-        # Check if this value entity is a location (target of location relations)
-        if has_address_class:
-            in_rels = set(e.get("in_rel_counts", {}).keys())
-            if in_rels & LOCATION_RELATIONS:
-                assignments[e["id"]] = "Address"
-                continue
-        assignments[e["id"]] = "Other"
+        assignments[e["id"]] = "Other"  # default, may be overridden by type_value_entities()
 
     # Assign structured entities directly from their entity_type.
     # If entity_type is not in class_vocab, add it (prevents ghost classes).
@@ -775,6 +769,76 @@ Output one line per entity: entity_name -> ClassName
     new_dist = Counter(updated.values())
     for cls, cnt in new_dist.most_common():
         print(f"    {cls}: {cnt}", flush=True)
+
+    return updated
+
+
+def type_value_entities(
+    assignments: dict[str, str],
+    entities: list[dict],
+    class_vocab: list[str],
+    threshold: float = 0.70,
+) -> dict[str, str]:
+    """Generalized value entity typing via neighbor-class majority voting.
+
+    Replaces the hardcoded LOCATION_RELATIONS heuristic. For each value entity
+    currently assigned to "Other", check what classes its connected concept
+    entities belong to. If >threshold of connections point to a single class,
+    assign the value entity there.
+
+    This is domain-agnostic: works for any LOB without hardcoded relation names.
+
+    Args:
+        threshold: Minimum fraction of connections to a single class to assign (default: 0.70)
+    """
+    print(f"\n[Phase 1f] Generalized value entity typing (threshold={threshold})...", flush=True)
+
+    entity_map = {e["id"]: e for e in entities}
+    updated = dict(assignments)
+    reclassified = 0
+    class_gains: Counter = Counter()
+
+    # Build concept assignment lookup
+    concept_classes = {eid: cls for eid, cls in assignments.items()
+                       if cls != "Other" and get_entity_lane(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"}
+
+    for e in entities:
+        eid = e["id"]
+        if get_entity_lane(e) != "value" or updated.get(eid) != "Other":
+            continue
+
+        # Collect classes of connected entities (both directions)
+        neighbor_classes: list[str] = []
+        for rel in e.get("in_rels", []):
+            src = rel.get("source", "")
+            src_cls = assignments.get(src, "Other")
+            if src_cls != "Other":
+                neighbor_classes.append(src_cls)
+        for rel in e.get("out_rels", []):
+            tgt = rel.get("target", "")
+            tgt_cls = assignments.get(tgt, "Other")
+            if tgt_cls != "Other":
+                neighbor_classes.append(tgt_cls)
+
+        if not neighbor_classes:
+            continue
+
+        # Majority vote
+        class_counts = Counter(neighbor_classes)
+        top_cls, top_count = class_counts.most_common(1)[0]
+        fraction = top_count / len(neighbor_classes)
+
+        if fraction >= threshold and top_cls in class_vocab:
+            updated[eid] = top_cls
+            reclassified += 1
+            class_gains[top_cls] += 1
+
+    if reclassified > 0:
+        print(f"  ✓ Reclassified {reclassified} value entities from Other:", flush=True)
+        for cls, cnt in class_gains.most_common():
+            print(f"    → {cls}: +{cnt}", flush=True)
+    else:
+        print(f"  ✓ No value entities met the {threshold:.0%} threshold — all stay as Other", flush=True)
 
     return updated
 
@@ -1692,6 +1756,9 @@ def run_sv_loi(
 
     # Phase 1d: Rescue "Other" entities with targeted re-typing
     assignments = rescue_other_entities(assignments, entities, llm)
+
+    # Phase 1f: Generalized value entity typing (neighbor-class majority)
+    assignments = type_value_entities(assignments, entities, class_vocab)
 
     # --- Decision provenance tracking ---
     # Track per-entity: initial LLM type, structural outlier score,
