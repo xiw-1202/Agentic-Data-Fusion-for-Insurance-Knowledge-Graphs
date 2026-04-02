@@ -802,12 +802,32 @@ def type_value_entities(
     concept_classes = {eid: cls for eid, cls in assignments.items()
                        if cls != "Other" and get_entity_lane(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"}
 
+    # Relation types that indicate geographic/location semantics (domain-agnostic patterns)
+    GEO_RELATION_PATTERNS = {"state", "city", "zip", "address", "county", "location", "community"}
+
+    def _is_geo_relation(rel_type: str) -> bool:
+        """Check if relation type has geographic semantics (domain-agnostic)."""
+        rel_lower = rel_type.lower().replace("_", " ")
+        return any(pat in rel_lower for pat in GEO_RELATION_PATTERNS)
+
+    has_address = "Address" in class_vocab
+
     for e in entities:
         eid = e["id"]
         if get_entity_lane(e) != "value" or updated.get(eid) != "Other":
             continue
 
-        # Collect classes of connected entities (both directions)
+        # Strategy 1: Relation-type semantics (domain-agnostic)
+        # If this value is the target of a geographic relation, it's an Address
+        if has_address:
+            in_rel_types = set(e.get("in_rel_counts", {}).keys())
+            if any(_is_geo_relation(rt) for rt in in_rel_types):
+                updated[eid] = "Address"
+                reclassified += 1
+                class_gains["Address"] += 1
+                continue
+
+        # Strategy 2: Neighbor-class majority voting (for non-geographic values)
         neighbor_classes: list[str] = []
         for rel in e.get("in_rels", []):
             src = rel.get("source", "")
@@ -823,7 +843,6 @@ def type_value_entities(
         if not neighbor_classes:
             continue
 
-        # Majority vote
         class_counts = Counter(neighbor_classes)
         top_cls, top_count = class_counts.most_common(1)[0]
         fraction = top_count / len(neighbor_classes)
