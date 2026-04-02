@@ -708,23 +708,47 @@ def rebalance_mega_classes(
     entities: list[dict],
     class_vocab: list[str],
     llm: ChatOllama,
-    max_fraction: float = MAX_CLASS_FRACTION,
+    max_fraction: float = 0.40,
+    use_old_rebalance: bool = False,
 ) -> tuple[dict[str, str], list[str]]:
-    """Split any class that exceeds max_fraction of total entities.
+    """Split any class that exceeds max_fraction of CONCEPT entities.
 
-    Uses LLM to propose sub-classes for the mega-class members.
-    Returns updated assignments and updated class vocabulary.
+    Uses concept-entity count as denominator (not total entities) because
+    records naturally dominate 2-3 classes. A class with 600 records + 30
+    concepts should NOT trigger rebalancing — only concept concentration matters.
+
+    Args:
+        max_fraction: Max fraction of concept entities per class (default: 0.40)
+        use_old_rebalance: If True, use old behavior (total entities, 0.25 threshold)
     """
-    total = len(assignments)
-    threshold = int(total * max_fraction)
-    dist = Counter(assignments.values())
+    entity_map = {e["id"]: e for e in entities}
+
+    if use_old_rebalance:
+        # Old behavior: count all entities, threshold=0.25
+        total = len(assignments)
+        threshold = int(total * MAX_CLASS_FRACTION)
+        dist = Counter(assignments.values())
+    else:
+        # New behavior: count concept entities only
+        concept_counts: Counter = Counter()
+        for eid, cls in assignments.items():
+            if get_entity_lane(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept":
+                concept_counts[cls] += 1
+        total_concepts = sum(concept_counts.values())
+        threshold = int(total_concepts * max_fraction)
+        dist = concept_counts
+
     updated_vocab = list(class_vocab)
 
-    mega_classes = [(cls, cnt) for cls, cnt in dist.items()
-                    if cnt > threshold and cls != "Other"]
+    MIN_CONCEPT_ABSOLUTE = 50  # skip rebalance if class has <50 concept members
+    mega_classes = [
+        (cls, cnt) for cls, cnt in dist.items()
+        if cnt > threshold and cnt >= MIN_CONCEPT_ABSOLUTE and cls != "Other"
+    ]
 
     if not mega_classes:
-        print("\n[Phase 1c] No mega-classes detected — skipping rebalance.", flush=True)
+        denom_type = "total" if use_old_rebalance else "concept"
+        print(f"\n[Phase 1c] No mega-classes detected ({denom_type} threshold={threshold}) — skipping rebalance.", flush=True)
         return assignments, updated_vocab
 
     print(f"\n[Phase 1c] Rebalancing {len(mega_classes)} mega-classes (threshold={threshold})...", flush=True)
