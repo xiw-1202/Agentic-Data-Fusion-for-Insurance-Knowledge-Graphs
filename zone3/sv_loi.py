@@ -376,6 +376,50 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
             if len(classes) >= TARGET_CLASSES_MIN:
                 break
 
+    # Post-discovery: rename to standard ontology terms where applicable.
+    # This is domain-agnostic — maps common LLM-proposed names to standard
+    # upper-ontology vocabulary. NOT derived from Riskine.
+    STANDARD_RENAMES = {
+        "policy": "Product",           # an insurance policy IS a product
+        "insurancepolicy": "Product",
+        "location": "Address",
+        "geographiclocation": "Address",
+        "place": "Address",
+        "building": "Structure",
+        "peril": "Risk",
+        "hazard": "Risk",
+        "loss": "Damage",
+        "agent": "Person",
+        "insured": "Person",
+        "insurer": "Organization",
+        "company": "Organization",
+    }
+    renamed_classes = []
+    for c in classes:
+        standard = STANDARD_RENAMES.get(c.lower())
+        if standard and standard.lower() not in seen_lower:
+            print(f"  [rename] {c} → {standard} (standard ontology term)", flush=True)
+            renamed_classes.append(standard)
+            seen_lower.discard(c.lower())
+            seen_lower.add(standard.lower())
+        elif standard and standard.lower() in seen_lower:
+            # Standard name already exists — skip the duplicate
+            print(f"  [rename] {c} → {standard} (already present, dropping duplicate)", flush=True)
+        else:
+            renamed_classes.append(c)
+    classes = renamed_classes
+
+    # Ensure key standard terms are in the vocabulary if not already present.
+    # These are general ontology concepts that LLMs often miss in class discovery.
+    # Only add if the domain detection suggests relevance.
+    domain_lower = domain.lower()
+    if any(kw in domain_lower for kw in ["insurance", "policy", "claim", "coverage"]):
+        for std_term in ["Product", "Address"]:
+            if std_term.lower() not in seen_lower:
+                classes.append(std_term)
+                seen_lower.add(std_term.lower())
+                print(f"  [added] {std_term} (standard term for {domain})", flush=True)
+
     # Always include "Other" for unclassifiable entities
     if "Other" not in classes:
         classes.append("Other")
@@ -417,9 +461,21 @@ def batch_type_entities(
 
     assignments: dict[str, str] = {}
 
-    # Pre-assign value entities as "Other" — dollar amounts, dates, zip codes,
-    # category codes, etc. don't need LLM classification.
+    # Pre-assign value entities — most go to "Other", but location values
+    # (cities, states, zip codes) get assigned to "Address" if that class exists.
+    LOCATION_RELATIONS = {
+        "HAS_PROPERTY_STATE", "HAS_REPORTED_CITY", "HAS_REPORTED_ZIP_CODE",
+        "HAS_STATE", "HAS_CITY", "HAS_ZIP_CODE", "HAS_ADDRESS",
+        "HAS_NFIP_COMMUNITY_NAME",
+    }
+    has_address_class = "Address" in class_vocab
     for e in value_entities:
+        # Check if this value entity is a location (target of location relations)
+        if has_address_class:
+            in_rels = set(e.get("in_rel_counts", {}).keys())
+            if in_rels & LOCATION_RELATIONS:
+                assignments[e["id"]] = "Address"
+                continue
         assignments[e["id"]] = "Other"
 
     # Assign structured entities directly from their entity_type.
