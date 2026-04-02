@@ -153,6 +153,41 @@ except: print('(summary not found)')
 echo ""
 
 # ---------------------------------------------------------------------------
+# Zone 2 Evaluation — extraction quality metrics only
+# ---------------------------------------------------------------------------
+echo "================================================================"
+echo "ZONE 2 EVALUATION — Extraction Quality (suffix=$SUFFIX)"
+echo "  Started: $(date)"
+echo "================================================================"
+
+Z2_EVAL_START=$(date +%s)
+python3 evaluation/extraction_quality.py --suffix $SUFFIX --model $MODEL --sample-size 100
+Z2_EVAL_END=$(date +%s)
+Z2_EVAL_TIME=$((Z2_EVAL_END - Z2_EVAL_START))
+
+echo ""
+echo "Zone 2 eval complete: ${Z2_EVAL_TIME}s ($(date))"
+
+# Print Zone 2 metrics
+python3 -c "
+import json
+try:
+    with open(f'data/results/extraction_quality_${SUFFIX}.json') as f:
+        d = json.load(f)
+    tp = d.get('triple_precision', {})
+    fr = d.get('fact_recall', {})
+    sg = d.get('source_grounding', {})
+    gs = d.get('graph_statistics', {})
+    print(f'=== Zone 2 Extraction Quality (${SUFFIX}) ===')
+    print(f'  Triple Precision:   {tp.get(\"precision\", 0):.1%} ({tp.get(\"correct\", 0)}/{tp.get(\"correct\", 0)+tp.get(\"incorrect\", 0)} correct)')
+    print(f'  Fact Recall:        {fr.get(\"fact_recall\", 0):.1%} ({fr.get(\"found_facts\", 0)}/{fr.get(\"total_facts\", 0)} facts)')
+    print(f'  Source Grounding:   {sg.get(\"grounding_rate\", 0):.1%} ({sg.get(\"supported\", 0)}/{sg.get(\"total_checked\", 0)} grounded)')
+    print(f'  Graph:              {gs.get(\"node_count\", \"?\")} nodes, {gs.get(\"edge_count\", \"?\")} edges')
+except Exception as e: print(f'  (extraction quality eval not found: {e})')
+"
+echo ""
+
+# ---------------------------------------------------------------------------
 # Zone 3: Leiden ontology induction
 # ---------------------------------------------------------------------------
 echo "================================================================"
@@ -178,10 +213,10 @@ except: print('(summary not found)')
 echo ""
 
 # ---------------------------------------------------------------------------
-# Evaluation
+# Zone 3 Evaluation — Riskine ontology metrics (Zone 3 only)
 # ---------------------------------------------------------------------------
 echo "================================================================"
-echo "EVALUATION — suffix=$SUFFIX"
+echo "ZONE 3 EVALUATION — Riskine Ontology (suffix=$SUFFIX)"
 echo "  Started: $(date)"
 echo "================================================================"
 
@@ -191,33 +226,35 @@ EVAL_END=$(date +%s)
 EVAL_TIME=$((EVAL_END - EVAL_START))
 
 echo ""
-echo "Evaluation complete: ${EVAL_TIME}s ($(date))"
+echo "Zone 3 eval complete: ${EVAL_TIME}s ($(date))"
 echo ""
 
-# Print key metrics
+# Print Zone 3 metrics
 python3 -c "
 import json, os
-# Baseline eval
+# Query accuracy + type consistency
 try:
     with open(f'data/results/baseline_eval_results_${SUFFIX}.json') as f:
         d = json.load(f)
-    print(f'=== Baseline Eval (${SUFFIX}) ===')
-    print(f'  Query accuracy:     {d.get(\"accuracy\", \"?\"):.1%}')
-    print(f'  Type inconsistency: {d.get(\"type_inconsistency\", \"?\"):.1%}')
-    print(f'  Duplication:        {d.get(\"duplication_ratio\", \"?\"):.1%}')
-except Exception as e: print(f'  (baseline eval not found: {e})')
+    bm = d.get('baseline_metrics', d)
+    print(f'=== Zone 3 Query Eval (${SUFFIX}) ===')
+    print(f'  Query accuracy:     {bm.get(\"query_accuracy\", bm.get(\"accuracy\", \"?\")):.1%}')
+    print(f'  Type inconsistency: {bm.get(\"type_inconsistency_rate\", bm.get(\"type_inconsistency\", \"?\")):.1%}')
+    print(f'  Duplication:        {bm.get(\"duplication_rate\", bm.get(\"duplication_ratio\", \"?\")):.1%}')
+except Exception as e: print(f'  (query eval not found: {e})')
 
-# Riskine eval
+# Riskine ontology alignment
 try:
     with open(f'data/results/riskine_eval_${SUFFIX}.json') as f:
         d = json.load(f)
-    mb = d.get('member_based', {})
-    print(f'=== Riskine Eval (${SUFFIX}) ===')
-    print(f'  Member F1:          {mb.get(\"f1\", \"?\"):.3f}')
-    print(f'  Member Precision:   {mb.get(\"precision\", \"?\"):.3f}')
-    print(f'  Member Recall:      {mb.get(\"recall\", \"?\"):.3f}')
-    print(f'  Classes covered:    {mb.get(\"riskine_covered\", \"?\")} / 10')
-    print(f'  Induced classes:    {mb.get(\"induced_count\", \"?\")}')
+    sm = d.get('standard_metrics', {})
+    print(f'=== Zone 3 Riskine Eval (${SUFFIX}) ===')
+    print(f'  Name F1:            {d.get(\"f1\", \"?\"):.3f}')
+    print(f'  BERTScore F1:       {sm.get(\"bertscore_f1\", \"?\"):.3f}')
+    print(f'  Graph F1:           {sm.get(\"graph_f1\", \"?\"):.3f}')
+    print(f'  Wu-Palmer:          {sm.get(\"avg_wu_palmer\", \"?\"):.3f}')
+    print(f'  Entity Assign F1:   {d.get(\"entity_assignment_f1\", \"?\"):.3f}')
+    print(f'  Induced classes:    {d.get(\"induced_label_count\", \"?\")}')
 except Exception as e: print(f'  (riskine eval not found: {e})')
 "
 
@@ -231,20 +268,21 @@ echo "============================================================"
 echo "Job complete: $(date)"
 echo ""
 echo "Timing:"
-echo "  Zone 2:     ${ZONE2_TIME}s"
-echo "  Zone 3:     ${ZONE3_TIME}s"
-echo "  Evaluation: ${EVAL_TIME}s"
-echo "  Total:      $((ZONE2_TIME + ZONE3_TIME + EVAL_TIME))s"
+echo "  Zone 2 pipeline:  ${ZONE2_TIME}s"
+echo "  Zone 2 eval:      ${Z2_EVAL_TIME}s"
+echo "  Zone 3 pipeline:  ${ZONE3_TIME}s"
+echo "  Zone 3 eval:      ${EVAL_TIME}s"
+echo "  Total:            $((ZONE2_TIME + Z2_EVAL_TIME + ZONE3_TIME + EVAL_TIME))s"
 echo ""
 echo "Results saved to: $PROJECT/data/results/"
 echo "  zone2_run_summary.json"
+echo "  extraction_quality_${SUFFIX}.json       ← Zone 2 eval"
 echo "  zone3_run_summary.json"
-echo "  baseline_eval_results_${SUFFIX}.json"
-echo "  riskine_eval_${SUFFIX}.json"
+echo "  baseline_eval_results_${SUFFIX}.json    ← Zone 3 eval"
+echo "  riskine_eval_${SUFFIX}.json             ← Zone 3 eval"
 echo ""
 echo "NEXT STEPS:"
 echo "  1. Fetch results:  bash scripts/sync_to_cluster.sh $USER --fetch"
 echo "  2. Compare:        python3 evaluation/compare_results.py"
-echo "  3. If qwen underperforms, try llama3.3:"
-echo "     sbatch --export=ALL,MODEL=llama3.3:70b,SUFFIX=zone3_v2_llama33 scripts/slurm_pipeline_v2.sh"
+echo "  3. Run SV-LOI:     sbatch --export=ALL,MODEL=$MODEL,SUFFIX=zone3_svloi scripts/slurm_sv_loi.sh"
 echo "============================================================"
