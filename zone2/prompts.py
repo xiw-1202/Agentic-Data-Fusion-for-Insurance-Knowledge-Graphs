@@ -149,6 +149,41 @@ PASS_FOCUS_INSTRUCTIONS: list[str] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Recall-oriented Pass 2 prompt
+# ---------------------------------------------------------------------------
+# Shows Pass 1 results and asks the LLM to find what it missed.
+# The key insight: showing already-extracted triples shifts attention to
+# what's NOT yet captured — list tails, conditions, cross-sentence facts.
+
+RECALL_PASS_PROMPT = """You are a knowledge graph completeness checker.
+
+The following triples were already extracted from this passage:
+{existing_triples}
+
+Re-read the passage below and extract ADDITIONAL facts that were NOT captured above.
+
+Focus on:
+- Items in lists that were only partially extracted (list tails)
+- Conditional or exception clauses ("if", "unless", "except", "provided that")
+- Numeric values (dollar amounts, dates, time periods) tied to specific entities
+- Cross-sentence relations where the subject is in one sentence and the predicate/object in another
+- Low-salience but factual statements (minor definitions, procedural details, party roles)
+- Negation facts ("does not cover", "is void if", "excluded from")
+
+Rules:
+- Do NOT repeat any triple already listed above
+- Each new triple must be supported by specific text in the passage
+- Include span: verbatim quote <=120 chars from the passage supporting the triple
+- Include confidence: 0.0–1.0
+- Return [] if no additional facts exist
+
+Output format — JSON array only:
+[{{"subject": "...", "subject_type": "...", "relation": "...", "object": "...", "object_type": "...", "span": "...", "confidence": 0.85}}]
+
+Text: {chunk_text}"""
+
+
 SINGLE_PASS_FOCUS = (
     "\n\n## Extraction Focus\n"
     "Extract ALL of the following fact types from this passage:\n"
