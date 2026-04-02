@@ -184,6 +184,53 @@ Output format — JSON array only:
 Text: {chunk_text}"""
 
 
+# ---------------------------------------------------------------------------
+# Decompose-then-Extract prompts (CoDe-KG style, EMNLP 2025)
+# ---------------------------------------------------------------------------
+# Stage 1: Free-form fact decomposition (NO json_mode) — bypasses the
+#   json_mode grammar constraint that causes 1-item array output.
+# Stage 2: Per-fact triple extraction (json_mode OK for single object).
+
+DECOMPOSITION_PROMPT = """Read this insurance policy passage and list ALL factual statements as numbered items.
+
+Each fact must be an explicit statement from the text. Anchor each fact to specific words or phrases from the passage. Do NOT summarize, generalize, or infer beyond what the text states.
+
+Include these types of facts:
+- Definitions ("X means Y", "X refers to Y")
+- Coverage rules ("X covers Y", "X is insured under Y")
+- Exclusions ("X is not covered", "X is excluded")
+- Conditions and exceptions ("if X then Y", "unless X", "provided that X")
+- Obligations and deadlines ("must X within Y days", "shall notify X")
+- Amounts and limits ("maximum of $X", "deductible of $X")
+- Procedural steps ("first X, then Y", "step 1: X")
+- Party roles ("the insurer may X", "the insured must X")
+
+List EACH fact separately — one fact per numbered line. Be thorough.
+
+Passage:
+{chunk_text}
+
+Facts:
+1."""
+
+
+SINGLE_FACT_EXTRACTION_PROMPT = """Extract exactly one (subject, relation, object) triple from this factual statement.
+
+Suggested relation types (use one of these if possible, or create a SNAKE_CASE relation):
+{vocab_lines}
+
+Fact: "{fact_text}"
+
+Rules:
+- subject and object must be specific named entities or concepts, not pronouns
+- relation must be SNAKE_CASE
+- span: quote the key phrase from the fact (<=120 chars)
+- confidence: 0.0-1.0
+
+Output exactly one JSON object (not an array):
+{{"subject": "...", "subject_type": "...", "relation": "...", "object": "...", "object_type": "...", "span": "...", "confidence": 0.85}}"""
+
+
 SINGLE_PASS_FOCUS = (
     "\n\n## Extraction Focus\n"
     "Extract ALL of the following fact types from this passage:\n"
