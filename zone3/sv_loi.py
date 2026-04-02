@@ -1764,15 +1764,19 @@ def run_sv_loi(
     skip_verify: bool = False,
     skip_arbitrate: bool = False,
     skip_consolidate: bool = False,
+    skip_record_propagation: bool = False,
+    use_old_rebalance: bool = False,
     seed: int = 42,
 ) -> dict:
     """Run the full SV-LOI pipeline.
 
     Ablation flags:
-        skip_verify:      Skip Phase 2 structural consensus verification
-        skip_arbitrate:   Skip Phase 3 disagreement arbitration
-        skip_consolidate: Skip Phase 4a LLM-guided class consolidation
-        seed:             Random seed for reproducibility (variance measurement)
+        skip_verify:              Skip Phase 2 structural consensus verification
+        skip_arbitrate:           Skip Phase 3 disagreement arbitration
+        skip_consolidate:         Skip Phase 4 LLM-guided class consolidation
+        skip_record_propagation:  Skip Phase 1e (use Zone 2 entity_type for records)
+        use_old_rebalance:        Use old rebalance (total entities, 25% threshold)
+        seed:                     Random seed for reproducibility
     """
     import random
     random.seed(seed)
@@ -1787,6 +1791,10 @@ def run_sv_loi(
         ablation_flags.append("no-arbitrate")
     if skip_consolidate:
         ablation_flags.append("no-consolidate")
+    if skip_record_propagation:
+        ablation_flags.append("no-record-propagation")
+    if use_old_rebalance:
+        ablation_flags.append("old-rebalance")
     ablation_str = f" [ABLATION: {', '.join(ablation_flags)}]" if ablation_flags else ""
 
     _flush_print("=" * 70)
@@ -1820,6 +1828,7 @@ def run_sv_loi(
     # Phase 1c: Rebalance mega-classes (split any class > 30% of entities)
     assignments, class_vocab = rebalance_mega_classes(
         assignments, entities, class_vocab, llm,
+        use_old_rebalance=use_old_rebalance,
     )
 
     # Phase 1d: Rescue "Other" entities with targeted re-typing
@@ -1874,15 +1883,18 @@ def run_sv_loi(
             _flush_print(f"  [ABLATION] Skipping arbitration — {len(flagged)} flagged")
 
     # Phase 1e: Propagate verified concept types to records
-    concept_assignments_verified = {
-        eid: cls for eid, cls in assignments.items()
-        if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
-    }
-    record_assignments = propagate_to_records(
-        concept_assignments_verified, entities, entity_map_all,
-    )
-    for eid, cls in record_assignments.items():
-        assignments[eid] = cls
+    if skip_record_propagation:
+        _flush_print("\n--- [ABLATION] Skipping record propagation (using Zone 2 types) ---")
+    else:
+        concept_assignments_verified = {
+            eid: cls for eid, cls in assignments.items()
+            if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
+        }
+        record_assignments = propagate_to_records(
+            concept_assignments_verified, entities, entity_map_all,
+        )
+        for eid, cls in record_assignments.items():
+            assignments[eid] = cls
 
     # Phase 2b: Full structural verification (all entities, clean centroids)
     if not skip_verify:
@@ -2075,7 +2087,11 @@ After running, evaluate with:
     parser.add_argument("--skip-arbitrate", action="store_true",
                         help="[ABLATION] Skip Phase 3 disagreement arbitration")
     parser.add_argument("--skip-consolidate", action="store_true",
-                        help="[ABLATION] Skip Phase 4a LLM-guided consolidation")
+                        help="[ABLATION] Skip Phase 4 LLM-guided consolidation")
+    parser.add_argument("--skip-record-propagation", action="store_true",
+                        help="[ABLATION] Skip Phase 1e record propagation (use Zone 2 types)")
+    parser.add_argument("--use-old-rebalance", action="store_true",
+                        help="[ABLATION] Use old rebalance (total entities, 25% threshold)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
@@ -2086,5 +2102,7 @@ After running, evaluate with:
         skip_verify=args.skip_verify,
         skip_arbitrate=args.skip_arbitrate,
         skip_consolidate=args.skip_consolidate,
+        skip_record_propagation=getattr(args, 'skip_record_propagation', False),
+        use_old_rebalance=getattr(args, 'use_old_rebalance', False),
         seed=args.seed,
     )
