@@ -1559,7 +1559,8 @@ def merge_small_classes(
 
     # Count class sizes
     class_counts = Counter(assignments.values())
-    small_classes = [c for c, n in class_counts.items() if n < min_size and c != "Other"]
+    small_classes = [c for c, n in class_counts.items()
+                     if n < min_size and c != "Other" and c.lower() not in PROTECTED_CLASS_NAMES]
 
     if not small_classes:
         print("  ✓ No small classes to merge")
