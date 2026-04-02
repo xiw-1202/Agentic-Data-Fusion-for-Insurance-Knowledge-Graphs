@@ -331,18 +331,41 @@ Format: one line per triple, e.g. "1. CORRECT"
 # Metric 3: Fact Recall (MINE-1 style, embedding-based matching)
 # ---------------------------------------------------------------------------
 
+def _linearize_triple(t: dict) -> str:
+    """Linearize a KG triple as a natural language sentence for G-BERTScore.
+
+    (Policy, COVERS, Building) → "Policy covers Building"
+    (Insured, MUST_NOTIFY, Insurer) → "Insured must notify Insurer"
+    """
+    subj = t.get("subject", "")
+    rel = t.get("relation", "").replace("_", " ").lower()
+    obj = t.get("object", "")
+    return f"{subj} {rel} {obj}"
+
+
 def measure_fact_recall(
     graph: Neo4jGraph,
     llm: ChatOllama,
     n_chunks: int = DEFAULT_RECALL_CHUNKS,
 ) -> dict:
-    """MINE-1 style fact recall: for each source chunk, LLM extracts key facts,
-    then we check which facts are recoverable from the KG via embedding similarity.
+    """Fact recall via G-BERTScore (Ghanem & Cruz KGSWC 2024, PiVe 2023).
 
-    Following KGGen: uses sentence-transformers embeddings for matching
-    instead of naive substring search.
+    For each source chunk:
+      1. LLM extracts key facts as short sentences
+      2. All KG triples are linearized as sentences
+      3. For each expected fact, find the best-matching KG triple via
+         embedding cosine similarity (sentence-level, not entity-level)
+      4. A fact is "recalled" if its best KG match exceeds the threshold
+
+    This is G-BERTScore-style matching: compares fact sentences against
+    triple sentences, handling paraphrases ("You" = "Insured",
+    "Coverage A—Building Property" = "building coverage") naturally.
+
+    Unlike our old approach (match S and O separately at ≥0.75),
+    this matches the FULL fact against the FULL linearized triple.
     """
-    print(f"\n[Metric 3] Fact Recall — MINE-1 style (n_chunks={n_chunks})...", flush=True)
+    print(f"\n[Metric 3] Fact Recall — G-BERTScore style (n_chunks={n_chunks})...",
+          flush=True)
 
     chunks = _load_chunks()
     if not chunks:
@@ -365,13 +388,27 @@ def measure_fact_recall(
         content_chunks = chunks
     sample = random.sample(content_chunks, min(n_chunks, len(content_chunks)))
 
-    # Build entity embedding index.
-    entity_ids = _get_all_entity_ids(graph)
-    print(f"  Building embedding index for {len(entity_ids)} entities...", flush=True)
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    entity_embs = model.encode(entity_ids, normalize_embeddings=True, show_progress_bar=False)
+    # Build linearized triple embedding index from KG.
+    all_triples = _get_all_triples(graph)
+    linearized = [_linearize_triple(t) for t in all_triples]
+    print(f"  Linearizing {len(linearized)} KG triples...", flush=True)
 
-    MATCH_THRESHOLD = 0.75  # cosine similarity threshold for fact→entity match
+    emb_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    # Embed all KG triples as sentences (batch for speed).
+    BATCH_SIZE = 512
+    triple_embs_list = []
+    for i in range(0, len(linearized), BATCH_SIZE):
+        batch = linearized[i:i + BATCH_SIZE]
+        embs = emb_model.encode(batch, normalize_embeddings=True, show_progress_bar=False)
+        triple_embs_list.append(embs)
+    triple_embs = np.vstack(triple_embs_list)
+    print(f"  Embedded {triple_embs.shape[0]} KG triples", flush=True)
+
+    # Threshold: a fact is "recalled" if its best-matching KG triple
+    # has cosine similarity ≥ this value. 0.65 is more forgiving than
+    # the old 0.75-per-entity approach, but still requires strong semantic match.
+    MATCH_THRESHOLD = 0.65
 
     total_facts = 0
     found_facts = 0
@@ -381,43 +418,42 @@ def measure_fact_recall(
         text = chunk.get("content", chunk.get("text", ""))[:1500]
         chunk_id = chunk.get("chunk_id", "?")
 
-        # Step 1: LLM extracts key facts.
-        extract_prompt = f"""Read this text and list the {FACTS_PER_CHUNK} most important factual statements as simple (subject, relation, object) triples.
+        # Step 1: LLM extracts key facts as short sentences.
+        extract_prompt = f"""Read this text and list the {FACTS_PER_CHUNK} most important factual statements.
+Each fact should be a single short sentence describing a specific relationship.
+Do NOT include facts not directly stated in the text.
 
 TEXT:
 {text}
 
-Output one triple per line in format: subject | relation | object
-Only include clear factual relationships, not vague statements.
+Output one fact per line as a short sentence (no numbering, no bullets).
 """
         raw_facts = _invoke_llm(llm, extract_prompt)
 
-        facts: list[dict[str, str]] = []
+        facts: list[str] = []
         for line in raw_facts.strip().splitlines():
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) == 3 and all(p for p in parts):
-                facts.append({"subject": parts[0], "relation": parts[1], "object": parts[2]})
+            line = line.strip().lstrip("0123456789.-) •")
+            if len(line) > 15:
+                facts.append(line)
+        facts = facts[:FACTS_PER_CHUNK]
 
-        # Step 2: Embedding match — check if subject AND object are in KG.
-        chunk_found = 0
-        for fact in facts:
-            # Embed subject and object.
-            fact_embs = model.encode(
-                [fact["subject"], fact["object"]],
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
+        if not facts:
+            chunk_results.append({
+                "chunk_id": chunk_id, "facts_extracted": 0,
+                "facts_found_in_kg": 0, "recall": 0.0,
+            })
+            continue
 
-            # Find best match for subject.
-            subj_sims = fact_embs[0] @ entity_embs.T
-            subj_match = float(np.max(subj_sims)) >= MATCH_THRESHOLD
+        # Step 2: Embed expected facts.
+        fact_embs = emb_model.encode(facts, normalize_embeddings=True, show_progress_bar=False)
 
-            # Find best match for object.
-            obj_sims = fact_embs[1] @ entity_embs.T
-            obj_match = float(np.max(obj_sims)) >= MATCH_THRESHOLD
+        # Step 3: For each fact, find best-matching KG triple.
+        # (fact_embs @ triple_embs.T) → [n_facts, n_triples] similarity matrix.
+        sim_matrix = fact_embs @ triple_embs.T
+        best_sims = np.max(sim_matrix, axis=1)  # best match per fact
 
-            if subj_match and obj_match:
-                chunk_found += 1
+        # Step 4: Count recalled facts.
+        chunk_found = int(np.sum(best_sims >= MATCH_THRESHOLD))
 
         total_facts += len(facts)
         found_facts += chunk_found
@@ -428,6 +464,7 @@ Only include clear factual relationships, not vague statements.
             "facts_extracted": len(facts),
             "facts_found_in_kg": chunk_found,
             "recall": round(recall, 3),
+            "best_match_sims": [round(float(s), 3) for s in best_sims],
         })
 
         if len(chunk_results) % 10 == 0 or len(chunk_results) == len(sample):
@@ -435,13 +472,15 @@ Only include clear factual relationships, not vague statements.
                   f"(running recall: {found_facts}/{total_facts})", flush=True)
 
     overall_recall = found_facts / total_facts if total_facts > 0 else 0.0
-    print(f"  Overall Fact Recall: {found_facts}/{total_facts} ({overall_recall:.0%})", flush=True)
+    print(f"  Overall Fact Recall: {found_facts}/{total_facts} ({overall_recall:.0%})",
+          flush=True)
 
     return {
         "fact_recall": round(overall_recall, 4),
         "total_facts": total_facts,
         "found_facts": found_facts,
         "chunks_sampled": len(sample),
+        "method": "G-BERTScore (fact-vs-linearized-triple, cosine)",
         "match_threshold": MATCH_THRESHOLD,
         "chunk_results": chunk_results,
     }
