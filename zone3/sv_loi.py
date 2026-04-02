@@ -1834,8 +1834,8 @@ def run_sv_loi(
     # Phase 1d: Rescue "Other" entities with targeted re-typing
     assignments = rescue_other_entities(assignments, entities, llm)
 
-    # Phase 1f: Generalized value entity typing (neighbor-class majority)
-    assignments = type_value_entities(assignments, entities, class_vocab)
+    # NOTE: Phase 1f (value typing) moved AFTER Phase 1e (record propagation)
+    # so value entities can see record neighbor classes, not just concept neighbors.
 
     # --- Decision provenance tracking ---
     provenance: dict[str, dict] = {}
@@ -1895,6 +1895,10 @@ def run_sv_loi(
         )
         for eid, cls in record_assignments.items():
             assignments[eid] = cls
+
+    # Phase 1f: Generalized value entity typing (AFTER record propagation
+    # so value entities can see record neighbor classes for majority voting)
+    assignments = type_value_entities(assignments, entities, class_vocab)
 
     # Phase 2b: Full structural verification (all entities, clean centroids)
     if not skip_verify:
