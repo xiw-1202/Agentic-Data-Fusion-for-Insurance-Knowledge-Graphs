@@ -61,6 +61,7 @@ import config
 from zone3.graph_cache import (
     load_cached_entities,
     get_concept_entities,
+    get_entity_lane,
     is_concept_entity,
     STRUCTURED_PREFIXES,
 )
@@ -452,9 +453,10 @@ def batch_type_entities(
     value_entities: list[dict] = []
     llm_entities: list[dict] = []
     for e in entities:
-        if e["id"].startswith(_STRUCTURED_PREFIXES):
+        lane = get_entity_lane(e)
+        if lane == "record":
             structured_entities.append(e)
-        elif not is_concept_entity(e):
+        elif lane == "value":
             value_entities.append(e)
         else:
             llm_entities.append(e)

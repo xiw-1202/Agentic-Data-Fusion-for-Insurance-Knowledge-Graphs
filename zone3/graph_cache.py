@@ -270,9 +270,25 @@ def is_concept_entity(entity: dict) -> bool:
     return True
 
 
+def get_entity_lane(entity: dict) -> str:
+    """Classify entity into one of three processing lanes.
+
+    Returns:
+        "concept"  — domain concepts from PDF (drive class discovery + typing)
+        "record"   — structured CSV records (POL-xxx, CLM-xxx, PROP-xxx)
+        "value"    — data values (dates, amounts, codes, categories)
+    """
+    eid = entity["id"]
+    if eid.startswith(STRUCTURED_PREFIXES):
+        return "record"
+    if not is_concept_entity(entity):
+        return "value"
+    return "concept"
+
+
 def get_concept_entities(entities: list[dict]) -> list[dict]:
     """Filter to only domain concept entities (for SV-LOI class discovery)."""
-    concepts = [e for e in entities if is_concept_entity(e)]
+    concepts = [e for e in entities if get_entity_lane(e) == "concept"]
     print(f"  ✓ {len(concepts)} concept entities (of {len(entities)} total)")
     return concepts
 
