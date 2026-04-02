@@ -1619,18 +1619,86 @@ def merge_small_classes(
     return updated
 
 
+def derive_interclass_edges(
+    assignments: dict[str, str],
+    entities: list[dict],
+    min_edge_count: int = 3,
+) -> list[tuple[str, str]]:
+    """Derive inter-class edges from actual entity-level connections (data-driven).
+
+    Instead of asking the LLM to guess SUBCLASS_OF relationships (which produces
+    wrong IS-A edges), this function looks at actual entity-to-entity connections
+    in the KG and aggregates them into class-to-class edges.
+
+    If entities of class A frequently connect to entities of class B via
+    relations, that creates an (A, B) inter-class edge. This matches how
+    reference ontologies like Riskine define inter-class relationships
+    (via $ref links = association/composition, NOT is-a).
+
+    Args:
+        assignments: entity → class mapping
+        entities: all entities with relation data
+        min_edge_count: minimum entity-level connections to create a class edge (default: 3)
+
+    Returns:
+        List of (source_class, target_class) edges (stored as SUBCLASS_OF in Neo4j
+        for compatibility with evaluation metrics, but semantically these are
+        inter-class associations).
+    """
+    print(f"\n[Phase 4b] Deriving inter-class edges from entity connections...", flush=True)
+
+    # Count entity-level connections between classes
+    class_connections: Counter = Counter()  # (src_class, tgt_class) → count
+
+    for e in entities:
+        eid = e["id"]
+        src_cls = assignments.get(eid, "Other")
+        if src_cls == "Other":
+            continue
+
+        for rel in e.get("out_rels", []):
+            tgt_eid = rel.get("target", "")
+            tgt_cls = assignments.get(tgt_eid, "Other")
+            if tgt_cls == "Other" or tgt_cls == src_cls:
+                continue
+            class_connections[(src_cls, tgt_cls)] += 1
+
+    # Filter: only keep edges with enough evidence
+    edges: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for (src, tgt), count in class_connections.most_common():
+        if count < min_edge_count:
+            continue
+        # Avoid circular edges: if (A,B) and (B,A) both exist, keep the stronger one
+        if (tgt, src) in seen:
+            continue
+        edge = (src, tgt)
+        if edge not in seen:
+            edges.append(edge)
+            seen.add(edge)
+
+    print(f"  ✓ {len(edges)} inter-class edges (min {min_edge_count} entity connections)", flush=True)
+    for src, tgt in edges[:20]:
+        count = class_connections[(src, tgt)]
+        print(f"    {src} → {tgt} ({count} connections)", flush=True)
+    if len(edges) > 20:
+        print(f"    ... and {len(edges) - 20} more", flush=True)
+
+    return edges
+
+
 def derive_hierarchy(
     assignments: dict[str, str],
     llm: ChatOllama,
 ) -> list[tuple[str, str]]:
-    """LLM proposes SUBCLASS_OF relationships between classes."""
-    print("\n[Phase 4b] Deriving class hierarchy...")
+    """Legacy LLM-based hierarchy (kept for ablation comparison)."""
+    print("\n[Phase 4b-legacy] LLM hierarchy derivation...", flush=True)
 
     class_counts = Counter(v for v in assignments.values() if v != "Other")
     class_names = sorted(class_counts.keys())
 
     if len(class_names) < 2:
-        print("  ✓ Too few classes for hierarchy")
         return []
 
     classes_desc = "\n".join(f"  {c} ({class_counts[c]} members)" for c in class_names)
@@ -1662,9 +1730,6 @@ Rules:
                 seen.add(edge)
 
     print(f"  ✓ {len(hierarchy)} SUBCLASS_OF edges")
-    for child, parent in hierarchy:
-        print(f"    {child} → {parent}")
-
     return hierarchy
 
 
@@ -2002,18 +2067,19 @@ def run_sv_loi(
     # Phase 4b: Merge remaining small classes structurally
     assignments = merge_small_classes(assignments, features, entity_ids)
 
-    # Phase 4c: Dedicated hierarchy derivation
-    # The 5-way inference produces some hierarchy edges but is too conservative.
-    # Supplement with a dedicated hierarchy pass on the final class set.
-    _flush_print("\n[Phase 4c] Supplementing hierarchy with dedicated derivation...")
+    # Phase 4c: Data-driven inter-class edge derivation
+    # Instead of LLM-guessing IS-A relationships (which are mostly wrong),
+    # derive association edges from actual entity-level connections.
+    # This matches how Riskine defines inter-class links ($ref = HAS-A/REFERENCES).
+    _flush_print("\n[Phase 4c] Data-driven inter-class edge derivation...")
+    data_edges = derive_interclass_edges(assignments, entities)
     existing_edges = set(hierarchy)
-    extra_hierarchy = derive_hierarchy(assignments, llm)
-    for edge in extra_hierarchy:
+    for edge in data_edges:
         if edge not in existing_edges:
             hierarchy.append(edge)
             existing_edges.add(edge)
-    _flush_print(f"  Total hierarchy: {len(hierarchy)} edges "
-                 f"({len(hierarchy) - len(extra_hierarchy)} from 5-way + {len(extra_hierarchy)} from dedicated)")
+    _flush_print(f"  Total edges: {len(hierarchy)} "
+                 f"({len(hierarchy) - len(data_edges)} from 5-way + {len(data_edges)} from data)")
 
     # Final provenance: record final class for each entity
     for eid, cls in assignments.items():
