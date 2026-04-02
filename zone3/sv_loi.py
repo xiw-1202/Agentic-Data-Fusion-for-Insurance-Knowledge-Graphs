@@ -1000,6 +1000,74 @@ Output: entity_name -> ClassName
 # Phase 2: Structural Consensus Verification
 # ---------------------------------------------------------------------------
 
+def propagate_to_records(
+    concept_assignments: dict[str, str],
+    entities: list[dict],
+    entity_map: dict[str, dict],
+    majority_threshold: float = 0.50,
+) -> dict[str, str]:
+    """Propagate concept entity types to records via neighbor-majority voting.
+
+    For each record entity, find its connected concept entities.
+    Majority-vote their classes (>threshold). Fallback: Zone 2 entity_type.
+
+    This replaces the Zone 2 entity_type pre-assignment, giving records
+    types that are verified by the concept-first pipeline.
+
+    Args:
+        concept_assignments: verified concept entity → class mapping
+        entities: all entities
+        entity_map: {eid: entity_dict}
+        majority_threshold: fraction of concept neighbors needed (default: 0.50)
+
+    Returns:
+        {record_eid: class_name} for all record entities
+    """
+    print(f"\n[Phase 1e] Propagating concept types to records (threshold={majority_threshold:.0%})...", flush=True)
+
+    record_assignments: dict[str, str] = {}
+    propagated = 0
+    fallback = 0
+
+    for e in entities:
+        eid = e["id"]
+        if get_entity_lane(e) != "record":
+            continue
+
+        # Collect classes of connected concept entities
+        neighbor_classes: list[str] = []
+        for rel in e.get("out_rels", []):
+            tgt = rel.get("target", "")
+            tgt_cls = concept_assignments.get(tgt)
+            if tgt_cls and tgt_cls != "Other":
+                neighbor_classes.append(tgt_cls)
+        for rel in e.get("in_rels", []):
+            src = rel.get("source", "")
+            src_cls = concept_assignments.get(src)
+            if src_cls and src_cls != "Other":
+                neighbor_classes.append(src_cls)
+
+        if neighbor_classes:
+            class_counts = Counter(neighbor_classes)
+            top_cls, top_count = class_counts.most_common(1)[0]
+            fraction = top_count / len(neighbor_classes)
+
+            if fraction >= majority_threshold:
+                record_assignments[eid] = top_cls
+                propagated += 1
+                continue
+
+        # Fallback: use Zone 2 entity_type → sanitize → match vocab
+        et = e.get("entity_type", "Other")
+        sanitized = _sanitize_label(et) if et and et != "Unknown" else "Other"
+        record_assignments[eid] = sanitized
+        fallback += 1
+
+    print(f"  ✓ {propagated} records typed by concept neighbors, "
+          f"{fallback} used Zone 2 fallback", flush=True)
+    return record_assignments
+
+
 def build_structural_signatures(entities: list[dict]) -> tuple[np.ndarray, list[str], list[str]]:
     """Build relation signature feature vectors.
 
@@ -1761,61 +1829,88 @@ def run_sv_loi(
     assignments = type_value_entities(assignments, entities, class_vocab)
 
     # --- Decision provenance tracking ---
-    # Track per-entity: initial LLM type, structural outlier score,
-    # whether arbitration was triggered, and final class.
     provenance: dict[str, dict] = {}
-    pre_verify_assignments = dict(assignments)
     for eid, cls in assignments.items():
         provenance[eid] = {"llm_type": cls, "flagged": False, "arbitrated": False}
 
-    # Phase 2+3: Iterative structural verification + arbitration
+    # === CONCEPT-FIRST VERIFICATION (Change 5) ===
+    # Verify concepts with clean centroids BEFORE propagating to records.
+    # This prevents record assignments from polluting structural signals.
+
     features, entity_ids, feature_names = build_structural_signatures(entities)
     total_flagged = 0
 
     if skip_verify:
         _flush_print("\n--- [ABLATION] Skipping structural verification ---")
     else:
-        for verify_round in range(2):
-            round_label = f"(round {verify_round + 1}/2)"
-            _flush_print(f"\n--- Structural verification {round_label} ---")
+        # Phase 2a: Concept-only structural verification
+        _flush_print("\n--- Phase 2a: Concept-only structural verification ---")
+        concept_only_assignments = {
+            eid: cls for eid, cls in assignments.items()
+            if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
+        }
+        class_stats, flagged = structural_consensus_check(
+            concept_only_assignments, features, entity_ids,
+        )
+        total_flagged += len(flagged)
 
-            class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
-            total_flagged += len(flagged)
+        for f_entry in flagged:
+            eid = f_entry["entity_id"]
+            if eid in provenance:
+                provenance[eid]["flagged"] = True
+                provenance[eid]["outlier_score"] = f_entry["similarity"]
+                provenance[eid]["class_mean_sim"] = f_entry["class_mean_sim"]
+                provenance[eid]["nearest_alt"] = f_entry["nearest_class"]
 
-            # Record outlier scores in provenance
-            for f_entry in flagged:
-                eid = f_entry["entity_id"]
-                if eid in provenance:
-                    provenance[eid]["flagged"] = True
-                    provenance[eid]["outlier_score"] = f_entry["similarity"]
-                    provenance[eid]["class_mean_sim"] = f_entry["class_mean_sim"]
-                    provenance[eid]["nearest_alt"] = f_entry["nearest_class"]
+        if flagged and not skip_arbitrate:
+            pre_arb = dict(assignments)
+            assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
+            for eid in assignments:
+                if eid in pre_arb and assignments[eid] != pre_arb[eid]:
+                    if eid in provenance:
+                        provenance[eid]["arbitrated"] = True
+                        provenance[eid]["pre_arb_class"] = pre_arb[eid]
+        elif flagged and skip_arbitrate:
+            _flush_print(f"  [ABLATION] Skipping arbitration — {len(flagged)} flagged")
 
-            if not flagged:
-                _flush_print(f"  No disagreements in {round_label} — skipping arbitration.")
-                break
+    # Phase 1e: Propagate verified concept types to records
+    concept_assignments_verified = {
+        eid: cls for eid, cls in assignments.items()
+        if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
+    }
+    record_assignments = propagate_to_records(
+        concept_assignments_verified, entities, entity_map_all,
+    )
+    for eid, cls in record_assignments.items():
+        assignments[eid] = cls
 
-            if skip_arbitrate:
-                _flush_print(f"  [ABLATION] Skipping arbitration — {len(flagged)} flagged but not re-typed")
-            else:
-                pre_arb = dict(assignments)
-                assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
-                # Record arbitration outcomes
-                for eid in assignments:
-                    if eid in pre_arb and assignments[eid] != pre_arb[eid]:
-                        if eid in provenance:
-                            provenance[eid]["arbitrated"] = True
-                            provenance[eid]["pre_arb_class"] = pre_arb[eid]
+    # Phase 2b: Full structural verification (all entities, clean centroids)
+    if not skip_verify:
+        _flush_print("\n--- Phase 2b: Full structural verification ---")
+        class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
+        total_flagged += len(flagged)
 
-    # --- Change A: Two-lane pipeline ---
-    # Extract concept-only assignments for consolidation decisions.
-    # Records never influence class merging or naming.
+        for f_entry in flagged:
+            eid = f_entry["entity_id"]
+            if eid in provenance:
+                provenance[eid]["flagged"] = True
+                provenance[eid]["outlier_score"] = f_entry["similarity"]
+
+        if flagged and not skip_arbitrate:
+            pre_arb = dict(assignments)
+            assignments = arbitrate_disagreements(flagged, entities, assignments, class_vocab, llm)
+            for eid in assignments:
+                if eid in pre_arb and assignments[eid] != pre_arb[eid]:
+                    if eid in provenance:
+                        provenance[eid]["arbitrated"] = True
+                        provenance[eid]["pre_arb_class"] = pre_arb[eid]
+
+    # --- Two-lane: concept entities drive consolidation ---
     concept_assignments = {
         eid: cls for eid, cls in assignments.items()
-        if is_concept_entity(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"}))
+        if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
     }
-    _flush_print(f"\n  Two-lane: {len(concept_assignments)} concept entities drive consolidation, "
-                 f"{len(assignments) - len(concept_assignments)} records excluded")
+    _flush_print(f"\n  Two-lane: {len(concept_assignments)} concepts drive consolidation")
 
     # Phase 4: Unified class relation inference (5-way) + hierarchy (Changes C+D+E)
     pre_consolidate = dict(assignments)
