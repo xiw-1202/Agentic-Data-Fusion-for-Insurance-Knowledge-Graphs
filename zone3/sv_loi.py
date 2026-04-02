@@ -777,80 +777,88 @@ def type_value_entities(
     assignments: dict[str, str],
     entities: list[dict],
     class_vocab: list[str],
-    threshold: float = 0.70,
+    confidence_threshold: float = 0.50,
 ) -> dict[str, str]:
-    """Generalized value entity typing via neighbor-class majority voting.
+    """Type value entities via relation-range induction (domain-agnostic).
 
-    Replaces the hardcoded LOCATION_RELATIONS heuristic. For each value entity
-    currently assigned to "Other", check what classes its connected concept
-    entities belong to. If >threshold of connections point to a single class,
-    assign the value entity there.
+    Learns a relation_type → range_class mapping from already-typed entities,
+    then uses incoming relation types to type untyped value entities.
 
-    This is domain-agnostic: works for any LOB without hardcoded relation names.
+    This is the standard KG approach: type objects from the predicate's range,
+    not from the subject's class. Domain-agnostic because it learns from
+    graph regularities, not hardcoded patterns.
+
+    Algorithm:
+        1. Build a (relation_type × class) score matrix from typed entities
+        2. For each relation, compute P(class | relation) = range distribution
+        3. For each value entity, aggregate P(class | incoming_relation) across edges
+        4. Assign if confidence > threshold; otherwise stay "Other"
 
     Args:
-        threshold: Minimum fraction of connections to a single class to assign (default: 0.70)
+        confidence_threshold: Min P(class|relation) to assign (default: 0.50)
     """
-    print(f"\n[Phase 1f] Generalized value entity typing (threshold={threshold})...", flush=True)
+    print(f"\n[Phase 1f] Value entity typing via relation-range induction...", flush=True)
 
     entity_map = {e["id"]: e for e in entities}
     updated = dict(assignments)
+
+    # Step 1: Build relation → range-class score matrix from typed entities
+    # For each relation type, count how often its TARGET belongs to each class
+    rel_range: dict[str, Counter] = defaultdict(Counter)
+    for e in entities:
+        eid = e["id"]
+        src_cls = assignments.get(eid, "Other")
+        for rel in e.get("out_rels", []):
+            rel_type = rel.get("rel", "")
+            tgt_eid = rel.get("target", "")
+            tgt_cls = assignments.get(tgt_eid, "Other")
+            if tgt_cls != "Other" and rel_type:
+                rel_range[rel_type][tgt_cls] += 1
+
+    # Step 2: Compute P(class | relation) for each relation type
+    rel_to_class: dict[str, tuple[str, float]] = {}  # rel_type → (best_class, confidence)
+    for rel_type, class_counts in rel_range.items():
+        total = sum(class_counts.values())
+        if total < 2:
+            continue  # too little evidence
+        best_cls, best_count = class_counts.most_common(1)[0]
+        confidence = best_count / total
+        if confidence >= confidence_threshold and best_cls in class_vocab:
+            rel_to_class[rel_type] = (best_cls, confidence)
+
+    if rel_to_class:
+        print(f"  Learned {len(rel_to_class)} relation→class mappings:", flush=True)
+        for rt, (cls, conf) in sorted(rel_to_class.items(), key=lambda x: -x[1][1])[:15]:
+            print(f"    {rt:<45} → {cls:<15} (conf={conf:.2f})", flush=True)
+
+    # Step 3: Type value entities using their incoming relation's range class
     reclassified = 0
     class_gains: Counter = Counter()
-
-    # Build concept assignment lookup
-    concept_classes = {eid: cls for eid, cls in assignments.items()
-                       if cls != "Other" and get_entity_lane(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"}
-
-    # Relation types that indicate geographic/location semantics (domain-agnostic patterns)
-    GEO_RELATION_PATTERNS = {"state", "city", "zip", "address", "county", "location", "community"}
-
-    def _is_geo_relation(rel_type: str) -> bool:
-        """Check if relation type has geographic semantics (domain-agnostic)."""
-        rel_lower = rel_type.lower().replace("_", " ")
-        return any(pat in rel_lower for pat in GEO_RELATION_PATTERNS)
-
-    has_address = "Address" in class_vocab
 
     for e in entities:
         eid = e["id"]
         if get_entity_lane(e) != "value" or updated.get(eid) != "Other":
             continue
 
-        # Strategy 1: Relation-type semantics (domain-agnostic)
-        # If this value is the target of a geographic relation, it's an Address
-        if has_address:
-            in_rel_types = set(e.get("in_rel_counts", {}).keys())
-            if any(_is_geo_relation(rt) for rt in in_rel_types):
-                updated[eid] = "Address"
-                reclassified += 1
-                class_gains["Address"] += 1
-                continue
+        # Aggregate evidence from incoming relations
+        class_evidence: Counter = Counter()
+        for rel_type, count in e.get("in_rel_counts", {}).items():
+            if rel_type in rel_to_class:
+                cls, conf = rel_to_class[rel_type]
+                class_evidence[cls] += count * conf  # weight by confidence
 
-        # Strategy 2: Neighbor-class majority voting (for non-geographic values)
-        neighbor_classes: list[str] = []
-        for rel in e.get("in_rels", []):
-            src = rel.get("source", "")
-            src_cls = assignments.get(src, "Other")
-            if src_cls != "Other":
-                neighbor_classes.append(src_cls)
-        for rel in e.get("out_rels", []):
-            tgt = rel.get("target", "")
-            tgt_cls = assignments.get(tgt, "Other")
-            if tgt_cls != "Other":
-                neighbor_classes.append(tgt_cls)
-
-        if not neighbor_classes:
+        if not class_evidence:
             continue
 
-        class_counts = Counter(neighbor_classes)
-        top_cls, top_count = class_counts.most_common(1)[0]
-        fraction = top_count / len(neighbor_classes)
+        # Assign to highest-evidence class
+        best_cls, best_score = class_evidence.most_common(1)[0]
+        total_evidence = sum(class_evidence.values())
+        fraction = best_score / total_evidence if total_evidence > 0 else 0
 
-        if fraction >= threshold and top_cls in class_vocab:
-            updated[eid] = top_cls
+        if fraction >= confidence_threshold and best_cls in class_vocab:
+            updated[eid] = best_cls
             reclassified += 1
-            class_gains[top_cls] += 1
+            class_gains[best_cls] += 1
 
     if reclassified > 0:
         print(f"  ✓ Reclassified {reclassified} value entities from Other:", flush=True)
