@@ -1802,7 +1802,18 @@ def merge_leaf_classes(
         print("  ✓ No classes to validate")
         return assignments
 
-    print(f"  {len(all_classes)} classes to validate", flush=True)
+    # Identify classes backed by database records (distinct data schemas)
+    classes_with_records: set[str] = set()
+    for cls in all_classes:
+        has_records = any(
+            eid.startswith(("POL-", "CLM-", "REC-", "PER-", "PROP-"))
+            for eid, c in assignments.items() if c == cls
+        )
+        if has_records:
+            classes_with_records.add(cls)
+
+    print(f"  {len(all_classes)} classes to validate "
+          f"({len(classes_with_records)} record-backed)", flush=True)
 
     # Step 2: Ask LLM to validate — present ALL classes with evidence,
     # let LLM decide which are real vs which should merge.
@@ -1815,9 +1826,10 @@ def merge_leaf_classes(
             parent_info = ""
             if p["top_parent"]:
                 parent_info = f", most referenced by: {p['top_parent'][0]}"
-            members_str = ', '.join(p['sample_members'][:4]) if p['sample_members'] else '(record entities)'
+            members_str = ', '.join(p['sample_members'][:4]) if p['sample_members'] else '(database records only)'
+            record_note = " [RECORDS]" if cls in classes_with_records else ""
             profile_lines.append(
-                f"  {cls} ({p['count']} total, {p['concept_count']} concepts): "
+                f"  {cls}{record_note} ({p['count']} total, {p['concept_count']} concepts): "
                 f"examples=[{members_str}], "
                 f"{p['n_rel_types']} relation types"
                 f"{parent_info}"
@@ -1839,6 +1851,9 @@ def merge_leaf_classes(
             "- Class SIZE does not matter. A class with 5 members can be real "
             "(e.g., Product with 'Flood Insurance') while a class with 20 "
             "members can be an attribute (e.g., Requirement).\n"
+            "- Classes marked [RECORDS] contain database records from distinct "
+            "data sources. NEVER merge two [RECORDS] classes together — they "
+            "represent different data schemas (e.g., claims vs policies).\n"
             "- When in doubt, KEEP. Over-merging destroys ontology structure.\n\n"
             "Return JSON: {\"ClassName\": \"keep\" or \"merge:TargetClass\"}\n"
             "Include ALL classes listed above."
@@ -1895,7 +1910,21 @@ def merge_leaf_classes(
                   f"({p['leaf_frac']:.0%} leaf, {p['n_rel_types']} rels)",
                   flush=True)
 
-    # Step 4: Apply merges
+    # Step 4: Structural veto — prevent merging classes that represent
+    # distinct data schemas (both have record entities from different sources).
+    # SV-LOI principle: when semantic (LLM) and structural signals disagree,
+    # keep separate. Two record-backed classes = two distinct data schemas.
+    vetoed: list[str] = []
+    for src_cls, tgt_cls in list(merge_map.items()):
+        # Veto: never merge two record-backed classes (conflates data schemas)
+        if src_cls in classes_with_records and tgt_cls in classes_with_records:
+            vetoed.append(src_cls)
+            del merge_map[src_cls]
+            print(f"    VETO: {src_cls} → {tgt_cls} "
+                  f"(both have record entities — distinct data schemas)",
+                  flush=True)
+
+    # Step 5: Apply merges
     updated = dict(assignments)
     for src_cls, tgt_cls in merge_map.items():
         for eid in list(updated.keys()):
@@ -1906,7 +1935,9 @@ def merge_leaf_classes(
         print(f"  ✓ Merged {len(merge_map)} classes:", flush=True)
         for src, tgt in merge_map.items():
             print(f"    {src} ({class_counts[src]}) → {tgt}", flush=True)
-    else:
+    if vetoed:
+        print(f"  ✓ Vetoed {len(vetoed)} merges: {vetoed}", flush=True)
+    if not merge_map and not vetoed:
         print("  ✓ No merges needed")
 
     return updated
