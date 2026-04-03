@@ -56,3 +56,8 @@ docs/nfip_kg_extraction_sonnet4.6.json
 
 # Presentation artifacts
 data/Emory_Spring2026/
+
+# Agent-generated root files
+AUTO_REVIEW.md
+REVIEW_STATE.json
+CLAUDE.md
