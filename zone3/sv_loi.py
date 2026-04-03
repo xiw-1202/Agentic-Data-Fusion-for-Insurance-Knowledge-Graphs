@@ -1737,12 +1737,16 @@ def merge_leaf_classes(
     entity_map = {e["id"]: e for e in entities}
     class_counts = Counter(assignments.values())
 
-    # Step 1: Compute structural profile for each small class
-    small_classes: list[str] = []
+    # Step 1: Compute structural profile for ALL non-Other classes.
+    # Present every class to the LLM with its evidence — the LLM decides
+    # which are real classes (KEEP) vs property values (MERGE).
+    # No artificial large/small split — a class with 17 members (Risk)
+    # is a valid merge target for a class with 3 members (Classification).
+    all_classes: list[str] = []
     class_profiles: dict[str, dict] = {}
 
     for cls, count in class_counts.items():
-        if cls == "Other" or count >= 50:
+        if cls == "Other":
             continue
 
         members = [eid for eid, c in assignments.items() if c == cls]
@@ -1750,6 +1754,10 @@ def merge_leaf_classes(
         all_rel_types: set[str] = set()
         total_degree = 0.0
         sample_members: list[str] = []
+        # Prefer concept members for samples (semantic names, not POL-xxx)
+        concept_members = [eid for eid in members
+                           if not eid.startswith(("POL-", "CLM-", "PROP-", "REC-", "PER-"))]
+        sample_pool = concept_members or members
 
         for eid in members:
             e = entity_map.get(eid)
@@ -1761,7 +1769,7 @@ def merge_leaf_classes(
             total_degree += e.get("degree", 0)
             all_rel_types.update(e.get("out_rel_counts", {}).keys())
             all_rel_types.update(e.get("in_rel_counts", {}).keys())
-            if len(sample_members) < 5:
+            if len(sample_members) < 5 and eid in sample_pool:
                 sample_members.append(eid)
 
         leaf_frac = leaf_count / len(members) if members else 0
@@ -1780,6 +1788,7 @@ def merge_leaf_classes(
 
         class_profiles[cls] = {
             "count": count,
+            "concept_count": len(concept_members),
             "leaf_frac": leaf_frac,
             "avg_degree": avg_degree,
             "rel_types": sorted(all_rel_types)[:8],
@@ -1787,56 +1796,52 @@ def merge_leaf_classes(
             "sample_members": sample_members,
             "top_parent": parent_votes.most_common(1)[0] if parent_votes else None,
         }
-        small_classes.append(cls)
+        all_classes.append(cls)
 
-    if not small_classes:
-        print("  ✓ No small classes to validate")
+    if not all_classes:
+        print("  ✓ No classes to validate")
         return assignments
 
-    # Large classes (potential merge targets)
-    large_classes = sorted(
-        [cls for cls, cnt in class_counts.items() if cnt >= 50 and cls != "Other"],
-        key=lambda c: -class_counts[c],
-    )
+    print(f"  {len(all_classes)} classes to validate", flush=True)
 
-    print(f"  {len(small_classes)} small classes to validate, "
-          f"{len(large_classes)} large classes as targets", flush=True)
-
-    # Step 2: Ask LLM to validate each small class
+    # Step 2: Ask LLM to validate — present ALL classes with evidence,
+    # let LLM decide which are real vs which should merge.
     merge_map: dict[str, str] = {}
 
     if llm:
         profile_lines = []
-        for cls in small_classes:
+        for cls in sorted(all_classes, key=lambda c: -class_counts[c]):
             p = class_profiles[cls]
             parent_info = ""
             if p["top_parent"]:
                 parent_info = f", most referenced by: {p['top_parent'][0]}"
+            members_str = ', '.join(p['sample_members'][:4]) if p['sample_members'] else '(record entities)'
             profile_lines.append(
-                f"  {cls} ({p['count']} members): "
-                f"examples=[{', '.join(p['sample_members'][:4])}], "
-                f"leaf%={p['leaf_frac']:.0%}, "
-                f"{p['n_rel_types']} relation types: "
-                f"[{', '.join(p['rel_types'][:6])}]"
+                f"  {cls} ({p['count']} total, {p['concept_count']} concepts): "
+                f"examples=[{members_str}], "
+                f"{p['n_rel_types']} relation types"
                 f"{parent_info}"
             )
 
         prompt = (
-            "Ontology class validation task.\n\n"
-            f"Large classes (established): {', '.join(large_classes)}\n\n"
-            f"Small classes to validate:\n" + "\n".join(profile_lines) + "\n\n"
-            "For each small class, decide:\n"
-            "- KEEP: if it represents a genuine ontological concept "
-            "(distinct from all large classes)\n"
-            "- MERGE into <TargetClass>: if it's really a property/attribute "
-            "of another class, not a standalone concept\n\n"
-            "A class should MERGE if its members are values that DESCRIBE "
-            "another class rather than independent entities. Example: "
-            "'Deductible' members describe coverage terms → merge into Coverage.\n"
-            "A class should KEEP if its members are real-world things with "
-            "their own identity. Example: 'Person' members are actual people.\n\n"
+            "Ontology class consolidation task.\n\n"
+            "Below are ALL induced ontology classes with their evidence.\n"
+            "Decide which classes are genuine ontological concepts and which "
+            "are really properties/attributes of other classes.\n\n"
+            "Classes:\n" + "\n".join(profile_lines) + "\n\n"
+            "Rules:\n"
+            "- KEEP if the members are real-world THINGS (people, places, risks, "
+            "products, organizations, processes, damages, documents). These exist "
+            "independently — 'Base Flood' IS a risk, 'FEMA' IS an organization.\n"
+            "- MERGE only if the members are MEASUREMENTS or ATTRIBUTES that "
+            "describe another class — amounts, limits, codes, dates, thresholds. "
+            "Example: 'Separate Deductible' is an ATTRIBUTE of Coverage.\n"
+            "- Class SIZE does not matter. A class with 5 members can be real "
+            "(e.g., Product with 'Flood Insurance') while a class with 20 "
+            "members can be an attribute (e.g., Requirement).\n"
+            "- When in doubt, KEEP. Over-merging destroys ontology structure.\n\n"
             "Return JSON: {\"ClassName\": \"keep\" or \"merge:TargetClass\"}\n"
-            "You must include ALL small classes listed above."
+            "Include ALL classes listed above."
         )
 
         try:
@@ -1845,9 +1850,9 @@ def merge_leaf_classes(
             if isinstance(decisions, dict):
                 for cls_key, decision in decisions.items():
                     matched_cls = None
-                    for sc in small_classes:
-                        if sc.lower() == cls_key.lower():
-                            matched_cls = sc
+                    for c in all_classes:
+                        if c.lower() == cls_key.lower():
+                            matched_cls = c
                             break
                     if not matched_cls:
                         continue
@@ -1858,7 +1863,6 @@ def merge_leaf_classes(
                     elif decision.lower().startswith("merge:"):
                         target = decision.split(":", 1)[1].strip()
                         matched_target = None
-                        all_classes = large_classes + small_classes
                         for c in all_classes:
                             if c.lower() == target.lower():
                                 matched_target = c
@@ -1877,11 +1881,14 @@ def merge_leaf_classes(
 
     # Step 3: Heuristic fallback for undecided classes
     # Uses structural criterion: leaf% > 70% AND distinct_rels < 4
-    for cls in small_classes:
+    for cls in all_classes:
         if cls in merge_map:
             continue
         p = class_profiles[cls]
-        if p["leaf_frac"] > 0.70 and p["n_rel_types"] < 4 and p["top_parent"]:
+        if (p["count"] < 50
+                and p["leaf_frac"] > 0.70
+                and p["n_rel_types"] < 4
+                and p["top_parent"]):
             target = p["top_parent"][0]
             merge_map[cls] = target
             print(f"    Heuristic: {cls} → {target} "
