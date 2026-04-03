@@ -61,3 +61,11 @@ data/Emory_Spring2026/
 AUTO_REVIEW.md
 REVIEW_STATE.json
 CLAUDE.md
+
+# Agent-generated docs
+docs/IDEA_REPORT.md
+docs/midterm_slides_content.md
+docs/midterm_speaker_script.md
+docs/refine-logs/EXPERIMENT_PLAN.md
+docs/refine-logs/EXPERIMENT_TRACKER.md
+docs/refine-logs/FINAL_PROPOSAL.md
