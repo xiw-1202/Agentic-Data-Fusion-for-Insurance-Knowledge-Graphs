@@ -1704,64 +1704,52 @@ def merge_small_classes(
 # Phase 4b+: Structural leaf-class merging
 # ---------------------------------------------------------------------------
 
-# Thresholds for leaf-class detection (all data-driven, no hardcoded names)
-LEAF_FRACTION_THRESHOLD = 0.70   # >70% of members are leaf nodes (≤1 out-rel)
-LEAF_CLASS_MAX_SIZE = 50         # only merge small classes (large ones are real)
-LEAF_MIN_REL_DIVERSITY = 4       # classes with ≥4 distinct relation types are real
-
-
 def merge_leaf_classes(
     assignments: dict[str, str],
     entities: list[dict],
+    llm: Optional[ChatOllama] = None,
 ) -> dict[str, str]:
-    """Merge property-value classes into their parent ontology classes.
+    """LLM-guided class validation with structural evidence.
 
-    Ontological principle: a real class has instances with rich relational
-    structure (multiple outgoing relations). A "leaf class" has instances that
-    are mostly terminal nodes — they get pointed at but don't point to much
-    themselves. These are property values, not ontology classes.
+    After entity typing, some induced classes are genuine ontology classes
+    (Risk, Damage, Person) while others are property values masquerading
+    as classes (Deductible, Limit, Notification). This function presents
+    the LLM with structural evidence for each small class and asks it to
+    decide: keep as a real class, or merge into a parent?
 
-    Example: "Deductible" members have avg 1.0 degree and 100% leaf nodes.
-    They're values OF Coverage, not a separate class. Merge into Coverage.
+    The structural evidence (member count, leaf fraction, relational
+    diversity, sample members, top parent) helps the LLM make informed
+    decisions. This scales with data — more data means richer evidence,
+    better decisions. No hardcoded thresholds that break with scale.
 
-    Detection: class is a leaf class if:
-      - >70% of members have ≤1 outgoing relation (leaf nodes)
-      - class has <50 members (large classes are structurally real)
-      - class is not in PROTECTED_CLASS_NAMES
+    Algorithm:
+        1. Compute structural profile for each small class (<50 members)
+        2. Present all small classes + evidence to LLM in one prompt
+        3. LLM returns: keep or merge into a target class
+        4. Apply merge decisions
+        5. Heuristic fallback for any class LLM didn't decide:
+           merge if leaf% > 70% AND distinct_rel_types < 4
 
-    Merge target: the class whose members most frequently point TO the
-    leaf class members (incoming relation majority vote).
-
-    Domain-agnostic — uses graph structure only, no hardcoded mappings.
+    Domain-agnostic — uses graph structure + LLM reasoning, no hardcoded names.
     """
-    print("\n[Phase 4b+] Structural leaf-class merging...", flush=True)
+    print("\n[Phase 4b+] LLM-guided class validation...", flush=True)
 
     entity_map = {e["id"]: e for e in entities}
     class_counts = Counter(assignments.values())
 
-    # Step 1: Identify leaf classes using three data-driven criteria:
-    #   (a) >70% of members are leaf nodes (≤1 outgoing relation)
-    #   (b) class has <50 members (large classes are structurally real)
-    #   (c) members collectively participate in <4 distinct relation types
-    # Criterion (c) is key: it distinguishes property-value classes (Limit: 2
-    # relations) from real ontology classes (Risk: 4+ relations). A class whose
-    # members participate in diverse relations represents a genuine ontological
-    # concept, even if individual members have low degree.
-    # No hardcoded class names needed — structure speaks for itself.
-    leaf_classes: list[str] = []
-    class_stats: dict[str, dict] = {}
+    # Step 1: Compute structural profile for each small class
+    small_classes: list[str] = []
+    class_profiles: dict[str, dict] = {}
 
     for cls, count in class_counts.items():
-        if cls == "Other":
-            continue
-        if count >= LEAF_CLASS_MAX_SIZE:
+        if cls == "Other" or count >= 50:
             continue
 
-        # Compute leaf fraction and relational diversity
         members = [eid for eid, c in assignments.items() if c == cls]
         leaf_count = 0
         all_rel_types: set[str] = set()
         total_degree = 0.0
+        sample_members: list[str] = []
 
         for eid in members:
             e = entity_map.get(eid)
@@ -1771,81 +1759,148 @@ def merge_leaf_classes(
             if out_count <= 1:
                 leaf_count += 1
             total_degree += e.get("degree", 0)
-            # Collect all distinct relation types this class participates in
             all_rel_types.update(e.get("out_rel_counts", {}).keys())
             all_rel_types.update(e.get("in_rel_counts", {}).keys())
+            if len(sample_members) < 5:
+                sample_members.append(eid)
 
         leaf_frac = leaf_count / len(members) if members else 0
         avg_degree = total_degree / len(members) if members else 0
-        n_rel_types = len(all_rel_types)
 
-        class_stats[cls] = {
+        # Find which large classes point to this class's members
+        member_set = set(members)
+        parent_votes: Counter = Counter()
+        for e in entities:
+            src_cls = assignments.get(e["id"], "Other")
+            if src_cls == "Other" or src_cls == cls or class_counts.get(src_cls, 0) < count:
+                continue
+            for rel in e.get("out_rels", []):
+                if rel.get("target", "") in member_set:
+                    parent_votes[src_cls] += 1
+
+        class_profiles[cls] = {
             "count": count,
             "leaf_frac": leaf_frac,
             "avg_degree": avg_degree,
-            "rel_diversity": n_rel_types,
+            "rel_types": sorted(all_rel_types)[:8],
+            "n_rel_types": len(all_rel_types),
+            "sample_members": sample_members,
+            "top_parent": parent_votes.most_common(1)[0] if parent_votes else None,
         }
+        small_classes.append(cls)
 
-        # All three criteria must be met (AND):
-        if (leaf_frac > LEAF_FRACTION_THRESHOLD
-                and n_rel_types < LEAF_MIN_REL_DIVERSITY):
-            leaf_classes.append(cls)
-
-    if not leaf_classes:
-        print("  ✓ No leaf classes to merge")
+    if not small_classes:
+        print("  ✓ No small classes to validate")
         return assignments
 
-    print(f"  Found {len(leaf_classes)} leaf classes:", flush=True)
-    for cls in leaf_classes:
-        s = class_stats[cls]
-        print(f"    {cls:<20} {s['count']:>3} members, "
-              f"{s['leaf_frac']:.0%} leaf, {s['rel_diversity']} rel types, "
-              f"avg degree {s['avg_degree']:.1f}",
-              flush=True)
+    # Large classes (potential merge targets)
+    large_classes = sorted(
+        [cls for cls, cnt in class_counts.items() if cnt >= 50 and cls != "Other"],
+        key=lambda c: -class_counts[c],
+    )
 
-    # Step 2: For each leaf class, find merge target via incoming relation vote
-    # "Which real class's members most frequently point to this leaf class?"
-    real_classes = {cls for cls, cnt in class_counts.items()
-                    if cls != "Other" and cls not in leaf_classes}
+    print(f"  {len(small_classes)} small classes to validate, "
+          f"{len(large_classes)} large classes as targets", flush=True)
 
-    updated = dict(assignments)
+    # Step 2: Ask LLM to validate each small class
     merge_map: dict[str, str] = {}
 
-    for leaf_cls in leaf_classes:
-        leaf_members = {eid for eid, c in assignments.items() if c == leaf_cls}
+    if llm:
+        profile_lines = []
+        for cls in small_classes:
+            p = class_profiles[cls]
+            parent_info = ""
+            if p["top_parent"]:
+                parent_info = f", most referenced by: {p['top_parent'][0]}"
+            profile_lines.append(
+                f"  {cls} ({p['count']} members): "
+                f"examples=[{', '.join(p['sample_members'][:4])}], "
+                f"leaf%={p['leaf_frac']:.0%}, "
+                f"{p['n_rel_types']} relation types: "
+                f"[{', '.join(p['rel_types'][:6])}]"
+                f"{parent_info}"
+            )
 
-        # Count: for each real class, how many of its members point to leaf members?
-        parent_votes: Counter = Counter()
-        for e in entities:
-            eid = e["id"]
-            src_cls = assignments.get(eid, "Other")
-            if src_cls not in real_classes:
-                continue
-            # Check outgoing relations — does this entity point to any leaf member?
-            for rel in e.get("out_rels", []):
-                tgt = rel.get("target", "")
-                if tgt in leaf_members:
-                    parent_votes[src_cls] += 1
+        prompt = (
+            "Ontology class validation task.\n\n"
+            f"Large classes (established): {', '.join(large_classes)}\n\n"
+            f"Small classes to validate:\n" + "\n".join(profile_lines) + "\n\n"
+            "For each small class, decide:\n"
+            "- KEEP: if it represents a genuine ontological concept "
+            "(distinct from all large classes)\n"
+            "- MERGE into <TargetClass>: if it's really a property/attribute "
+            "of another class, not a standalone concept\n\n"
+            "A class should MERGE if its members are values that DESCRIBE "
+            "another class rather than independent entities. Example: "
+            "'Deductible' members describe coverage terms → merge into Coverage.\n"
+            "A class should KEEP if its members are real-world things with "
+            "their own identity. Example: 'Person' members are actual people.\n\n"
+            "Return JSON: {\"ClassName\": \"keep\" or \"merge:TargetClass\"}\n"
+            "You must include ALL small classes listed above."
+        )
 
-        if parent_votes:
-            best_parent, best_count = parent_votes.most_common(1)[0]
-            merge_map[leaf_cls] = best_parent
-        else:
-            # Fallback: no incoming connections found, skip this class
-            print(f"    {leaf_cls}: no incoming connections, keeping as-is", flush=True)
+        try:
+            response = llm.invoke(prompt)
+            decisions = _parse_json_safely(response.content)
+            if isinstance(decisions, dict):
+                for cls_key, decision in decisions.items():
+                    matched_cls = None
+                    for sc in small_classes:
+                        if sc.lower() == cls_key.lower():
+                            matched_cls = sc
+                            break
+                    if not matched_cls:
+                        continue
 
-    # Step 3: Apply merges
-    for leaf_cls, parent_cls in merge_map.items():
+                    decision = str(decision).strip()
+                    if decision.lower() == "keep":
+                        print(f"    LLM: {matched_cls} → KEEP", flush=True)
+                    elif decision.lower().startswith("merge:"):
+                        target = decision.split(":", 1)[1].strip()
+                        matched_target = None
+                        all_classes = large_classes + small_classes
+                        for c in all_classes:
+                            if c.lower() == target.lower():
+                                matched_target = c
+                                break
+                        if matched_target and matched_target != matched_cls:
+                            merge_map[matched_cls] = matched_target
+                            print(f"    LLM: {matched_cls} → merge into "
+                                  f"{matched_target}", flush=True)
+                        else:
+                            print(f"    LLM: {matched_cls} → merge:{target} "
+                                  f"(target not found, keeping)", flush=True)
+            else:
+                print("    LLM returned non-dict, using heuristic", flush=True)
+        except Exception as exc:
+            print(f"    LLM error: {exc}, using heuristic", flush=True)
+
+    # Step 3: Heuristic fallback for undecided classes
+    # Uses structural criterion: leaf% > 70% AND distinct_rels < 4
+    for cls in small_classes:
+        if cls in merge_map:
+            continue
+        p = class_profiles[cls]
+        if p["leaf_frac"] > 0.70 and p["n_rel_types"] < 4 and p["top_parent"]:
+            target = p["top_parent"][0]
+            merge_map[cls] = target
+            print(f"    Heuristic: {cls} → {target} "
+                  f"({p['leaf_frac']:.0%} leaf, {p['n_rel_types']} rels)",
+                  flush=True)
+
+    # Step 4: Apply merges
+    updated = dict(assignments)
+    for src_cls, tgt_cls in merge_map.items():
         for eid in list(updated.keys()):
-            if updated[eid] == leaf_cls:
-                updated[eid] = parent_cls
+            if updated[eid] == src_cls:
+                updated[eid] = tgt_cls
 
     if merge_map:
-        print(f"  ✓ Merged {len(merge_map)} leaf classes:", flush=True)
-        for leaf, parent in merge_map.items():
-            print(f"    {leaf} ({class_counts[leaf]}) → {parent}", flush=True)
+        print(f"  ✓ Merged {len(merge_map)} classes:", flush=True)
+        for src, tgt in merge_map.items():
+            print(f"    {src} ({class_counts[src]}) → {tgt}", flush=True)
     else:
-        print("  ✓ No merges applied")
+        print("  ✓ No merges needed")
 
     return updated
 
@@ -2317,7 +2372,7 @@ def run_sv_loi(
     assignments = merge_small_classes(assignments, features, entity_ids)
 
     # Phase 4b+: Merge leaf classes (property-value classes) into parent classes
-    assignments = merge_leaf_classes(assignments, entities)
+    assignments = merge_leaf_classes(assignments, entities, llm=llm)
 
     # Phase 4c: Data-driven inter-class edge derivation
     # Instead of LLM-guessing IS-A relationships (which are mostly wrong),
