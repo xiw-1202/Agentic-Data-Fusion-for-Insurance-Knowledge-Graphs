@@ -45,4 +45,14 @@ logs/
 
 # Generated pipeline artifacts (large or ephemeral)
 data/results/*.json
-data/results/zone2_vocab.json
+data/results/*.html
+data/results/*.png
+
+# Agent-generated artifacts (auto-review loops, refine state, etc.)
+docs/refine-logs/REFINE_STATE.json
+docs/refine-logs/round-*.md
+docs/refine-logs/score-history.md
+docs/nfip_kg_extraction_sonnet4.6.json
+
+# Presentation artifacts
+data/Emory_Spring2026/
