@@ -87,14 +87,12 @@ _STRUCTURED_PREFIXES = STRUCTURED_PREFIXES
 TARGET_CLASSES_MIN = 12
 TARGET_CLASSES_MAX = 25
 
-# Standard ontology terms — these can be merged INTO but never renamed away.
-# Derived from upper ontology vocabulary (schema.org, SUMO), NOT from Riskine.
-# This prevents consolidation from destroying exact matches with reference ontologies.
-PROTECTED_CLASS_NAMES = {
-    "person", "organization", "property", "structure", "coverage", "risk",
-    "damage", "product", "address", "object", "process", "document",
-    "claim", "payment", "agent", "place", "vehicle", "animal",
-}
+# REMOVED: PROTECTED_CLASS_NAMES was a hardcoded list that overlapped with
+# Riskine reference classes (domain leakage). Protection is now data-driven:
+# merge_leaf_classes() uses relational diversity (distinct_rels < 4) to
+# distinguish property-value classes from real ontology classes.
+# Classes with rich relational structure survive merging naturally.
+PROTECTED_CLASS_NAMES: set[str] = set()  # empty — fully data-driven
 
 # Forbidden class names — data types masquerading as ontology classes
 FORBIDDEN_CLASS_NAMES = {
@@ -1706,9 +1704,10 @@ def merge_small_classes(
 # Phase 4b+: Structural leaf-class merging
 # ---------------------------------------------------------------------------
 
-# Thresholds for leaf-class detection
+# Thresholds for leaf-class detection (all data-driven, no hardcoded names)
 LEAF_FRACTION_THRESHOLD = 0.70   # >70% of members are leaf nodes (≤1 out-rel)
 LEAF_CLASS_MAX_SIZE = 50         # only merge small classes (large ones are real)
+LEAF_MIN_REL_DIVERSITY = 4       # classes with ≥4 distinct relation types are real
 
 
 def merge_leaf_classes(
@@ -1740,7 +1739,15 @@ def merge_leaf_classes(
     entity_map = {e["id"]: e for e in entities}
     class_counts = Counter(assignments.values())
 
-    # Step 1: Identify leaf classes
+    # Step 1: Identify leaf classes using three data-driven criteria:
+    #   (a) >70% of members are leaf nodes (≤1 outgoing relation)
+    #   (b) class has <50 members (large classes are structurally real)
+    #   (c) members collectively participate in <4 distinct relation types
+    # Criterion (c) is key: it distinguishes property-value classes (Limit: 2
+    # relations) from real ontology classes (Risk: 4+ relations). A class whose
+    # members participate in diverse relations represents a genuine ontological
+    # concept, even if individual members have low degree.
+    # No hardcoded class names needed — structure speaks for itself.
     leaf_classes: list[str] = []
     class_stats: dict[str, dict] = {}
 
@@ -1749,12 +1756,13 @@ def merge_leaf_classes(
             continue
         if count >= LEAF_CLASS_MAX_SIZE:
             continue
-        if cls.lower() in PROTECTED_CLASS_NAMES:
-            continue
 
-        # Compute leaf fraction
+        # Compute leaf fraction and relational diversity
         members = [eid for eid, c in assignments.items() if c == cls]
         leaf_count = 0
+        all_rel_types: set[str] = set()
+        total_degree = 0.0
+
         for eid in members:
             e = entity_map.get(eid)
             if not e:
@@ -1762,22 +1770,25 @@ def merge_leaf_classes(
             out_count = sum(e.get("out_rel_counts", {}).values())
             if out_count <= 1:
                 leaf_count += 1
+            total_degree += e.get("degree", 0)
+            # Collect all distinct relation types this class participates in
+            all_rel_types.update(e.get("out_rel_counts", {}).keys())
+            all_rel_types.update(e.get("in_rel_counts", {}).keys())
 
         leaf_frac = leaf_count / len(members) if members else 0
-        avg_degree = 0.0
-        for eid in members:
-            e = entity_map.get(eid)
-            if e:
-                avg_degree += e.get("degree", 0)
-        avg_degree = avg_degree / len(members) if members else 0
+        avg_degree = total_degree / len(members) if members else 0
+        n_rel_types = len(all_rel_types)
 
         class_stats[cls] = {
             "count": count,
             "leaf_frac": leaf_frac,
             "avg_degree": avg_degree,
+            "rel_diversity": n_rel_types,
         }
 
-        if leaf_frac > LEAF_FRACTION_THRESHOLD:
+        # All three criteria must be met (AND):
+        if (leaf_frac > LEAF_FRACTION_THRESHOLD
+                and n_rel_types < LEAF_MIN_REL_DIVERSITY):
             leaf_classes.append(cls)
 
     if not leaf_classes:
@@ -1788,7 +1799,8 @@ def merge_leaf_classes(
     for cls in leaf_classes:
         s = class_stats[cls]
         print(f"    {cls:<20} {s['count']:>3} members, "
-              f"{s['leaf_frac']:.0%} leaf, avg degree {s['avg_degree']:.1f}",
+              f"{s['leaf_frac']:.0%} leaf, {s['rel_diversity']} rel types, "
+              f"avg degree {s['avg_degree']:.1f}",
               flush=True)
 
     # Step 2: For each leaf class, find merge target via incoming relation vote
