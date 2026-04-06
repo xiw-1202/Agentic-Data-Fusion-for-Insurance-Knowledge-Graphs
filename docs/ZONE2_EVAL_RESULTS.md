@@ -1,6 +1,6 @@
 # Zone 2 Extraction — Evaluation Results (v4)
 
-Model: qwen2.5:72b | Input: 188 chunks (49 PDF + 67 policy CSV + 72 claims CSV)
+Model: qwen2.5:72b | Input: 27-page PDF + 500 policy records + 500 claims records → 188 chunks (49 PDF + 67 policy + 72 claims)
 
 ## Metric Summary
 
