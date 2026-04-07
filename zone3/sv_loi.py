@@ -252,11 +252,13 @@ def discover_class_vocabulary(
     entities: list[dict],
     llm: ChatOllama,
     record_evidence: str = "",
+    all_entities: list[dict] | None = None,
 ) -> tuple[list[str], str]:
     """Two-stage class discovery: detect domain → propose domain-role classes.
 
     Stage 1: Ask LLM what domain this KG is about.
     Stage 2: Given domain, propose classes for real-world ROLES, not data types.
+    Stage 3: Seed from structured record types with significant populations.
     Post-process: Filter out any forbidden data-type class names.
 
     Returns (class_list, detected_domain).
@@ -453,6 +455,21 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
     # The LLM proposes class names freely; the Riskine eval measures
     # alignment via BERTScore which handles synonyms (Policy≈Product,
     # Location≈Address). Planting Riskine class names would be leakage.
+
+    # Data-driven record seeding: if structured records have significant
+    # populations with known prefix→class mappings, ensure those classes
+    # exist in the vocabulary. This is NOT leakage — it reads from Zone 2's
+    # own record prefixes (POL-, CLM-, PER-, PROP-), not from Riskine.
+    RECORD_PREFIX_TO_CLASS = {
+        "POL": "Policy", "CLM": "Claim", "PER": "Person", "PROP": "Property",
+    }
+    seed_entities = all_entities or entities
+    for prefix, cls_name in RECORD_PREFIX_TO_CLASS.items():
+        count = sum(1 for e in seed_entities if e["id"].startswith(f"{prefix}-"))
+        if count > 50 and cls_name.lower() not in seen_lower:
+            classes.append(cls_name)
+            seen_lower.add(cls_name.lower())
+            print(f"  [seed] Added {cls_name} from {count} {prefix}- records", flush=True)
 
     # Always include "Other" for unclassifiable entities
     if "Other" not in classes:
@@ -1015,7 +1032,9 @@ def propagate_to_records(
         llm: LLM for schema mapping (optional; falls back to heuristic)
 
     Returns:
-        {record_eid: class_name} for all record entities
+        (record_assignments, redirects) where:
+          record_assignments: {record_eid: class_name}
+          redirects: {old_class: new_class} for record-type names that were remapped
     """
     print("\n[Phase 8] Schema mapping: record types → induced classes...", flush=True)
 
@@ -1850,9 +1869,17 @@ def merge_leaf_classes(
                                 matched_target = c
                                 break
                         if matched_target and matched_target != matched_cls:
-                            merge_map[matched_cls] = matched_target
-                            print(f"    LLM: {matched_cls} → merge into "
-                                  f"{matched_target}", flush=True)
+                            # Guard: never merge record-backed classes with >100 members
+                            member_count = class_counts.get(matched_cls, 0)
+                            if (member_count > 100
+                                    and matched_cls in classes_with_records):
+                                print(f"    LLM: {matched_cls} → merge into "
+                                      f"{matched_target} [BLOCKED: {member_count} "
+                                      f"members, record-backed]", flush=True)
+                            else:
+                                merge_map[matched_cls] = matched_target
+                                print(f"    LLM: {matched_cls} → merge into "
+                                      f"{matched_target}", flush=True)
                         else:
                             print(f"    LLM: {matched_cls} → merge:{target} "
                                   f"(target not found, keeping)", flush=True)
@@ -2062,12 +2089,11 @@ def write_ontology(
         skip = {"__Entity__", "Document", "Entity", "OntologyClass"}
         for lbl in existing:
             if lbl not in skip and lbl != "Other":
-                safe = re.sub(r'[^A-Za-z0-9_]', '', lbl)
-                if safe and safe == lbl:
-                    try:
-                        graph.query(f"MATCH (n:`{safe}`) REMOVE n:`{safe}`")
-                    except Exception:
-                        pass
+                try:
+                    # Backtick-quoted labels handle special characters safely
+                    graph.query(f"MATCH (n:`{lbl}`) REMOVE n:`{lbl}`")
+                except Exception:
+                    pass
     except Exception as e:
         print(f"  Warning: cleanup error: {e}")
 
@@ -2208,7 +2234,10 @@ def run_sv_loi(
     if record_evidence:
         _flush_print(f"\n[Phase 1] Record evidence:\n{record_evidence}")
 
-    class_vocab, detected_domain = discover_class_vocabulary(concept_entities, llm, record_evidence=record_evidence)
+    class_vocab, detected_domain = discover_class_vocabulary(
+        concept_entities, llm, record_evidence=record_evidence,
+        all_entities=entities,
+    )
 
     # Phase 3: Batch LLM entity typing
     assignments = batch_type_entities(entities, class_vocab, llm)

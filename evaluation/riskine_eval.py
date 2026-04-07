@@ -158,7 +158,7 @@ def _get_label_members(
         return []
     try:
         rows = graph.query(
-            f"MATCH (n:{safe}) WHERE n.id IS NOT NULL RETURN n.id AS id LIMIT 100"
+            f"MATCH (n:{safe}) WHERE n.id IS NOT NULL RETURN n.id AS id ORDER BY n.id ASC LIMIT 100"
         )
         members = [r["id"] for r in rows if r.get("id")]
         if exclude_records:

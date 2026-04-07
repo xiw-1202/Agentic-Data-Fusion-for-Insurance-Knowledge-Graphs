@@ -74,11 +74,21 @@ def _build_entity_graph(triples: list[dict]) -> dict:
         subj_type = t.get("subject_type", "Unknown")
         obj_type = t.get("object_type", "Unknown")
 
-        # Register entities (first seen type wins)
+        # Register entities — concept types override value types.
+        # Structured triples come first in the list (zone2 prepends them),
+        # so without this priority logic, VALUE types (Numeric, Date, Text)
+        # would lock in and block concept types from LLM extraction.
         if subj not in entities:
             entities[subj] = {"entity_type": subj_type}
+        elif (subj_type not in VALUE_ENTITY_TYPES
+              and entities[subj]["entity_type"] in VALUE_ENTITY_TYPES):
+            entities[subj]["entity_type"] = subj_type
+
         if obj not in entities:
             entities[obj] = {"entity_type": obj_type}
+        elif (obj_type not in VALUE_ENTITY_TYPES
+              and entities[obj]["entity_type"] in VALUE_ENTITY_TYPES):
+            entities[obj]["entity_type"] = obj_type
 
         out_rels[subj].append({
             "rel": rel,

@@ -80,6 +80,7 @@ class Zone2State(TypedDict):
     num_passes:          int
     chunks_file:         str                        # path to zone1_chunks.json
     results_dir:         str                        # output directory for results
+    no_wipe:             bool                       # skip Neo4j graph clear
 
 
 # ---------------------------------------------------------------------------
@@ -444,15 +445,16 @@ def evaluate_vocab_quality(triples: list[dict], vocab: list[str]) -> dict:
     }
 
 
-def _load_prior_results() -> dict[str, dict]:
+def _load_prior_results(results_dir: str | None = None) -> dict[str, dict]:
     """Load Baseline and Zone 1 eval results for cross-zone comparison display."""
+    rdir = results_dir or config.RESULTS_DIR
     prior: dict[str, dict] = {}
     candidates = {
         "Baseline": "baseline_eval_results_original.json",
         "Zone 1":   "baseline_eval_results_zone1.json",
     }
     for zone, fname in candidates.items():
-        path = os.path.join(config.RESULTS_DIR, fname)
+        path = os.path.join(rdir, fname)
         if os.path.exists(path):
             try:
                 with open(path) as f:
@@ -1493,10 +1495,15 @@ def insert_to_neo4j(state: Zone2State) -> dict:
     try:
         graph = get_neo4j_graph()
 
-        print("  Clearing entire Neo4j graph for clean zone experiment...")
-        graph.query("MATCH (n) DETACH DELETE n")
-        _r = graph.query("MATCH (n) RETURN count(n) AS c")
-        print(f"  ✓ Graph cleared (nodes remaining: {_r[0]['c'] if _r else 0})")
+        no_wipe = state.get("no_wipe", False)
+        if no_wipe:
+            print("  ⚠ --no-wipe: skipping graph clear (incremental mode)")
+        else:
+            print("  WARNING: Clearing entire Neo4j graph. "
+                  "Do NOT run concurrent jobs on the same Neo4j instance.")
+            graph.query("MATCH (n) DETACH DELETE n")
+            _r = graph.query("MATCH (n) RETURN count(n) AS c")
+            print(f"  ✓ Graph cleared (nodes remaining: {_r[0]['c'] if _r else 0})")
 
         by_relation     = _group_triples_by_relation(triples)
         total_submitted = _batch_merge_triples(graph, by_relation)
@@ -1614,7 +1621,8 @@ def _save_run_summary(result: dict, model: str, elapsed: float,
 def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
               skip_extraction: bool = False,
               chunks_file: str | None = None,
-              results_dir: str | None = None):
+              results_dir: str | None = None,
+              no_wipe: bool = False):
     rdir = results_dir or config.RESULTS_DIR
     os.makedirs(rdir, exist_ok=True)
 
@@ -1683,6 +1691,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "num_passes": num_passes,
             "chunks_file": chunks_file or config.ZONE1_CHUNKS_FILE,
             "results_dir": rdir,
+            "no_wipe": no_wipe,
         }
 
         link_result = cross_source_link(result_state)
@@ -1718,6 +1727,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "num_passes":         num_passes,
             "chunks_file":        chunks_file or config.ZONE1_CHUNKS_FILE,
             "results_dir":        rdir,
+            "no_wipe":            no_wipe,
         })
         elapsed = time.time() - start
 
@@ -1732,7 +1742,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
     print(f"  Neo4j nodes:         {neo4j_stats.get('nodes', '?')}")
     print(f"  Neo4j relationships: {neo4j_stats.get('relationships', '?')}")
 
-    _print_comparison_table(_load_prior_results())
+    _print_comparison_table(_load_prior_results(results_dir=rdir))
 
     out_path = _save_run_summary(result, model, elapsed, results_dir=rdir)
     print(f"\n✓ Summary saved to {out_path}")
@@ -1781,8 +1791,13 @@ Examples:
         "--results-dir", default=None,
         help="Output directory for results. Default: data/results"
     )
+    parser.add_argument(
+        "--no-wipe", action="store_true",
+        help="Skip Neo4j graph clear (incremental mode, for concurrent safety)"
+    )
     args = parser.parse_args()
     run_zone2(model=args.model, num_passes=args.passes,
               skip_extraction=args.skip_extraction,
               chunks_file=args.chunks,
-              results_dir=args.results_dir)
+              results_dir=args.results_dir,
+              no_wipe=args.no_wipe)
