@@ -39,12 +39,12 @@ STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 CACHE_FILENAME = "zone3_graph_cache.json"
 
 
-def _cache_path() -> str:
-    return os.path.join(config.RESULTS_DIR, CACHE_FILENAME)
+def _cache_path(results_dir: str | None = None) -> str:
+    return os.path.join(results_dir or config.RESULTS_DIR, CACHE_FILENAME)
 
 
-def _summary_path() -> str:
-    return os.path.join(config.RESULTS_DIR, "zone2_run_summary.json")
+def _summary_path(results_dir: str | None = None) -> str:
+    return os.path.join(results_dir or config.RESULTS_DIR, "zone2_run_summary.json")
 
 
 # ---------------------------------------------------------------------------
@@ -96,20 +96,21 @@ def _build_entity_graph(triples: list[dict]) -> dict:
     return {"entities": entities, "out_rels": dict(out_rels), "in_rels": dict(in_rels)}
 
 
-def export_graph_cache(triples: list[dict] | None = None) -> str:
+def export_graph_cache(triples: list[dict] | None = None,
+                       results_dir: str | None = None) -> str:
     """Build and save the graph cache JSON.
 
     If triples is None, loads from zone2_run_summary.json.
     Returns the path to the saved cache file.
     """
     if triples is None:
-        summary_path = _summary_path()
-        if not os.path.exists(summary_path):
+        sp = _summary_path(results_dir)
+        if not os.path.exists(sp):
             raise FileNotFoundError(
-                f"No zone2_run_summary.json at {summary_path}. "
+                f"No zone2_run_summary.json at {sp}. "
                 "Run zone2/pipeline.py first or provide triples."
             )
-        with open(summary_path) as f:
+        with open(sp) as f:
             summary = json.load(f)
         triples = summary["triples"]
 
@@ -124,8 +125,9 @@ def export_graph_cache(triples: list[dict] | None = None) -> str:
         "in_rels": graph["in_rels"],
     }
 
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
-    path = _cache_path()
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
+    path = _cache_path(results_dir)
     with open(path, "w") as f:
         json.dump(cache, f)
 
@@ -134,16 +136,16 @@ def export_graph_cache(triples: list[dict] | None = None) -> str:
     return path
 
 
-def _load_raw_cache() -> dict:
+def _load_raw_cache(results_dir: str | None = None) -> dict:
     """Load raw cache dict, building from zone2_run_summary.json if needed."""
-    path = _cache_path()
+    path = _cache_path(results_dir)
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f)
 
     # Fallback: build from zone2_run_summary.json
     print("  [cache] No graph cache found, building from zone2_run_summary.json...")
-    export_graph_cache()
+    export_graph_cache(results_dir=results_dir)
     with open(path) as f:
         return json.load(f)
 
@@ -154,6 +156,7 @@ def _load_raw_cache() -> dict:
 
 def load_cached_entities(
     fmt: Literal["leiden", "rsi_lcr", "sv_loi"] = "leiden",
+    results_dir: str | None = None,
 ) -> list[dict]:
     """Load entities from cache in the format expected by each Zone 3 method.
 
@@ -162,8 +165,9 @@ def load_cached_entities(
             "leiden"  — matches zone3/pipeline.py load_entities() output
             "rsi_lcr" — matches zone3/rsi_lcr.py load_entities() output
             "sv_loi"  — matches zone3/sv_loi.py load_entities() output
+        results_dir: Custom results directory. Default: config.RESULTS_DIR.
     """
-    cache = _load_raw_cache()
+    cache = _load_raw_cache(results_dir)
     ent_map = cache["entities"]
     out_map = cache["out_rels"]
     in_map = cache["in_rels"]

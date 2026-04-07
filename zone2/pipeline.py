@@ -78,11 +78,19 @@ class Zone2State(TypedDict):
     errors:              Annotated[list, operator.add]
     model:               str
     num_passes:          int
+    chunks_file:         str                        # path to zone1_chunks.json
+    results_dir:         str                        # output directory for results
 
 
 # ---------------------------------------------------------------------------
 # Constants — ALL DOMAIN-AGNOSTIC
 # ---------------------------------------------------------------------------
+
+
+def _results_dir(state: Zone2State) -> str:
+    """Return the results directory from state, falling back to config."""
+    return state.get("results_dir") or config.RESULTS_DIR
+
 
 CHUNK_CONTENT_LIMIT = 3000  # chars
 
@@ -461,7 +469,8 @@ def _load_prior_results() -> dict[str, dict]:
 def load_chunks(state: Zone2State) -> dict:
     """Load all chunks from Zone 1 (PDF + CSV sources)."""
     print("\n[1/4] Loading Zone 1 chunks...")
-    with open(config.ZONE1_CHUNKS_FILE) as f:
+    chunks_file = state.get("chunks_file") or config.ZONE1_CHUNKS_FILE
+    with open(chunks_file) as f:
         all_chunks = json.load(f)
     sources = sorted(set(c.get("source", "unknown") for c in all_chunks))
     print(f"  ✓ {len(all_chunks)} chunks from {len(sources)} sources: {sources}")
@@ -506,7 +515,7 @@ def bootstrap_vocab(state: Zone2State) -> dict:
     """
     print("\n[2/4] Bootstrapping schema from document samples...")
     model      = state.get("model", config.OLLAMA_MODEL)
-    cache_path = os.path.join(config.RESULTS_DIR, "zone2_vocab.json")
+    cache_path = os.path.join(_results_dir(state), "zone2_vocab.json")
 
     # Check cache
     if os.path.exists(cache_path):
@@ -1573,7 +1582,8 @@ def _print_comparison_table(prior: dict[str, dict]) -> None:
     print(f"{'─' * 60}")
 
 
-def _save_run_summary(result: dict, model: str, elapsed: float) -> str:
+def _save_run_summary(result: dict, model: str, elapsed: float,
+                      results_dir: str | None = None) -> str:
     """Serialize pipeline result to zone2_run_summary.json."""
     summary = {
         "mode":              "zone2",
@@ -1590,20 +1600,24 @@ def _save_run_summary(result: dict, model: str, elapsed: float) -> str:
         "relation_types":    result.get("neo4j_stats", {}).get("relation_types", []),
         "triples":           result.get("triples", []),
     }
-    out_path = os.path.join(config.RESULTS_DIR, "zone2_run_summary.json")
+    rdir = results_dir or config.RESULTS_DIR
+    out_path = os.path.join(rdir, "zone2_run_summary.json")
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2)
     return out_path
 
 
 def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
-              skip_extraction: bool = False):
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
+              skip_extraction: bool = False,
+              chunks_file: str | None = None,
+              results_dir: str | None = None):
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
 
     if skip_extraction:
         # Load cached triples from previous run, skip straight to
         # entity resolution → Neo4j insertion → cross-source linking.
-        summary_path = os.path.join(config.RESULTS_DIR, "zone2_run_summary.json")
+        summary_path = os.path.join(rdir, "zone2_run_summary.json")
         if not os.path.exists(summary_path):
             print(f"✗ Cannot skip extraction: {summary_path} not found.")
             print("  Run full pipeline first to generate cached triples.")
@@ -1663,6 +1677,8 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "structured_triples": [],
             "chunks": [],
             "num_passes": num_passes,
+            "chunks_file": chunks_file or config.ZONE1_CHUNKS_FILE,
+            "results_dir": rdir,
         }
 
         link_result = cross_source_link(result_state)
@@ -1696,6 +1712,8 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "errors":             [],
             "model":              model,
             "num_passes":         num_passes,
+            "chunks_file":        chunks_file or config.ZONE1_CHUNKS_FILE,
+            "results_dir":        rdir,
         })
         elapsed = time.time() - start
 
@@ -1712,7 +1730,7 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
 
     _print_comparison_table(_load_prior_results())
 
-    out_path = _save_run_summary(result, model, elapsed)
+    out_path = _save_run_summary(result, model, elapsed, results_dir=rdir)
     print(f"\n✓ Summary saved to {out_path}")
     print("\nNext steps:")
     print("  python3 baseline/eval.py --suffix zone2")
@@ -1751,6 +1769,16 @@ Examples:
         help="Skip LLM extraction, load cached triples from zone2_run_summary.json. "
              "Only re-runs entity resolution + Neo4j insertion + cross-source linking."
     )
+    parser.add_argument(
+        "--chunks", default=None,
+        help="Path to zone1_chunks.json. Default: config.ZONE1_CHUNKS_FILE"
+    )
+    parser.add_argument(
+        "--results-dir", default=None,
+        help="Output directory for results. Default: data/results"
+    )
     args = parser.parse_args()
     run_zone2(model=args.model, num_passes=args.passes,
-              skip_extraction=args.skip_extraction)
+              skip_extraction=args.skip_extraction,
+              chunks_file=args.chunks,
+              results_dir=args.results_dir)

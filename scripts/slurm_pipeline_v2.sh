@@ -39,6 +39,10 @@ PROJECT=$SCRATCH/project
 MODEL=${MODEL:-qwen2.5:72b}
 SUFFIX=${SUFFIX:-zone3_v2_qwen72b}
 PASSES=${PASSES:-1}
+# Data directory — override for cross-domain experiments:
+#   sbatch --export=ALL,DATA_DIR=data/Emory_Spring2026,RESULTS_DIR=data/results_emory ...
+DATA_DIR=${DATA_DIR:-data/flood}
+RESULTS_DIR=${RESULTS_DIR:-data/results}
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -133,10 +137,11 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 # Delete cached vocab to regenerate with new model
-rm -f $PROJECT/data/results/zone2_vocab.json
+rm -f $PROJECT/$RESULTS_DIR/zone2_vocab.json
 
 ZONE2_START=$(date +%s)
-python3 zone2/pipeline.py --model $MODEL --passes $PASSES
+python3 zone2/pipeline.py --model $MODEL --passes $PASSES \
+    --chunks ${DATA_DIR}/processed/zone1_chunks.json --results-dir $RESULTS_DIR
 ZONE2_END=$(date +%s)
 ZONE2_TIME=$((ZONE2_END - ZONE2_START))
 
@@ -145,7 +150,7 @@ echo "Zone 2 complete: ${ZONE2_TIME}s ($(date))"
 echo "  Summary: $(python3 -c "
 import json
 try:
-    with open('data/results/zone2_run_summary.json') as f:
+    with open('${RESULTS_DIR}/zone2_run_summary.json') as f:
         d = json.load(f)
     print(f\"triples={d.get('total_triples', '?')}, entities={d.get('unique_entities', '?')}, relations={d.get('unique_relations', '?')}\")
 except: print('(summary not found)')
@@ -172,7 +177,7 @@ echo "Zone 2 eval complete: ${Z2_EVAL_TIME}s ($(date))"
 python3 -c "
 import json
 try:
-    with open(f'data/results/extraction_quality_${SUFFIX}.json') as f:
+    with open(f'${RESULTS_DIR}/extraction_quality_${SUFFIX}.json') as f:
         d = json.load(f)
     tp = d.get('triple_precision', {})
     fr = d.get('fact_recall', {})
@@ -196,7 +201,7 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 ZONE3_START=$(date +%s)
-python3 zone3/pipeline.py --model $MODEL
+python3 zone3/pipeline.py --model $MODEL --results-dir $RESULTS_DIR
 ZONE3_END=$(date +%s)
 ZONE3_TIME=$((ZONE3_END - ZONE3_START))
 
@@ -205,7 +210,7 @@ echo "Zone 3 complete: ${ZONE3_TIME}s ($(date))"
 echo "  Summary: $(python3 -c "
 import json
 try:
-    with open('data/results/zone3_run_summary.json') as f:
+    with open('${RESULTS_DIR}/zone3_run_summary.json') as f:
         d = json.load(f)
     print(f\"clusters={d.get('num_clusters', '?')}, hierarchy={d.get('num_subclass_edges', '?')} edges\")
 except: print('(summary not found)')
@@ -234,7 +239,7 @@ python3 -c "
 import json, os
 # Query accuracy + type consistency
 try:
-    with open(f'data/results/baseline_eval_results_${SUFFIX}.json') as f:
+    with open(f'${RESULTS_DIR}/baseline_eval_results_${SUFFIX}.json') as f:
         d = json.load(f)
     bm = d.get('baseline_metrics', d)
     print(f'=== Zone 3 Query Eval (${SUFFIX}) ===')
@@ -245,7 +250,7 @@ except Exception as e: print(f'  (query eval not found: {e})')
 
 # Riskine ontology alignment
 try:
-    with open(f'data/results/riskine_eval_${SUFFIX}.json') as f:
+    with open(f'${RESULTS_DIR}/riskine_eval_${SUFFIX}.json') as f:
         d = json.load(f)
     sm = d.get('standard_metrics', {})
     print(f'=== Zone 3 Riskine Eval (${SUFFIX}) ===')
@@ -274,7 +279,7 @@ echo "  Zone 3 pipeline:  ${ZONE3_TIME}s"
 echo "  Zone 3 eval:      ${EVAL_TIME}s"
 echo "  Total:            $((ZONE2_TIME + Z2_EVAL_TIME + ZONE3_TIME + EVAL_TIME))s"
 echo ""
-echo "Results saved to: $PROJECT/data/results/"
+echo "Results saved to: $PROJECT/$RESULTS_DIR/"
 echo "  zone2_run_summary.json"
 echo "  extraction_quality_${SUFFIX}.json       ← Zone 2 eval"
 echo "  zone3_run_summary.json"

@@ -186,18 +186,28 @@ def _detect_section_label(line: str) -> Optional[tuple[str, str]]:
     return None
 
 
-def _humanize_field_name(field_name: str) -> str:
+def _humanize_field_name(field_name: str, expansions: dict[str, str] | None = None) -> str:
     """Convert camelCase or UPPER_SNAKE_CASE to human-readable label.
+
+    If *expansions* is provided, uses LLM-generated readable names first.
 
     Examples:
       'amountPaidOnBuildingClaim' → 'amount paid on building claim'
       'POLICY_NUMBER'             → 'policy number'
       'CLAIM_STATUS'              → 'claim status'
-      'EFF_DATE'                  → 'eff date'
+      'POLNO'                     → 'polno'  (or 'policy number' via expansion)
+      'GWP'                       → 'gwp'    (or 'gross written premium' via expansion)
     """
+    # LLM-expanded readable name takes priority.
+    if expansions and field_name in expansions:
+        return expansions[field_name]
+
     if "_" in field_name and field_name == field_name.upper():
         # UPPER_SNAKE_CASE → split on underscores
         return field_name.lower().replace("_", " ").strip()
+    # ALL-CAPS without underscores (e.g., POLNO, GWP, MCO) → just lowercase
+    if field_name == field_name.upper() and field_name.isalpha():
+        return field_name.lower()
     # camelCase → insert spaces before uppercase letters
     s = re.sub(r'([A-Z])', r' \1', field_name)
     return s.lower().strip()
@@ -224,9 +234,21 @@ _FIELD_GROUP_PATTERNS: dict[str, list[str]] = {
 def _auto_group_field(field_name: str) -> str:
     """Assign a field to a semantic group using heuristic pattern matching.
 
-    Returns group name or 'Other' if no pattern matches.
+    Uses priority rules to resolve ambiguous fields:
+    - ENDORSEMENT_* → Coverage (even if contains "id" or "exp")
+    - *_DATE / *_DT suffix → Date (even if contains "subscriber")
+    - *_CSAT / *_CES suffix → Status (satisfaction scores, not dates)
     """
     field_lower = field_name.lower()
+
+    # Priority rules (checked before general patterns)
+    if field_lower.startswith("endorsement"):
+        return "Coverage"
+    if field_lower.endswith("_date") or field_lower.endswith("_dt"):
+        return "Date"
+    if field_lower.endswith("_csat") or field_lower.endswith("_ces"):
+        return "Status"
+
     for group, patterns in _FIELD_GROUP_PATTERNS.items():
         if any(pat in field_lower for pat in patterns):
             return group
@@ -636,9 +658,118 @@ def _infer_record_type_from_filename(filename: str) -> str:
     return "unknown"
 
 
+def _expand_csv_headers(
+    headers: list[str],
+    sample_rows: list[dict[str, str]],
+    cache_path: str | None = None,
+    model: str | None = None,
+) -> dict[str, str]:
+    """Use an LLM to expand cryptic/abbreviated CSV column headers.
+
+    Sends column names + a few sample rows and asks the LLM to return a
+    JSON mapping of abbreviated names → readable English names.  Results
+    are cached to *cache_path* so subsequent runs skip the LLM call.
+
+    Only expands fields that look abbreviated (all-caps, short, no spaces).
+    Returns a mapping ``{RAW_HEADER: "readable name", ...}``.
+    """
+    # Load cache if available.
+    if cache_path and os.path.exists(cache_path):
+        try:
+            with open(cache_path) as f:
+                cached = json.load(f)
+            print(f"  ✓ Loaded cached header expansions ({len(cached)} entries)")
+            return cached
+        except (json.JSONDecodeError, OSError):
+            pass  # rebuild
+
+    # Identify headers that need expansion (short all-caps abbreviations).
+    needs_expansion = [
+        h for h in headers
+        if h == h.upper() and len(h) <= 12 and h.isalpha()
+        and h.lower() not in _GENERIC_SKIP_FIELDS
+    ]
+    if not needs_expansion:
+        return {}
+
+    # Build sample data for context.
+    sample_lines: list[str] = []
+    for i, row in enumerate(sample_rows[:3]):
+        vals = {h: str(row.get(h, ""))[:40] for h in needs_expansion if row.get(h)}
+        if vals:
+            sample_lines.append(f"Row {i+1}: {json.dumps(vals)}")
+
+    prompt = (
+        "You are a data dictionary expert. Given these abbreviated CSV column "
+        "names and sample values, expand each abbreviation into a short, "
+        "readable English label (lowercase, 1-4 words).\n\n"
+        f"Columns to expand: {needs_expansion}\n\n"
+        + ("\n".join(sample_lines) + "\n\n" if sample_lines else "")
+        + "Return ONLY a JSON object mapping each column name to its "
+        "expanded label. Example: {\"GWP\": \"gross written premium\", "
+        "\"MCO\": \"master company code\"}\n"
+        "If you are unsure about a column, use the original name lowercased."
+    )
+
+    # Call LLM (optional — gracefully degrade if unavailable).
+    try:
+        import requests
+    except ImportError:
+        print("  ⚠ requests library not available, skipping header expansion")
+        return {}
+
+    try:
+        import config as cfg
+        llm_model = model or cfg.OLLAMA_MODEL
+        base_url = cfg.OLLAMA_BASE_URL
+    except (ImportError, AttributeError) as e:
+        print(f"  ⚠ Config not available ({e}), skipping header expansion")
+        return {}
+
+    try:
+        resp = requests.post(
+            f"{base_url}/api/generate",
+            json={"model": llm_model, "prompt": prompt, "stream": False,
+                  "options": {"temperature": 0, "num_predict": 1024}},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        raw_text = resp.json().get("response", "")
+
+        # Extract JSON from response (flat object, no nesting expected).
+        json_match = re.search(r'\{[^{}]*\}', raw_text, re.DOTALL)
+        if json_match:
+            expansions = json.loads(json_match.group())
+            # Normalize values to lowercase strings.
+            expansions = {
+                k: str(v).lower().strip()
+                for k, v in expansions.items()
+                if k in needs_expansion and isinstance(v, str) and v.strip()
+            }
+            print(f"  ✓ LLM expanded {len(expansions)}/{len(needs_expansion)} headers")
+
+            # Cache results.
+            if cache_path:
+                parent = os.path.dirname(cache_path)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                with open(cache_path, "w") as f:
+                    json.dump(expansions, f, indent=2)
+
+            return expansions
+
+    except requests.RequestException as e:
+        print(f"  ⚠ Header expansion failed ({e}), using raw names")
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"  ⚠ Could not parse LLM response ({e}), using raw names")
+
+    return {}
+
+
 def _format_generic_csv_record(
     rec: dict[str, str],
     headers: list[str],
+    expansions: dict[str, str] | None = None,
 ) -> str:
     """Format a generic CSV record into grouped, human-readable text.
 
@@ -655,7 +786,7 @@ def _format_generic_csv_record(
             continue
 
         group = _auto_group_field(field_name)
-        label = _humanize_field_name(field_name)
+        label = _humanize_field_name(field_name, expansions)
         if group not in groups:
             groups[group] = []
         groups[group].append(f"{label}: {value}")
@@ -678,6 +809,7 @@ def _chunk_generic_csv_records(
     source: str,
     dataset_name: str,
     max_tokens: int = MAX_CHUNK_TOKENS,
+    expansions: dict[str, str] | None = None,
 ) -> list[dict]:
     """Convert generic CSV records into token-capped text chunks.
 
@@ -692,7 +824,7 @@ def _chunk_generic_csv_records(
         fields_in_group = [h for h in headers if _auto_group_field(h) == g
                            and h.lower() not in _GENERIC_SKIP_FIELDS]
         if fields_in_group:
-            humanized = [_humanize_field_name(f) for f in fields_in_group]
+            humanized = [_humanize_field_name(f, expansions) for f in fields_in_group]
             schema_lines.append(f"  [{g}] " + ", ".join(humanized))
 
     schema_text = "\n".join(schema_lines)
@@ -733,7 +865,7 @@ def _chunk_generic_csv_records(
         batch_start_idx = end_idx + 1
 
     for rec_idx, rec in enumerate(records):
-        formatted = _format_generic_csv_record(rec, headers)
+        formatted = _format_generic_csv_record(rec, headers, expansions)
         if not formatted:
             continue
         tok = _approx_tokens(formatted)
@@ -752,12 +884,17 @@ def _chunk_generic_csv_records(
 def ingest_generic_csv(
     csv_path: str,
     max_tokens: int = MAX_CHUNK_TOKENS,
+    cache_dir: str | None = None,
+    model: str | None = None,
 ) -> list[HybridChunk]:
     """Zone 1 ingestion for standard CSV files (domain-agnostic).
 
     Auto-detects record type from filename, auto-groups fields by
     heuristic patterns, and produces the same chunk format as OpenFEMA
     ingestion for seamless downstream processing.
+
+    If *cache_dir* is provided, uses LLM-based header expansion to
+    convert cryptic abbreviated column names into readable labels.
     """
     import csv as csv_mod
 
@@ -775,8 +912,19 @@ def ingest_generic_csv(
 
     print(f"  Loaded {len(records)} records, {len(headers)} columns")
 
+    # Expand abbreviated headers via LLM (cached per-file).
+    expansions: dict[str, str] = {}
+    if cache_dir:
+        cache_file = os.path.join(
+            cache_dir, f"header_expansions_{filename.replace('.csv', '')}.json"
+        )
+        expansions = _expand_csv_headers(
+            headers, records[:3], cache_path=cache_file, model=model,
+        )
+
     raw = _chunk_generic_csv_records(
         records, headers, filename, dataset_name, max_tokens,
+        expansions=expansions,
     )
     print(f"  → {len(raw)} chunks total "
           f"(1 schema + {len(raw) - 1} data, dynamic tok-cap max={max_tokens})")
@@ -902,7 +1050,11 @@ def ingest_csv(
 # Entry point
 # ---------------------------------------------------------------------------
 
-def run_zone1(data_dir: str | None = None, output_path: str | None = None) -> list[HybridChunk]:
+def run_zone1(
+    data_dir: str | None = None,
+    output_path: str | None = None,
+    llm_model: str | None = None,
+) -> list[HybridChunk]:
     """Run Zone 1 ingestion on a data directory.
 
     Auto-discovers PDFs and CSVs in the directory structure:
@@ -915,6 +1067,7 @@ def run_zone1(data_dir: str | None = None, output_path: str | None = None) -> li
         data_dir: Root directory containing source files. If None, uses
                   the default flood data directory from config.
         output_path: Where to save chunks JSON. If None, uses config default.
+        llm_model: Ollama model for LLM-based header expansion.
     """
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
     print("=" * 60)
@@ -962,11 +1115,18 @@ def run_zone1(data_dir: str | None = None, output_path: str | None = None) -> li
                     all_chunks.extend(chunks)
 
         # Discover CSVs (in root and subdirectories).
+        # Cache LLM header expansions alongside the output.
+        cache_dir = os.path.join(
+            output_path and os.path.dirname(output_path) or data_dir,
+            "processed" if not output_path else "",
+        ).rstrip("/")
         for root, _dirs, files in os.walk(data_dir):
             for f in sorted(files):
                 fpath = os.path.join(root, f)
                 if f.lower().endswith(".csv"):
-                    chunks = ingest_generic_csv(fpath)
+                    chunks = ingest_generic_csv(
+                        fpath, cache_dir=cache_dir, model=llm_model,
+                    )
                     all_chunks.extend(chunks)
                     csv_chunk_groups.append((f, chunks))
 
@@ -1050,5 +1210,12 @@ if __name__ == "__main__":
         help="Output path for chunks JSON. "
              "Default: data/flood/processed/zone1_chunks.json",
     )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Ollama model for LLM-based header expansion. "
+             "Default: config.OLLAMA_MODEL",
+    )
     args = parser.parse_args()
-    run_zone1(data_dir=args.data_dir, output_path=args.output)
+    run_zone1(data_dir=args.data_dir, output_path=args.output,
+              llm_model=args.model)

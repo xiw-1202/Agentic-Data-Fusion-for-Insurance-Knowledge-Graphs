@@ -76,6 +76,7 @@ class Zone3State(TypedDict):
     neo4j_stats:       dict
     errors:            Annotated[list, operator.add]
     model:             str
+    results_dir:       str
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +160,8 @@ def _parse_json_safely(text: str) -> list | dict:
 def load_entities(state: Zone3State) -> dict:
     """Load all Entity nodes from local cache (zero Neo4j round-trips)."""
     print("\n[1/5] Loading entities from cache...")
-    entities = load_cached_entities(fmt="leiden")
+    entities = load_cached_entities(fmt="leiden",
+                                    results_dir=state.get("results_dir"))
     if not entities:
         print("  ✗ No entities found. Run zone2/pipeline.py first.")
         return {"entities": []}
@@ -399,7 +401,7 @@ def _name_cluster_list(clusters: list[dict], llm, entity_map: dict | None = None
             "- Use SHORT names: 1-2 words maximum\n"
             "- Prefer ABSTRACT concepts over specific compound names\n"
             "- Think: what broad ontology category do ALL these entities belong to?\n"
-            "- BAD examples: InsuranceLossEvent, FloodInsuranceConcepts, PropertyCoverageComponent, RiskReductionMechanism\n"
+            "- BAD examples: InsuranceLossEvent, DomainSpecificConcepts, PropertyCoverageComponent, RiskReductionMechanism\n"
             "- GOOD examples: Agent, Event, Artifact, Obligation, Location, Temporal, Process, Agreement, Asset, Hazard\n\n"
             "Respond with ONLY the class name (PascalCase, 1-2 words max):"
         )
@@ -868,8 +870,10 @@ def build_pipeline():
 # Main
 # ---------------------------------------------------------------------------
 
-def run_zone3(model: str = config.OLLAMA_MODEL):
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
+def run_zone3(model: str = config.OLLAMA_MODEL,
+              results_dir: str | None = None):
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
 
     print("=" * 60)
     print("CS584 Capstone — Zone 3 Pipeline [Ontology Induction via Leiden]")
@@ -891,6 +895,7 @@ def run_zone3(model: str = config.OLLAMA_MODEL):
         "neo4j_stats":       {},
         "errors":            [],
         "model":             model,
+        "results_dir":       rdir,
     })
     elapsed = time.time() - start
 
@@ -930,7 +935,7 @@ def run_zone3(model: str = config.OLLAMA_MODEL):
         "neo4j_stats": neo4j_stats,
         "errors": result.get("errors", []),
     }
-    out_path = os.path.join(config.RESULTS_DIR, "zone3_run_summary.json")
+    out_path = os.path.join(rdir, "zone3_run_summary.json")
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2, default=str)
     print(f"\n✓ Summary saved to {out_path}")
@@ -975,11 +980,18 @@ Examples:
         "--refinement-rounds", type=int, default=2,
         help="LLM coherence refinement rounds for RSI method (default: 2)"
     )
+    parser.add_argument(
+        "--results-dir", default=None,
+        help="Results directory (default: data/results)"
+    )
     args = parser.parse_args()
 
     if args.method == "rsi":
         from zone3.rsi_lcr import run_rsi_lcr
         suffix = args.suffix or "zone3_rsi"
+        if args.results_dir:
+            print(f"⚠ --results-dir is not yet supported with --method rsi. "
+                  f"RSI will use the default results directory.")
         run_rsi_lcr(
             model=args.model,
             suffix=suffix,
@@ -987,4 +999,4 @@ Examples:
             refinement_rounds=args.refinement_rounds,
         )
     else:
-        run_zone3(model=args.model)
+        run_zone3(model=args.model, results_dir=args.results_dir)

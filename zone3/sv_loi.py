@@ -100,7 +100,6 @@ FORBIDDEN_CLASS_NAMES = {
     "number", "date", "text", "quantity", "value", "metric", "event",
     "condition", "location", "data", "record", "entry", "item", "type",
     "category", "group", "class", "entity", "thing", "other",
-    "excludedperil", "coveragetype", "insuredproperty",
 }
 
 
@@ -328,12 +327,11 @@ entities by their REAL-WORLD ROLE in {domain}.
 For each entity, ask: "WHAT IS this thing in the real world?"
 - A named coverage type → it IS a type of insurance coverage → Coverage
 - A dollar amount → it IS a financial limit on a policy → Limit
-- A risk zone or hazard area → it IS a hazard/risk category → Risk
-- A government agency or company → it IS an organization → Organization
-- A building component → it IS part of a building → Structure
+- A company, agency, or service provider → it IS an organization → Organization
 - A named individual or role → it IS a person → Person
 - A street address, city, or zip code → it IS an address → Address
-- A type of loss or peril → it IS a type of damage/peril → Damage
+- A type of loss, cause of damage, or incident → it IS a damage type → Damage
+- A hazard, risk factor, or threat → it IS a risk → Risk
 
 RULES:
 1. Classes = real-world roles, NOT data types
@@ -452,17 +450,15 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
     # Post-discovery: rename to standard ontology terms where applicable.
     # This is domain-agnostic — maps common LLM-proposed names to standard
     # upper-ontology vocabulary. NOT derived from Riskine.
+    # Universal renames — valid across all insurance domains.
+    # Domain-specific renames (building→Structure, peril→Risk) removed
+    # to avoid biasing ontology induction toward property insurance.
     STANDARD_RENAMES = {
         "policy": "Product",           # an insurance policy IS a product
         "insurancepolicy": "Product",
         "location": "Address",
         "geographiclocation": "Address",
         "place": "Address",
-        "building": "Structure",
-        "peril": "Risk",
-        "hazard": "Risk",
-        "loss": "Damage",
-        "agent": "Person",
         "insured": "Person",
         "insurer": "Organization",
         "company": "Organization",
@@ -587,12 +583,11 @@ in the real world — its domain role, not its data type.
 
 AVAILABLE CLASSES: {class_list}, Other
 
-For each entity, ask: "What IS this thing in the insurance domain?"
+For each entity, ask: "What IS this thing in the {domain} domain?"
 - A deductible is a feature of a product/coverage, not a financial amount
-- A risk zone is a risk classification, not just a location
-- A building is a physical structure
-- A government agency is an organization
+- A company or agency is an organization
 - A named coverage type is a type of coverage
+- A person's name refers to a person, not a text string
 
 ENTITIES:
 {chr(10).join(entity_descriptions)}
