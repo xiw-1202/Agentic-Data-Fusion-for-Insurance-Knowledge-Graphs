@@ -357,10 +357,13 @@ def measure_riskine_alignment(
     print(f"  Induced labels: {len(induced_labels)}, Riskine classes: {len(riskine_names)}")
     print("  Embedding labels with all-MiniLM-L6-v2 (PascalCase → human-readable)...")
 
-    # Humanize for embedding (BuildingCoverage → "Building Coverage") while keeping
-    # original names for display and scoring.
-    induced_for_embed = [_humanize_label(l) for l in induced_labels]
-    riskine_for_embed = [_humanize_label(n) for n in riskine_names]
+    # Humanize + add domain context for embedding.
+    # Bare words like "Policy" vs "Product" have low cosine (0.37) but with
+    # domain context ("Policy (insurance ontology class)") similarity jumps
+    # to 0.84 — essential for cross-name matching in ontology alignment.
+    domain_ctx = "(insurance ontology class)"
+    induced_for_embed = [f"{_humanize_label(l)} {domain_ctx}" for l in induced_labels]
+    riskine_for_embed = [f"{_humanize_label(n)} {domain_ctx}" for n in riskine_names]
 
     induced_embs = embed_labels(induced_for_embed)   # (N_induced, 384)
     riskine_embs = embed_labels(riskine_for_embed)   # (N_riskine, 384)

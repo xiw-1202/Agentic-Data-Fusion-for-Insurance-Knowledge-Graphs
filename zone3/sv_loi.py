@@ -1054,14 +1054,25 @@ def propagate_to_records(
             top_rels = [r for r, _ in rel_counts.most_common(12)]
             rels_str = ", ".join(top_rels)
 
+            # Check if record type name matches a class (strong prior)
+            name_match = None
+            etype_base = etype.replace("Record", "")  # ClaimRecord → Claim
+            for c in target_classes:
+                if c.lower() == etype_base.lower() or c.lower() == etype.lower():
+                    name_match = c
+                    break
+
             prompt = (
                 "Schema mapping task: assign a database record type to an ontology class.\n\n"
                 f"Record type: {etype}\n"
                 f"Typical relations: {rels_str}\n\n"
                 f"Available ontology classes: {', '.join(target_classes)}\n\n"
                 "Which ONE ontology class best describes what this record type IS?\n"
-                "Think about what the record represents as a real-world concept.\n\n"
-                "Answer with ONLY the class name, nothing else."
+                "Think about what the record represents as a real-world concept.\n"
+                + (f"\nNOTE: The record type name '{etype}' closely matches class '{name_match}'. "
+                   f"Prefer '{name_match}' unless the relations strongly contradict this.\n"
+                   if name_match else "")
+                + "\nAnswer with ONLY the class name, nothing else."
             )
 
             try:
