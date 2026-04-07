@@ -45,18 +45,29 @@ $SCRATCH/bin/ollama serve &
 OLLAMA_PID=$!
 sleep 5
 
-# Warm up model
-echo "Loading model into GPU..."
+JUDGE_MODEL=${JUDGE_MODEL:-$MODEL}
+
+# Warm up models
+echo "Loading models into GPU..."
 $SCRATCH/bin/ollama run $MODEL "hello" > /dev/null 2>&1
-echo "Model ready."
+if [ "$JUDGE_MODEL" != "$MODEL" ]; then
+    $SCRATCH/bin/ollama run $JUDGE_MODEL "hello" > /dev/null 2>&1
+fi
+echo "Models ready."
 
 # Extraction quality eval
 echo ""
 echo "=== Extraction Quality Eval ==="
+echo "  Extraction model: $MODEL"
+echo "  Judge model: $JUDGE_MODEL"
+JUDGE_FLAG=""
+if [ "$JUDGE_MODEL" != "$MODEL" ]; then
+    JUDGE_FLAG="--judge-model $JUDGE_MODEL"
+fi
 python3 evaluation/extraction_quality.py \
     --suffix $SUFFIX --model $MODEL --sample-size 100 \
     --chunks ${DATA_DIR}/processed/zone1_chunks.json \
-    --results-dir $RESULTS_DIR
+    --results-dir $RESULTS_DIR $JUDGE_FLAG
 
 echo ""
 echo "=== Done: $(date) ==="
