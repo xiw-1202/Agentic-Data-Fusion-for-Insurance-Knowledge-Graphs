@@ -447,47 +447,10 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
             if len(classes) >= TARGET_CLASSES_MIN:
                 break
 
-    # Post-discovery: rename to standard ontology terms where applicable.
-    # This is domain-agnostic — maps common LLM-proposed names to standard
-    # upper-ontology vocabulary. NOT derived from Riskine.
-    # Universal renames — valid across all insurance domains.
-    # Domain-specific renames (building→Structure, peril→Risk) removed
-    # to avoid biasing ontology induction toward property insurance.
-    STANDARD_RENAMES = {
-        "policy": "Product",           # an insurance policy IS a product
-        "insurancepolicy": "Product",
-        "location": "Address",
-        "geographiclocation": "Address",
-        "place": "Address",
-        "insured": "Person",
-        "insurer": "Organization",
-        "company": "Organization",
-    }
-    renamed_classes = []
-    for c in classes:
-        standard = STANDARD_RENAMES.get(c.lower())
-        if standard and standard.lower() not in seen_lower:
-            print(f"  [rename] {c} → {standard} (standard ontology term)", flush=True)
-            renamed_classes.append(standard)
-            seen_lower.discard(c.lower())
-            seen_lower.add(standard.lower())
-        elif standard and standard.lower() in seen_lower:
-            # Standard name already exists — skip the duplicate
-            print(f"  [rename] {c} → {standard} (already present, dropping duplicate)", flush=True)
-        else:
-            renamed_classes.append(c)
-    classes = renamed_classes
-
-    # Ensure key standard terms are in the vocabulary if not already present.
-    # These are general ontology concepts that LLMs often miss in class discovery.
-    # Only add if the domain detection suggests relevance.
-    domain_lower = domain.lower()
-    if any(kw in domain_lower for kw in ["insurance", "policy", "claim", "coverage"]):
-        for std_term in ["Product", "Address"]:
-            if std_term.lower() not in seen_lower:
-                classes.append(std_term)
-                seen_lower.add(std_term.lower())
-                print(f"  [added] {std_term} (standard term for {domain})", flush=True)
+    # NOTE: No standard renames or forced class injection.
+    # The LLM proposes class names freely; the Riskine eval measures
+    # alignment via BERTScore which handles synonyms (Policy≈Product,
+    # Location≈Address). Planting Riskine class names would be leakage.
 
     # Always include "Other" for unclassifiable entities
     if "Other" not in classes:
