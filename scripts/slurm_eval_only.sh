@@ -24,6 +24,8 @@ export CUDA_VISIBLE_DEVICES=0,1
 export OLLAMA_NUM_GPU=999
 export LD_LIBRARY_PATH=$SCRATCH/lib/ollama:${LD_LIBRARY_PATH:-}
 export HF_HOME=$SCRATCH/.cache/huggingface
+export OLLAMA_DEBUG=false
+export GIN_MODE=release
 
 source "$SCRATCH/venv/bin/activate"
 cd "$PROJECT"

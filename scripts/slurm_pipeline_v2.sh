@@ -53,6 +53,8 @@ export HF_HOME=$SCRATCH/.cache/huggingface
 export OLLAMA_MODELS=$SCRATCH/models
 export PIP_CACHE_DIR=$SCRATCH/.cache/pip
 export LD_LIBRARY_PATH=$SCRATCH/lib/ollama:${LD_LIBRARY_PATH:-}
+export OLLAMA_DEBUG=false
+export GIN_MODE=release
 
 # Ollama context window: 8192 tokens needed for system prompt (~970 tok) +
 # 8 few-shot examples (~2380 tok) + chunk content (~1200 tok) + output (~2000 tok).
