@@ -2038,9 +2038,11 @@ def write_ontology(
             "neo4j_skipped": True,
         }
 
-    # Clean previous ontology
+    # Clean previous ontology (labels, properties, and OntologyClass nodes)
     try:
         graph.query("MATCH (c:OntologyClass) DETACH DELETE c")
+        # Clear ontology_class property from ALL entities (prevents stale labels)
+        graph.query("MATCH (n:Entity) WHERE n.ontology_class IS NOT NULL REMOVE n.ontology_class")
         # Remove old ontology labels from entities
         rows = graph.query("CALL db.labels() YIELD label RETURN label")
         existing = {r["label"] for r in rows}
@@ -2082,8 +2084,9 @@ def write_ontology(
             batch = members[batch_start:batch_start + 100]
             try:
                 graph.query(
-                    f"MATCH (n:Entity) WHERE n.id IN $ids SET n:`{safe}`",
-                    params={"ids": batch},
+                    f"MATCH (n:Entity) WHERE n.id IN $ids "
+                    f"SET n:`{safe}`, n.ontology_class = $cls",
+                    params={"ids": batch, "cls": safe},
                 )
                 entities_labeled += len(batch)
             except Exception as e:
