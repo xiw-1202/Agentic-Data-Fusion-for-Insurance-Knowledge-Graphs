@@ -73,7 +73,7 @@ from zone3.graph_cache import (
 
 BATCH_SIZE = 15          # entities per LLM typing prompt (smaller = more context per entity)
 MAX_MEMBERS_IN_PROMPT = 15
-MIN_CLASS_SIZE = 3       # classes with fewer members get merged into nearest
+MIN_CLASS_SIZE = 10      # classes with fewer members get merged into nearest
 DEVIATION_THRESHOLD = 2.0  # σ threshold for structural flagging
 MAX_ARBITRATION_BATCH = 10  # entities per arbitration prompt
 MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
@@ -84,8 +84,8 @@ _STRUCTURED_PREFIXES = STRUCTURED_PREFIXES
 
 # Target class count range (guide for class discovery)
 # Higher minimum to counteract consolidation over-merging
-TARGET_CLASSES_MIN = 12
-TARGET_CLASSES_MAX = 25
+TARGET_CLASSES_MIN = 8
+TARGET_CLASSES_MAX = 15
 
 # REMOVED: PROTECTED_CLASS_NAMES was a hardcoded list that overlapped with
 # Riskine reference classes (domain leakage). Protection is now data-driven:
@@ -537,7 +537,11 @@ def batch_type_entities(
         assignments[e["id"]] = "Other"
 
     # Assign structured entities directly from their entity_type.
-    # If entity_type is not in class_vocab, add it (prevents ghost classes).
+    # Assign structured entities to matching class in vocab, or "Other".
+    # Previously auto-added unmatched entity_types as new classes, which caused
+    # class explosion on multi-domain data (8 entity types for flood → fine;
+    # 69 entity types for renters+device+auto+survey → 75 classes).
+    # Now: unmatched structured entities go to "Other" and get rescued in Phase 5.
     for e in structured_entities:
         et = e.get("entity_type", "Other")
         sanitized_et = _sanitize_label(et) if et and et != "Unknown" else "Other"
@@ -551,10 +555,7 @@ def batch_type_entities(
                 break
 
         if not matched:
-            if sanitized_et != "Other":
-                # Add the new class to vocab so downstream phases see it.
-                class_vocab.append(sanitized_et)
-            assignments[e["id"]] = sanitized_et
+            assignments[e["id"]] = "Other"
 
     print(f"\n[Phase 3] Batched LLM entity typing "
           f"({len(llm_entities)} concept entities via LLM, "
