@@ -2174,6 +2174,7 @@ def run_sv_loi(
     skip_record_propagation: bool = False,
     use_old_rebalance: bool = False,
     seed: int = 42,
+    results_dir: str | None = None,
 ) -> dict:
     """Run the full SV-LOI pipeline.
 
@@ -2189,7 +2190,8 @@ def run_sv_loi(
     random.seed(seed)
     np.random.seed(seed)
 
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
 
     ablation_flags = []
     if skip_verify:
@@ -2213,7 +2215,7 @@ def run_sv_loi(
     start = time.time()
 
     # Phase 0: Load entities from cache (zero Neo4j round-trips)
-    entities = load_entities()
+    entities = load_cached_entities(fmt="sv_loi", results_dir=rdir)
     if not entities:
         return {"error": "no entities"}
 
@@ -2473,11 +2475,11 @@ def run_sv_loi(
         },
     }
     # Save full provenance log separately (large — for error taxonomy analysis)
-    prov_path = os.path.join(config.RESULTS_DIR, f"svloi_provenance_{suffix}.json")
+    prov_path = os.path.join(rdir, f"svloi_provenance_{suffix}.json")
     with open(prov_path, "w") as f:
         json.dump(provenance, f, indent=2, default=str)
     _flush_print(f"  ✓ Decision provenance saved → {prov_path}")
-    out_path = os.path.join(config.RESULTS_DIR, f"zone3_svloi_summary_{suffix}.json")
+    out_path = os.path.join(rdir, f"zone3_svloi_summary_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2, default=str)
     print(f"\n✓ Summary saved to {out_path}")
@@ -2527,6 +2529,8 @@ After running, evaluate with:
                         help="[ABLATION] Use old rebalance (total entities, 25% threshold)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility (default: 42)")
+    parser.add_argument("--results-dir", default=None,
+                        help="Results directory (default: config.RESULTS_DIR)")
     args = parser.parse_args()
 
     run_sv_loi(
@@ -2538,4 +2542,5 @@ After running, evaluate with:
         skip_record_propagation=getattr(args, 'skip_record_propagation', False),
         use_old_rebalance=getattr(args, 'use_old_rebalance', False),
         seed=args.seed,
+        results_dir=args.results_dir,
     )

@@ -25,7 +25,7 @@ echo ""
 echo "===== ZONE 3 — SV-LOI Ontology Induction ($MODEL) ====="
 ZONE3_START=$(date +%s)
 python3 zone3/sv_loi.py \
-    --model "$MODEL" --suffix "$SUFFIX"
+    --model "$MODEL" --suffix "$SUFFIX" --results-dir "$RESULTS_DIR"
 echo "Zone 3 complete: $(($(date +%s) - ZONE3_START))s"
 
 echo ""
