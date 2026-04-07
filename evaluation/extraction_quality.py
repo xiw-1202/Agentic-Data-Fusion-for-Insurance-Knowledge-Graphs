@@ -762,6 +762,7 @@ def run_extraction_quality(
     sample_size: int = DEFAULT_PRECISION_SAMPLES,
     chunks_file: str | None = None,
     results_dir: str | None = None,
+    judge_model: str | None = None,
 ) -> dict:
     """Run Zone 2 extraction quality evaluation (3 metrics + graph stats).
 
@@ -772,24 +773,30 @@ def run_extraction_quality(
 
     Supplementary:
       - Graph Statistics — density, degree distribution, relation types
+
+    Args:
+      judge_model: If set, use a DIFFERENT model for LLM-as-judge metrics
+                   (precision, grounding) to avoid same-model bias.
     """
+    jmodel = judge_model or model
     print("=" * 60)
     print("ZONE 2 EXTRACTION QUALITY EVALUATION")
-    print(f"Model: {model} | Suffix: {suffix} | Sample: {sample_size}")
+    print(f"Model: {model} | Judge: {jmodel} | Suffix: {suffix} | Sample: {sample_size}")
     print("=" * 60)
 
     graph = _get_graph()
-    llm = _get_llm(model)
+    llm_judge = _get_llm(jmodel)
+    llm_fact = _get_llm(model)  # fact extraction uses the same model (not judging)
 
-    # Metric 1: Triple precision (LLM-as-judge).
-    precision = measure_triple_precision(graph, llm, sample_size)
+    # Metric 1: Triple precision (LLM-as-judge — uses judge model).
+    precision = measure_triple_precision(graph, llm_judge, sample_size)
 
-    # Metric 2: Fact recall (G-BERTScore style).
-    fact_recall = measure_fact_recall(graph, llm, n_chunks=DEFAULT_RECALL_CHUNKS,
+    # Metric 2: Fact recall (G-BERTScore style — LLM extracts facts, embedding matches).
+    fact_recall = measure_fact_recall(graph, llm_fact, n_chunks=DEFAULT_RECALL_CHUNKS,
                                      chunks_file=chunks_file)
 
-    # Metric 3: Source grounding.
-    grounding = measure_source_grounding(graph, llm, sample_size=DEFAULT_GROUNDING_SAMPLES,
+    # Metric 3: Source grounding (LLM-as-judge — uses judge model).
+    grounding = measure_source_grounding(graph, llm_judge, sample_size=DEFAULT_GROUNDING_SAMPLES,
                                          chunks_file=chunks_file)
 
     # Supplementary: Graph statistics.
@@ -798,6 +805,7 @@ def run_extraction_quality(
     result = {
         "suffix": suffix,
         "model": model,
+        "judge_model": jmodel,
         "triple_precision": precision,
         "fact_recall": fact_recall,
         "source_grounding": grounding,
@@ -848,9 +856,12 @@ Metrics (following AutoSchemaKG 2025, Ghanem & Cruz KGSWC 2024):
                         help="Path to zone1_chunks.json (default: config.ZONE1_CHUNKS_FILE)")
     parser.add_argument("--results-dir", default=None,
                         help="Output directory for results (default: config.RESULTS_DIR)")
+    parser.add_argument("--judge-model", default=None,
+                        help="Use a different model as LLM judge to avoid same-model bias")
     args = parser.parse_args()
 
     run_extraction_quality(model=args.model, suffix=args.suffix,
                            sample_size=args.sample_size,
                            chunks_file=args.chunks,
-                           results_dir=args.results_dir)
+                           results_dir=args.results_dir,
+                           judge_model=args.judge_model)
