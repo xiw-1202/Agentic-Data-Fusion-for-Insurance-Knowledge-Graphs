@@ -1,0 +1,643 @@
+{
+  "mode": "zone2_seaf",
+  "baseline_metrics": {
+    "total_nodes": 7407,
+    "total_relationships": 27150,
+    "unique_labels": 2,
+    "duplicate_node_count": 0,
+    "duplication_rate": 0.0,
+    "concepts_with_multiple_labels": 0,
+    "type_inconsistency_rate": 0.0,
+    "tasks_total": 30,
+    "tasks_with_results": 26,
+    "tasks_keyword_match": 17,
+    "query_accuracy": 0.5666666666666667,
+    "model": "llama3.1:8b",
+    "riskine_precision": 0.0,
+    "riskine_recall": 0.0,
+    "riskine_f1": 0.0,
+    "riskine_available": false
+  },
+  "duplication_detail": {
+    "duplicate_groups": 0,
+    "total_duplicated_nodes": 0,
+    "excess_nodes": 0
+  },
+  "type_consistency_detail": {
+    "total_labels": 1,
+    "unique_root_concepts": 1,
+    "concepts_with_multiple_labels": 0,
+    "examples": {}
+  },
+  "task_results": [
+    {
+      "id": 1,
+      "category": "coverage",
+      "question": "What types of property does NFIP cover under the General Property Form?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Property",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "total building insurance coverage",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Cost to replace an insured item of property at the time of loss, less the value of its physical depreciation",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "category": "coverage",
+      "question": "What is the maximum limit for Increased Cost of Compliance (ICC / Coverage D) under NFIP?",
+      "rows_returned": 6,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage D",
+          "type(r)": "COVERS",
+          "m.id": "Coverage A"
+        },
+        {
+          "n.id": "Coverage D",
+          "type(r)": "COVERS",
+          "m.id": "Compliance with Floodplain Management Laws"
+        },
+        {
+          "n.id": "Coverage D",
+          "type(r)": "HAS_DEDUCTIBLE",
+          "m.id": "Separate Deductible"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "category": "coverage",
+      "question": "What personal property is insured under Coverage B of the NFIP SFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "COVERS",
+          "m.id": "Personal Property"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "category": "exclusions",
+      "question": "What types of damage are excluded from NFIP coverage?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Building",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Gas or liquid storage tank, shipping container, or a recreational vehicle, park trailer, or other similar vehicle"
+        },
+        {
+          "n.id": "Deductible",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Loss Avoidance Measures"
+        },
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Earth Movement"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "category": "exclusions",
+      "question": "Is flood damage from earth movement covered?",
+      "rows_returned": 3,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Earth Movement",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Earthquake",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Sinkholes",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "category": "policy_terms",
+      "question": "Under NFIP, how many continuous days must a lake flood an insured building before a pre-loss claim may be filed?",
+      "rows_returned": 10,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "POL-1118d1008b8b",
+          "type(r)": "HAS_POLICY_COST",
+          "m.id": "690"
+        },
+        {
+          "n.id": "POL-1118d1008b8b",
+          "type(r)": "HAS_WAITING_PERIOD_TYPE",
+          "m.id": "N"
+        },
+        {
+          "n.id": "POL-be25f7f0b8de",
+          "type(r)": "HAS_WAITING_PERIOD_TYPE",
+          "m.id": "N"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "category": "policy_terms",
+      "question": "What flood zones are mentioned in the SFIP?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "A",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "AH",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "AE",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "category": "policy_terms",
+      "question": "What is Increased Cost of Compliance (ICC) coverage?",
+      "rows_returned": 4,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Compliance with Floodplain Management Laws",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Exclusion of Compliance Costs",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Cost of Compliance with Ordinances or Laws",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "category": "claims",
+      "question": "What must a policyholder do after a flood loss?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "PROP-0c1c33332514",
+          "type(r)": "HAS_REPORTED_CITY",
+          "m.id": "Currently Unavailable"
+        },
+        {
+          "n.id": "PROP-0c1c33332514",
+          "type(r)": "HAS_REPORTED_ZIP_CODE",
+          "m.id": "31410"
+        },
+        {
+          "n.id": "POL-50b7bc6306a6",
+          "type(r)": "HAS_REPORTED_CITY",
+          "m.id": "Currently Unavailable"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "category": "claims",
+      "question": "What is the deadline for filing a proof of loss?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Elevation or Floodproofing"
+        },
+        {
+          "n.id": "Eligible Floodproofing Activities"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "category": "definitions",
+      "question": "How does NFIP define 'flood'?",
+      "rows_returned": 3,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Flood",
+          "type(r)": "DEFINED_AS",
+          "m.id": "General and temporary condition of partial or complete inundation"
+        },
+        {
+          "n.id": "Base Flood",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Flood having a one percent chance of being equaled or exceeded in any given year"
+        },
+        {
+          "n.id": "Direct Physical Loss By or From Flood",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Loss or damage to insured property directly caused by flood"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "category": "definitions",
+      "question": "What is the definition of a 'building' under NFIP?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "total building insurance coverage",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Maximum building claim payout under NFIP policy"
+        },
+        {
+          "n.id": "Building",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Structure with two or more outside rigid walls and a fully secured roof that is affixed to a permanent site"
+        },
+        {
+          "n.id": "Building",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Manufactured home, also known as a mobile home, is a structure built on a permanent chassis, transported to its site in one or more sections, and affixed to a permanent foundation"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "category": "coverage",
+      "question": "Does NFIP cover basement contents?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Basement",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Residential Buildings with Basements",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "category": "coverage",
+      "question": "What personal property is covered under contents coverage?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "COVERS",
+          "m.id": "Personal Property"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "category": "policy_terms",
+      "question": "What happens if there is a coinsurance or other insurance?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 16,
+      "category": "claims",
+      "question": "What is the appraisal process for resolving disputes about the amount of an NFIP loss?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Appraisal Process",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Demand for Appraisal",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "category": "coverage",
+      "question": "What improvements and betterments are covered?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 18,
+      "category": "exclusions",
+      "question": "What financial losses are excluded from NFIP (e.g., business interruption)?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Loss of Revenue or Profits"
+        },
+        {
+          "n.id": "Business Interruption"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "category": "policy_terms",
+      "question": "How is the replacement cost value (RCV) determined for building coverage?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Actual Cash Value"
+        },
+        {
+          "n.id": "Pay Cost of Replacement Minus Depreciation"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "category": "policy_terms",
+      "question": "What is the Liberalization Clause in NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 21,
+      "category": "structured_claims",
+      "question": "Are individual claim records represented as entities in the KG?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "cnt": 485
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "category": "structured_policies",
+      "question": "Are individual policy records represented as entities in the KG?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "cnt": 459
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "category": "structured_claims",
+      "question": "Do claim records have payment amount information?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "c.id": "CLM-d6de9ecd5122",
+          "v.id": "70875.58"
+        },
+        {
+          "c.id": "CLM-6dd0bd4b9a34",
+          "v.id": "5000"
+        },
+        {
+          "c.id": "CLM-aa5f507dbac7",
+          "v.id": "370"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "category": "structured_claims",
+      "question": "Do claim records have date of loss information?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "c.id": "CLM-d6de9ecd5122",
+          "v.id": "2008-09-12T00:00:00.000Z"
+        },
+        {
+          "c.id": "CLM-6dd0bd4b9a34",
+          "v.id": "2017-08-27T00:00:00.000Z"
+        },
+        {
+          "c.id": "CLM-aa5f507dbac7",
+          "v.id": "1981-06-15T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "category": "structured_policies",
+      "question": "Do policy records have coverage amount information?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "p.id": "POL-50b7bc6306a6",
+          "v.id": "250000"
+        },
+        {
+          "p.id": "POL-1118d1008b8b",
+          "v.id": "250000"
+        },
+        {
+          "p.id": "POL-be25f7f0b8de",
+          "v.id": "250000"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "category": "structured_policies",
+      "question": "Do policy records have flood zone classification?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "p.id": "POL-50b7bc6306a6",
+          "v.id": "AE"
+        },
+        {
+          "p.id": "POL-1118d1008b8b",
+          "v.id": "AE"
+        },
+        {
+          "p.id": "POL-be25f7f0b8de",
+          "v.id": "AE"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "category": "cross_source",
+      "question": "Are any policy records linked to claim records?",
+      "rows_returned": 10,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "a.id": "POL-62cfeeb79018",
+          "a.entity_type": "PolicyRecord",
+          "b.id": "CLM-dd5758a44ba3",
+          "b.entity_type": "ClaimRecord",
+          "r.confidence": 0.4874
+        },
+        {
+          "a.id": "POL-62cfeeb79018",
+          "a.entity_type": "PolicyRecord",
+          "b.id": "CLM-adbaa9bc0c35",
+          "b.entity_type": "ClaimRecord",
+          "r.confidence": 0.4128
+        },
+        {
+          "a.id": "POL-a1820dbfc11b",
+          "a.entity_type": "PolicyRecord",
+          "b.id": "CLM-2c8f887cd1f5",
+          "b.entity_type": "ClaimRecord",
+          "r.confidence": 0.4841
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "category": "cross_source",
+      "question": "Do structured records share flood zone values with PDF-extracted concepts?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 29,
+      "category": "structured_claims",
+      "question": "Do claim records have cause of damage information?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "c.id": "CLM-d6de9ecd5122",
+          "v.id": "4"
+        },
+        {
+          "c.id": "CLM-6dd0bd4b9a34",
+          "v.id": "4"
+        },
+        {
+          "c.id": "CLM-aa5f507dbac7",
+          "v.id": "1"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "category": "identity",
+      "question": "Are property identity nodes linking multiple records?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "prop.id": "PROP-2c646210fb03",
+          "linked_records": 1
+        },
+        {
+          "prop.id": "PROP-fbd085708541",
+          "linked_records": 1
+        },
+        {
+          "prop.id": "PROP-00746a56c159",
+          "linked_records": 1
+        }
+      ]
+    }
+  ]
+}

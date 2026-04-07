@@ -1,0 +1,606 @@
+{
+  "suffix": "zone2_seaf_v3",
+  "model": "qwen2.5:72b",
+  "vocabulary_coverage": {
+    "token_coverage": 0.544,
+    "source_vocab_size": 2059,
+    "covered_terms": 1120,
+    "uncovered_sample": [
+      "abandonment",
+      "accept",
+      "accordance",
+      "accounts",
+      "accumulation",
+      "accurate",
+      "acids",
+      "acquire",
+      "acquired",
+      "acquires",
+      "activity",
+      "acts",
+      "added",
+      "address",
+      "adjacent",
+      "adjust",
+      "adjusted",
+      "adjuster",
+      "adjustment",
+      "administered"
+    ],
+    "total_entities": 7455,
+    "relation_types": 93,
+    "entity_types": 60,
+    "source_breakdown": {
+      "structured": 7198,
+      "recall_pass": 46,
+      "llm": 211
+    }
+  },
+  "triple_precision": {
+    "precision": 0.8261,
+    "accuracy": 0.76,
+    "sample_size": 100,
+    "correct": 76,
+    "incorrect": 16,
+    "uncertain": 8,
+    "llm_triples_total": 239,
+    "structured_triples_total": 25162,
+    "sampled_triples": [
+      {
+        "subject": "Mortgagee",
+        "relation": "RECEIVES_PAYMENT_FROM",
+        "object": "Insurer",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "HAS_DEADLINE",
+        "object": "12:01 a.m. on the last day of the policy term",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "HAS_CONDITION",
+        "object": "Other Insurance",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Pollution Damage",
+        "relation": "HAS_COVERAGE_LIMIT",
+        "object": "$10,000",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Insurer",
+        "relation": "HAS_CLAIM_PAYOUT",
+        "object": "Other Person or Entity",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Actual Cash Value",
+        "relation": "DEFINED_AS",
+        "object": "The cost to replace an insured item of property at the time of loss, less the value of its physical depreciation",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Conservation Easement",
+        "relation": "COVERS",
+        "object": "Special Consideration Area",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Loss to any building or personal property located on land leased from the Federal Government",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Open Structures",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "Release Agreement",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Loss Settlement",
+        "relation": "HAS_CRITERION",
+        "object": "The applicable amount of insurance under this policy",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Repetitive Loss Building",
+        "relation": "REQUIRES",
+        "object": "Substantial Damage Provision",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Debris Removal",
+        "relation": "DOES_NOT_INCREASE",
+        "object": "Coverage B Limit",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "Void",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "DOES_NOT_INCREASE",
+        "object": "Coverage B Limit",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Insurer",
+        "relation": "MUST_NOTIFY",
+        "object": "Losses",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Coverage A\u2014Building Property",
+        "relation": "COVERS",
+        "object": "Building Described on Declarations Page",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "National Flood Insurance Program (NFIP)",
+        "relation": "EXCLUDED_FROM",
+        "object": "Rain, Snow, Sleet, Hail, or Water Spray",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Flood",
+        "relation": "HAS_CAUSE_OF_DAMAGE",
+        "object": "Overflow of inland or tidal waters",
+        "source_type": "recall_pass",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Hot Tubs and Swimming Pools",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      }
+    ]
+  },
+  "fact_recall": {
+    "fact_recall": 0.4042,
+    "total_facts": 240,
+    "found_facts": 97,
+    "chunks_sampled": 30,
+    "match_threshold": 0.75,
+    "chunk_results": [
+      {
+        "chunk_id": 38,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0
+      },
+      {
+        "chunk_id": 6,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 34,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875
+      },
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5
+      },
+      {
+        "chunk_id": 42,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 71,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 54,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 65,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 7,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 63,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 27,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 70,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 31,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 37,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125
+      },
+      {
+        "chunk_id": 20,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 45,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 10,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 13,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125
+      },
+      {
+        "chunk_id": 26,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 3,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125
+      },
+      {
+        "chunk_id": 2,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 24,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 40,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 9,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 67,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      }
+    ]
+  },
+  "source_grounding": {
+    "grounding_rate": 0.83,
+    "total_checked": 50,
+    "supported": 39,
+    "partially_supported": 5,
+    "not_supported": 0,
+    "no_source_found": 6,
+    "sampled_results": [
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "HAS_CONDITION",
+        "object": "Annual Evaporation Exceeds Precipitation",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Coverage A\u2014Building Property",
+        "relation": "COVERS",
+        "object": "Fixtures, Machinery, and Equipment",
+        "source_type": "llm",
+        "grounded": "PARTIALLY",
+        "chunk_id": 10
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "COVERS",
+        "object": "Reasonable Expenses for Sandbags, Fill, Pumps, Plastic Sheeting, and Lumber",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Loss of Access",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "HAS_CONDITION",
+        "object": "Imminent Flood Damage",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "Flood",
+        "relation": "DEFINED_AS",
+        "object": "General and temporary condition of partial or complete inundation of two or more acres of normally dry land area or of two or more properties (one of which is your property)",
+        "source_type": "recall_pass",
+        "grounded": "SUPPORTED",
+        "chunk_id": 8
+      },
+      {
+        "subject": "Recreational Vehicles",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 9
+      },
+      {
+        "subject": "Reforming the Policy with Reduced Coverage",
+        "relation": "EXCLUDED_FROM",
+        "object": "VII.D.1 and VII.D.4",
+        "source_type": "recall_pass",
+        "grounded": "SUPPORTED",
+        "chunk_id": 26
+      },
+      {
+        "subject": "Policyholder",
+        "relation": "MUST_NOTIFY",
+        "object": "Insurer",
+        "source_type": "recall_pass",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Policy",
+        "relation": "HAS_CONDITION",
+        "object": "No Additional Premium Required",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Pollution Damage",
+        "relation": "DOES_NOT_INCREASE",
+        "object": "Coverage B Limit",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "Property in Coastal Barrier Areas",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Earth Movement",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Pollution Damage",
+        "relation": "HAS_COVERAGE_LIMIT",
+        "object": "$10,000",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "HAS_CONDITION",
+        "object": "Surface Area Exceeds One Square Mile",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Insured",
+        "relation": "MUST_NOTIFY",
+        "object": "Damaged and undamaged property",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 3
+      },
+      {
+        "subject": "Water, Moisture, Mildew, or Mold Damage",
+        "relation": "HAS_CONDITION",
+        "object": "Substantially Confined to Insured Building",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 18
+      },
+      {
+        "subject": "Coverage A\u2014Building Property",
+        "relation": "COVERS",
+        "object": "Materials and Supplies for Construction",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 10
+      },
+      {
+        "subject": "Pressure or Weight of Water",
+        "relation": "EXCLUDED_FROM",
+        "object": "Flood in the Area",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 18
+      },
+      {
+        "subject": "Water, Moisture, Mildew, or Mold Damage",
+        "relation": "HAS_SUBCONDITION",
+        "object": "Failures, Stoppages, or Breakage of Water or Sewer Lines",
+        "source_type": "llm",
+        "grounded": "PARTIALLY",
+        "chunk_id": 18
+      }
+    ]
+  },
+  "graph_statistics": {
+    "node_count": 7455,
+    "edge_count": 25401,
+    "density": 0.000457,
+    "avg_degree": 6.81,
+    "median_degree": 2.0,
+    "max_degree": 2052,
+    "isolated_nodes": 0,
+    "relation_types": 93,
+    "entity_types": 60,
+    "top_5_relations": [
+      [
+        "HAS_REPORTED_ZIP_CODE",
+        1837
+      ],
+      [
+        "IS_A",
+        1798
+      ],
+      [
+        "BELONGS_TO",
+        999
+      ],
+      [
+        "HAS_NUMBER_OF_FLOORS_IN_INSURED_BUILDING",
+        972
+      ],
+      [
+        "HAS_OCCUPANCY_TYPE",
+        947
+      ]
+    ],
+    "top_5_entity_types": [
+      [
+        "Numeric",
+        3363
+      ],
+      [
+        "Date",
+        1458
+      ],
+      [
+        "Property",
+        857
+      ],
+      [
+        "ClaimRecord",
+        485
+      ],
+      [
+        "Text",
+        482
+      ]
+    ],
+    "triples_per_entity": 3.41
+  }
+}

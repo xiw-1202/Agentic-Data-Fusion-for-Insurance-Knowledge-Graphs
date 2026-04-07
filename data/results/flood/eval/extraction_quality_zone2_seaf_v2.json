@@ -1,0 +1,606 @@
+{
+  "suffix": "zone2_seaf_v2",
+  "model": "qwen2.5:72b",
+  "vocabulary_coverage": {
+    "token_coverage": 0.5182,
+    "source_vocab_size": 2059,
+    "covered_terms": 1067,
+    "uncovered_sample": [
+      "abandonment",
+      "accept",
+      "accordance",
+      "accounts",
+      "accumulation",
+      "accurate",
+      "acids",
+      "acknowledge",
+      "acquire",
+      "acquired",
+      "acquires",
+      "activity",
+      "acts",
+      "added",
+      "address",
+      "adjacent",
+      "adjust",
+      "adjusted",
+      "adjuster",
+      "adjustment"
+    ],
+    "total_entities": 7412,
+    "relation_types": 80,
+    "entity_types": 41,
+    "source_breakdown": {
+      "llm": 213,
+      "structured": 7198,
+      "concept_link": 1
+    }
+  },
+  "triple_precision": {
+    "precision": 0.7889,
+    "accuracy": 0.71,
+    "sample_size": 100,
+    "correct": 71,
+    "incorrect": 19,
+    "uncertain": 10,
+    "llm_triples_total": 193,
+    "structured_triples_total": 26475,
+    "sampled_triples": [
+      {
+        "subject": "National Flood Insurance Program (NFIP)",
+        "relation": "EXCLUDED_FROM",
+        "object": "Water or Waterborne Material Backing Up Through Sewers or Drains",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Condominium",
+        "relation": "DEFINED_AS",
+        "object": "A type of building for which the form of ownership is one in which each unit owner has an undivided interest in common elements of the building",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Deductible",
+        "relation": "DEFINED_AS",
+        "object": "The fixed amount of an insured loss that is your responsibility and that is incurred by you before any amounts are paid for the insured loss under this policy",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Loss Avoidance Measures",
+        "relation": "COVERS",
+        "object": "Sandbags, Supplies, and Labor",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage D\u2014Increased Cost of Compliance",
+        "relation": "HAS_CLAIM_PAYOUT",
+        "object": "Compliance Activities",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Land and Land Values",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Property Removed to Safety",
+        "relation": "HAS_MAXIMUM",
+        "object": "Coverage A Limit",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Base Flood",
+        "relation": "DEFINED_AS",
+        "object": "A flood having a one percent chance of being equaled or exceeded in any given year",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "Loss Equal to or Greater than Policy Limits",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Insurer",
+        "relation": "HAS_RIGHT",
+        "object": "Review Information",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Water, Moisture, Mildew, or Mold Damage",
+        "relation": "HAS_SUBCONDITION",
+        "object": "Failure to Inspect and Maintain Property After Flood Recedes",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Property Removed to Safety",
+        "relation": "COVERS",
+        "object": "Insured Property at New Location",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Household Personal Property",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Condominium Association",
+        "relation": "DEFINED_AS",
+        "object": "The entity made up of the unit owners responsible for the maintenance and operation of common elements owned in undivided shares by unit owners and other buildings in which the unit owners have use rights where membership in the entity is a required condition of unit ownership",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Food Freezers",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage D\u2014Increased Cost of Compliance",
+        "relation": "HAS_DEDUCTIBLE",
+        "object": "Separate Deductible",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "COVERS",
+        "object": "One Building",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Personal Property Not Inside Enclosed Building",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Floodproofing Activities",
+        "relation": "HAS_COVERAGE_LIMIT",
+        "object": "Non-Residential Buildings",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Other Than Household Personal Property",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      }
+    ]
+  },
+  "fact_recall": {
+    "fact_recall": 0.4,
+    "total_facts": 240,
+    "found_facts": 96,
+    "chunks_sampled": 30,
+    "match_threshold": 0.75,
+    "chunk_results": [
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5
+      },
+      {
+        "chunk_id": 42,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 38,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0
+      },
+      {
+        "chunk_id": 54,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 68,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 7,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 63,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 27,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 6,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 31,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 37,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 20,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 45,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 10,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 13,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125
+      },
+      {
+        "chunk_id": 26,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 3,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125
+      },
+      {
+        "chunk_id": 2,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 24,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 40,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5
+      },
+      {
+        "chunk_id": 46,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125
+      },
+      {
+        "chunk_id": 9,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 70,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 39,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 58,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      }
+    ]
+  },
+  "source_grounding": {
+    "grounding_rate": 0.85,
+    "total_checked": 50,
+    "supported": 42,
+    "partially_supported": 1,
+    "not_supported": 0,
+    "no_source_found": 7,
+    "sampled_results": [
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Carpets Over Finished Flooring",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 11
+      },
+      {
+        "subject": "Floodproofing Activities",
+        "relation": "HAS_COVERAGE_LIMIT",
+        "object": "Non-Residential Buildings",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 13
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Ovens and the Like",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 11
+      },
+      {
+        "subject": "Multiple Policies with Building Coverage",
+        "relation": "EXCLUDED_FROM",
+        "object": "One Building",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 6
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "Conservation Easement",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "Lake Floodwaters Damage or Threaten Building",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "REQUIRES",
+        "object": "Overtop Basins",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Debris Removal",
+        "relation": "HAS_MAXIMUM",
+        "object": "Coverage B Limit",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "You",
+        "relation": "DEFINED_AS",
+        "object": "Named Insured(s)",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 3
+      },
+      {
+        "subject": "Loss Avoidance Measures",
+        "relation": "COVERS",
+        "object": "Sandbags, Supplies, and Labor",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "National Flood Insurance Program (NFIP)",
+        "relation": "EXCLUDED_FROM",
+        "object": "Power, Heating, or Cooling Failure",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Repetitive Loss Building",
+        "relation": "HAS_HISTORY",
+        "object": "Two Flood Damages in 10 Years",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 13
+      },
+      {
+        "subject": "Policy",
+        "relation": "REQUIRES",
+        "object": "Flood in Progress",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 16
+      },
+      {
+        "subject": "Conservation Easement",
+        "relation": "MUST_NOTIFY",
+        "object": "Agricultural and Recreational Uses",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "Loss Equal to or Greater than Policy Limits",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Coverage D\u2014Increased Cost of Compliance",
+        "relation": "HAS_CLAIM_PAYOUT",
+        "object": "Exceeding Minimum Standards",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 13
+      },
+      {
+        "subject": "Base Flood",
+        "relation": "DEFINED_AS",
+        "object": "A flood having a one percent chance of being equaled or exceeded in any given year",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 9
+      },
+      {
+        "subject": "Policy Conditions",
+        "relation": "EXCLUDED_FROM",
+        "object": "Insurance Liability",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Coverage A\u2014Building Property",
+        "relation": "COVERS",
+        "object": "Additions and Extensions Attached to Building",
+        "source_type": "concept_link",
+        "grounded": "SUPPORTED",
+        "chunk_id": 10
+      },
+      {
+        "subject": "Floodproofing Activities",
+        "relation": "HAS_COVERAGE_LIMIT",
+        "object": "Residential Buildings with Basements",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 13
+      }
+    ]
+  },
+  "graph_statistics": {
+    "node_count": 7412,
+    "edge_count": 26668,
+    "density": 0.000485,
+    "avg_degree": 7.2,
+    "median_degree": 2.0,
+    "max_degree": 2052,
+    "isolated_nodes": 0,
+    "relation_types": 79,
+    "entity_types": 41,
+    "top_5_relations": [
+      [
+        "HAS_REPORTED_ZIP_CODE",
+        1837
+      ],
+      [
+        "IS_A",
+        1798
+      ],
+      [
+        "IS_CLASSIFIED_AS",
+        1317
+      ],
+      [
+        "BELONGS_TO",
+        999
+      ],
+      [
+        "HAS_NUMBER_OF_FLOORS_IN_INSURED_BUILDING",
+        972
+      ]
+    ],
+    "top_5_entity_types": [
+      [
+        "Numeric",
+        3363
+      ],
+      [
+        "Date",
+        1458
+      ],
+      [
+        "Property",
+        854
+      ],
+      [
+        "ClaimRecord",
+        485
+      ],
+      [
+        "Text",
+        482
+      ]
+    ],
+    "triples_per_entity": 3.6
+  }
+}

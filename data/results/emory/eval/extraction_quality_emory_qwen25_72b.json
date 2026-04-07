@@ -1,0 +1,870 @@
+{
+  "suffix": "emory_qwen25_72b",
+  "model": "qwen2.5:72b",
+  "triple_precision": {
+    "precision": 0.8721,
+    "accuracy": 0.75,
+    "sample_size": 100,
+    "correct": 75,
+    "incorrect": 11,
+    "uncertain": 14,
+    "llm_triples_total": 731,
+    "structured_triples_total": 26713,
+    "sampled_triples": [
+      {
+        "subject": "Assurant Auto Dealer Services",
+        "relation": "HAS_OBJECTIVE",
+        "object": "Generate Profit and Wealth",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Lowe's Protection Plus",
+        "relation": "IS_ADMINISTERED_BY",
+        "object": "Assurant",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorenterscancelsurvey",
+        "relation": "HAS_FIELD",
+        "object": "unhappy with servicing other",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Service Contract Refund Payment",
+        "relation": "HAS_DEADLINE",
+        "object": "30 Days",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Emergency Roadside Assistance",
+        "relation": "EXCLUDED_FROM",
+        "object": "Non-Emergency Towing",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorentersurvey",
+        "relation": "HAS_FIELD",
+        "object": "Claim Number",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorentersurvey",
+        "relation": "HAS_FIELD",
+        "object": "report dt id",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorenterscancelsurvey",
+        "relation": "HAS_FIELD",
+        "object": "renters policy transfer",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Insured",
+        "relation": "REQUIRES_AUTHORIZATION",
+        "object": "Repair Facility to Perform Diagnostic Work",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "policy issue paid",
+        "relation": "IS_PART_OF",
+        "object": "Geicorenterspoliciesdetails",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Service Contract Cancellation",
+        "relation": "MUST_NOTIFY",
+        "object": "30 Days",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Service Contract Cancellation By Insured",
+        "relation": "HAS_REASON",
+        "object": "Within 70 Days of Purchase Date",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorentersurvey",
+        "relation": "HAS_FIELD",
+        "object": "gateway survey name",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Administrator Contact Information",
+        "relation": "DEFINED_AS",
+        "object": "1-800-752-6265",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "agent csat",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Cancellation By Us After 60 Days",
+        "relation": "HAS_REASON",
+        "object": "Failure to Maintain Vehicle as Prescribed by Manufacturer",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Renters Insurance Cost",
+        "relation": "HAS_COST_RANGE",
+        "object": "$15 to $30 per month",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Emergency Roadside Assistance",
+        "relation": "EXCLUDED_FROM",
+        "object": "Materials",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Insured",
+        "relation": "HAS_MAINTENANCE_REQUIREMENT",
+        "object": "Check Warning Lights/Gauges",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Oklahoma Service Warranty Statutes",
+        "relation": "EXCLUDED_FROM",
+        "object": "Commercial Use Reference in Service Warranty Contracts",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      }
+    ]
+  },
+  "fact_recall": {
+    "fact_recall": 0.0378,
+    "total_facts": 238,
+    "found_facts": 9,
+    "chunks_sampled": 30,
+    "method": "G-BERTScore (fact-vs-linearized-triple, cosine)",
+    "match_threshold": 0.65,
+    "chunk_results": [
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.548,
+          0.385,
+          0.624,
+          0.373,
+          0.442,
+          0.551,
+          0.557,
+          0.372
+        ]
+      },
+      {
+        "chunk_id": 42,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.54,
+          0.514,
+          0.357,
+          0.637,
+          0.413,
+          0.438,
+          0.545,
+          0.39
+        ]
+      },
+      {
+        "chunk_id": 38,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.579,
+          0.591,
+          0.626,
+          0.515,
+          0.568,
+          0.588,
+          0.62,
+          0.381
+        ]
+      },
+      {
+        "chunk_id": 54,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.564,
+          0.357,
+          0.547,
+          0.414,
+          0.439,
+          0.432,
+          0.456,
+          0.547
+        ]
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.498,
+          0.329,
+          0.545,
+          0.419,
+          0.548,
+          0.359,
+          0.565,
+          0.477
+        ]
+      },
+      {
+        "chunk_id": 68,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.461,
+          0.554,
+          0.42,
+          0.442,
+          0.427,
+          0.44,
+          0.608,
+          0.415
+        ]
+      },
+      {
+        "chunk_id": 7,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.463,
+          0.497,
+          0.59,
+          0.39,
+          0.471,
+          0.502,
+          0.451,
+          0.596
+        ]
+      },
+      {
+        "chunk_id": 63,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25,
+        "best_match_sims": [
+          0.596,
+          0.621,
+          0.662,
+          0.69,
+          0.473,
+          0.483,
+          0.644,
+          0.491
+        ]
+      },
+      {
+        "chunk_id": 27,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.564,
+          0.581,
+          0.594,
+          0.607,
+          0.473,
+          0.499,
+          0.618,
+          0.455
+        ]
+      },
+      {
+        "chunk_id": 6,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25,
+        "best_match_sims": [
+          0.608,
+          0.626,
+          0.662,
+          0.69,
+          0.499,
+          0.644,
+          0.462,
+          0.448
+        ]
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.553,
+          0.51,
+          0.605,
+          0.467,
+          0.465,
+          0.44,
+          0.62,
+          0.432
+        ]
+      },
+      {
+        "chunk_id": 31,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125,
+        "best_match_sims": [
+          0.522,
+          0.408,
+          0.666,
+          0.404,
+          0.461,
+          0.482,
+          0.603,
+          0.394
+        ]
+      },
+      {
+        "chunk_id": 37,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.506,
+          0.503,
+          0.461,
+          0.516,
+          0.603,
+          0.615,
+          0.493,
+          0.447
+        ]
+      },
+      {
+        "chunk_id": 20,
+        "facts_extracted": 6,
+        "facts_found_in_kg": 1,
+        "recall": 0.167,
+        "best_match_sims": [
+          0.586,
+          0.634,
+          0.524,
+          0.538,
+          0.484,
+          0.651
+        ]
+      },
+      {
+        "chunk_id": 45,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125,
+        "best_match_sims": [
+          0.605,
+          0.636,
+          0.404,
+          0.39,
+          0.667,
+          0.491,
+          0.548,
+          0.605
+        ]
+      },
+      {
+        "chunk_id": 10,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.601,
+          0.606,
+          0.61,
+          0.469,
+          0.499,
+          0.573,
+          0.408,
+          0.532
+        ]
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.584,
+          0.607,
+          0.627,
+          0.381,
+          0.363,
+          0.477,
+          0.433,
+          0.618
+        ]
+      },
+      {
+        "chunk_id": 13,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.556,
+          0.611,
+          0.407,
+          0.415,
+          0.452,
+          0.484,
+          0.533,
+          0.623
+        ]
+      },
+      {
+        "chunk_id": 26,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.541,
+          0.582,
+          0.514,
+          0.57,
+          0.632,
+          0.53,
+          0.55,
+          0.588
+        ]
+      },
+      {
+        "chunk_id": 3,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.48,
+          0.584,
+          0.592,
+          0.439,
+          0.535,
+          0.362,
+          0.513,
+          0.467
+        ]
+      },
+      {
+        "chunk_id": 2,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.532,
+          0.408,
+          0.603,
+          0.41,
+          0.433,
+          0.452,
+          0.451,
+          0.609
+        ]
+      },
+      {
+        "chunk_id": 24,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.43,
+          0.628,
+          0.457,
+          0.488,
+          0.433,
+          0.494,
+          0.613,
+          0.453
+        ]
+      },
+      {
+        "chunk_id": 40,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.488,
+          0.605,
+          0.398,
+          0.467,
+          0.528,
+          0.596,
+          0.397,
+          0.428
+        ]
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.592,
+          0.611,
+          0.637,
+          0.473,
+          0.489,
+          0.609,
+          0.477,
+          0.393
+        ]
+      },
+      {
+        "chunk_id": 46,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125,
+        "best_match_sims": [
+          0.506,
+          0.666,
+          0.395,
+          0.46,
+          0.451,
+          0.603,
+          0.407,
+          0.421
+        ]
+      },
+      {
+        "chunk_id": 9,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.416,
+          0.41,
+          0.45,
+          0.383,
+          0.185,
+          0.256,
+          0.324,
+          0.55
+        ]
+      },
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.473,
+          0.48,
+          0.505,
+          0.484,
+          0.467,
+          0.536,
+          0.635,
+          0.57
+        ]
+      },
+      {
+        "chunk_id": 70,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.491,
+          0.586,
+          0.413,
+          0.421,
+          0.465,
+          0.487,
+          0.58,
+          0.444
+        ]
+      },
+      {
+        "chunk_id": 39,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0,
+        "best_match_sims": [
+          0.632,
+          0.541,
+          0.423,
+          0.414,
+          0.471,
+          0.622,
+          0.53,
+          0.523
+        ]
+      },
+      {
+        "chunk_id": 58,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 1,
+        "recall": 0.125,
+        "best_match_sims": [
+          0.61,
+          0.644,
+          0.363,
+          0.483,
+          0.662,
+          0.477,
+          0.53,
+          0.525
+        ]
+      }
+    ]
+  },
+  "source_grounding": {
+    "grounding_rate": 0.02,
+    "total_checked": 50,
+    "supported": 1,
+    "partially_supported": 0,
+    "not_supported": 0,
+    "no_source_found": 49,
+    "sampled_results": [
+      {
+        "subject": "Emergency Roadside Assistance",
+        "relation": "EXCLUDED_FROM",
+        "object": "Towing from or Repair Work at Service Station, Garage, or Repair Shop",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Tmobileclaimsample",
+        "relation": "HAS_FIELD",
+        "object": "Auth to Repair Buckets",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Personal Liability Coverage",
+        "relation": "COVERS",
+        "object": "Medical Payments",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Vehicle Service Contract",
+        "relation": "EFFECTIVE_AFTER",
+        "object": "Purchase Date",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Emergency Travel Expense Reimbursement",
+        "relation": "EXCLUDED_FROM",
+        "object": "Breakdown Less Than 100 Miles From Home",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Device Protection Claim",
+        "relation": "MUST_NOTIFY",
+        "object": "Authorized User",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "response time id",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Service Contract Cancellation",
+        "relation": "HAS_DEADLINE",
+        "object": "45 days",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Geicorentersclaims",
+        "relation": "HAS_FIELD",
+        "object": "Claim Status",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Utah Residents",
+        "relation": "HAS_DEADLINE",
+        "object": "No 30-Day Limit for Reimbursement Claims",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "IS_NOT_GUARANTEED_BY",
+        "object": "Idaho Insurance Guarantee Association",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Terrorist Acts - Alaska",
+        "relation": "IS_DELETED_BY",
+        "object": "Alaska State Amendments",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Customer",
+        "relation": "HAS_DEADLINE",
+        "object": "30 days after Breakdown",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "agent csat",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Tmobileclaimsample",
+        "relation": "HAS_FIELD",
+        "object": "Shipped Manufacturer",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "EXCLUDED_FROM",
+        "object": "Snow Plow Blade Attached to Vehicle",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "gateway survey name",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "PHP Insurance Only",
+        "relation": "HAS_COST",
+        "object": "$2 for Tier 1-2",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Refund Calculation",
+        "relation": "IS_AMENDED",
+        "object": "Lienholder and You",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Vehicle Service Contract",
+        "relation": "EXCLUDED_FROM",
+        "object": "Automotive Retailer Warranties",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      }
+    ]
+  },
+  "graph_statistics": {
+    "node_count": 8850,
+    "edge_count": 27444,
+    "density": 0.00035,
+    "avg_degree": 6.2,
+    "median_degree": 1.0,
+    "max_degree": 1056,
+    "isolated_nodes": 0,
+    "relation_types": 371,
+    "entity_types": 69,
+    "top_5_relations": [
+      [
+        "IS_A",
+        1064
+      ],
+      [
+        "BELONGS_TO",
+        760
+      ],
+      [
+        "HAS_ORGANIZATION_NAME",
+        449
+      ],
+      [
+        "HAS_SURVEY_GATEWAY_NAME",
+        449
+      ],
+      [
+        "HAS_SURVEY_NAME",
+        449
+      ]
+    ],
+    "top_5_entity_types": [
+      [
+        "Numeric",
+        2732
+      ],
+      [
+        "Text",
+        2237
+      ],
+      [
+        "Date",
+        1954
+      ],
+      [
+        "ClaimRecord",
+        413
+      ],
+      [
+        "Record",
+        253
+      ]
+    ],
+    "triples_per_entity": 3.1
+  }
+}

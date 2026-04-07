@@ -1,0 +1,726 @@
+{
+  "suffix": "zone1_qwen",
+  "precision": 0.0618,
+  "recall": 0.5,
+  "f1": 0.11,
+  "induced_label_count": 89,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 5,
+  "alignment_table": [
+    {
+      "induced": "Organization",
+      "riskine": "Organization",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Form",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Person",
+      "riskine": "Person",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Page",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Concept",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Event",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "riskine": "Coverage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Fixture",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Equipment",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Furniture",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Regulation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Insurance_policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Date",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Building_type",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Material",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Item",
+      "riskine": "Product",
+      "cosine": 0.627,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Service",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Entity",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Activity",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Law",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Role",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Process",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Insurance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Clause",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Legislation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Definition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Program",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Condition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Building",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Cause",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Asset",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Action",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Requirement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Right",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Insurance_company",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Company",
+      "riskine": "Organization",
+      "cosine": 0.6277,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Phenomenon",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Area",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Unit",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Improvement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Floor",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Utility_connection",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Law_or_ordinance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Building_status",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Elevation_standard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Loss",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Government",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Number",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Loss_avoidance_measure",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Cost_of_compliance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Collection",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Policy_provision",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Provision",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Payment",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Period",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Options",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Inventory",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Statement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Report",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Judgment",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Award",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Policy_clause",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Party",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Claim",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Duration",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Assumption",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Agreement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Condition_of_agreement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Lake_type",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Loss_condition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Condition_of_claim",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Ordinance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Settlement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Application",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Status",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Interest",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Policy_document",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Policy_cancellation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Underpayment",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Lack_of_insurable_interest",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Duplicate_policies",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Physical_alteration",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Suspension",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Ineligibility",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Act",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Form",
+    "Page",
+    "Concept",
+    "Event",
+    "Fixture",
+    "Equipment",
+    "Furniture",
+    "Regulation",
+    "Insurance_policy",
+    "Date",
+    "Building_type",
+    "Material",
+    "Service",
+    "Entity",
+    "Activity",
+    "Law",
+    "Role",
+    "Process",
+    "Insurance",
+    "Clause",
+    "Legislation",
+    "Definition",
+    "Program",
+    "Condition",
+    "Building",
+    "Cause",
+    "Asset",
+    "Action",
+    "Requirement",
+    "Right",
+    "Insurance_company",
+    "Phenomenon",
+    "Area",
+    "Unit",
+    "Improvement",
+    "Floor",
+    "Utility_connection",
+    "Law_or_ordinance",
+    "Building_status",
+    "Elevation_standard",
+    "Loss",
+    "Government",
+    "Number",
+    "Deductible",
+    "Loss_avoidance_measure",
+    "Cost_of_compliance",
+    "Collection",
+    "Policy_provision",
+    "Provision",
+    "Payment",
+    "Period",
+    "Hazard",
+    "Options",
+    "Inventory",
+    "Statement",
+    "Report",
+    "Judgment",
+    "Award",
+    "Policy_clause",
+    "Party",
+    "Claim",
+    "Duration",
+    "Assumption",
+    "Agreement",
+    "Condition_of_agreement",
+    "Lake_type",
+    "Loss_condition",
+    "Condition_of_claim",
+    "Ordinance",
+    "Settlement",
+    "Application",
+    "Status",
+    "Interest",
+    "Policy_document",
+    "Policy_cancellation",
+    "Underpayment",
+    "Lack_of_insurable_interest",
+    "Duplicate_policies",
+    "Physical_alteration",
+    "Suspension",
+    "Ineligibility",
+    "Act"
+  ],
+  "unmatched_riskine": [
+    "Damage",
+    "Risk",
+    "Structure",
+    "Object",
+    "Address"
+  ]
+}

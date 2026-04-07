@@ -1,0 +1,641 @@
+{
+  "mode": "zone3_multileiden",
+  "baseline_metrics": {
+    "total_nodes": 106,
+    "total_relationships": 81,
+    "unique_labels": 17,
+    "duplicate_node_count": 0,
+    "duplication_rate": 0.0,
+    "concepts_with_multiple_labels": 2,
+    "type_inconsistency_rate": 0.14285714285714285,
+    "tasks_total": 20,
+    "tasks_with_results": 16,
+    "tasks_keyword_match": 15,
+    "query_accuracy": 0.75,
+    "model": "llama3.1:8b",
+    "riskine_precision": 0.0714,
+    "riskine_recall": 0.1,
+    "riskine_f1": 0.0833,
+    "riskine_available": true
+  },
+  "duplication_detail": {
+    "duplicate_groups": 0,
+    "total_duplicated_nodes": 0,
+    "excess_nodes": 0
+  },
+  "type_consistency_detail": {
+    "total_labels": 16,
+    "unique_root_concepts": 14,
+    "concepts_with_multiple_labels": 2,
+    "examples": {
+      "insurance": [
+        "InsuranceLossEvent",
+        "InsurancePremium"
+      ],
+      "flood": [
+        "FloodInsuranceConcepts",
+        "FloodLoss"
+      ]
+    }
+  },
+  "task_results": [
+    {
+      "id": 1,
+      "category": "coverage",
+      "question": "What types of property does NFIP cover under the General Property Form?",
+      "rows_returned": 14,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Building Property",
+          "labels(n)": [
+            "Entity",
+            "InsuranceLossEvent"
+          ]
+        },
+        {
+          "n.id": "Personal Property",
+          "labels(n)": [
+            "Entity",
+            "InsuranceLossEvent"
+          ]
+        },
+        {
+          "n.id": "Broadened Coverage",
+          "labels(n)": [
+            "Entity",
+            "InsurancePremium"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "category": "coverage",
+      "question": "What is the maximum limit for Increased Cost of Compliance (ICC / Coverage D) under NFIP?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage D",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "$30,000"
+        },
+        {
+          "n.id": "Coverage D",
+          "type(r)": "PROVIDES_PERSONAL_PROPERTY_COVERAGE",
+          "m.id": "Increased Cost of Compliance"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "category": "coverage",
+      "question": "What personal property is insured under Coverage B of the NFIP SFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "PROVIDES_PERSONAL_PROPERTY_COVERAGE",
+          "m.id": "Personal Property"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "category": "exclusions",
+      "question": "What types of damage are excluded from NFIP coverage?",
+      "rows_returned": 14,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Multiple Policies",
+          "type(r)": "EXCLUDES_CONDOMINIUM_BUILDINGS",
+          "m.id": "Single Building"
+        },
+        {
+          "n.id": "Deductible",
+          "type(r)": "EXCLUDES_CONDOMINIUM_BUILDINGS",
+          "m.id": "Loss Avoidance Measures"
+        },
+        {
+          "n.id": "Bailee",
+          "type(r)": "EXCLUDES_CONDOMINIUM_BUILDINGS",
+          "m.id": "Benefit"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "category": "exclusions",
+      "question": "Is flood damage from earth movement covered?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Earth Movement",
+          "labels(n)": [
+            "Entity",
+            "FloodInsuranceConcepts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "category": "policy_terms",
+      "question": "Under NFIP, how many continuous days must a lake flood an insured building before a pre-loss claim may be filed?",
+      "rows_returned": 8,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Continuous Lake Flood",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "90 days"
+        },
+        {
+          "n.id": "Continuous Lake Flood",
+          "type(r)": "DEFINES_ACTUAL_CASH_VALUE",
+          "m.id": "Flood caused by rising lake waters"
+        },
+        {
+          "n.id": "Policy",
+          "type(r)": "HAS_WAITING_PERIOD",
+          "m.id": "12:01 a.m."
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "category": "policy_terms",
+      "question": "What flood zones are mentioned in the SFIP?",
+      "rows_returned": 17,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Actual Cash Value",
+          "labels(n)": [
+            "Entity",
+            "FloodLoss"
+          ]
+        },
+        {
+          "n.id": "National Flood Insurance Act of 1968",
+          "labels(n)": [
+            "Entity",
+            "Policyholder"
+          ]
+        },
+        {
+          "n.id": "Federal Insurance Administrator",
+          "labels(n)": [
+            "Entity",
+            "InsuranceLossEvent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "category": "policy_terms",
+      "question": "What is Increased Cost of Compliance (ICC) coverage?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Increased Cost of Compliance",
+          "labels(n)": [
+            "Entity",
+            "InsuranceLossEvent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "category": "claims",
+      "question": "What must a policyholder do after a flood loss?",
+      "rows_returned": 9,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Loss Settlement",
+          "type(r)": "DEFINES_ACTUAL_CASH_VALUE",
+          "m.id": "Payment of Least Amount"
+        },
+        {
+          "n.id": "Flood Loss",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "Separate Deductibles"
+        },
+        {
+          "n.id": "Flood Loss",
+          "type(r)": "PROVIDES_PERSONAL_PROPERTY_COVERAGE",
+          "m.id": "Building"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "category": "claims",
+      "question": "What is the deadline for filing a proof of loss?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Proof of Loss"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "category": "definitions",
+      "question": "How does NFIP define 'flood'?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Flood",
+          "type(r)": "DEFINES_ACTUAL_CASH_VALUE",
+          "m.id": "General and temporary condition of partial or complete inundation"
+        },
+        {
+          "n.id": "Continuous Lake Flood",
+          "type(r)": "DEFINES_ACTUAL_CASH_VALUE",
+          "m.id": "Flood caused by rising lake waters"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "category": "definitions",
+      "question": "What is the definition of a 'building' under NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 13,
+      "category": "coverage",
+      "question": "Does NFIP cover basement contents?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 14,
+      "category": "coverage",
+      "question": "What personal property is covered under contents coverage?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "PROVIDES_PERSONAL_PROPERTY_COVERAGE",
+          "m.id": "Personal Property"
+        },
+        {
+          "n.id": "Contents Coverage",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "$2,500"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "category": "policy_terms",
+      "question": "What happens if there is a coinsurance or other insurance?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Other Insurance"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "category": "claims",
+      "question": "What is the appraisal process for resolving disputes about the amount of an NFIP loss?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Appraisal",
+          "labels(n)": [
+            "Entity",
+            "FloodLoss"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "category": "coverage",
+      "question": "What improvements and betterments are covered?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 18,
+      "category": "exclusions",
+      "question": "What financial losses are excluded from NFIP (e.g., business interruption)?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Loss of Revenue or Profits"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "category": "policy_terms",
+      "question": "How is the replacement cost value (RCV) determined for building coverage?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Actual Cash Value"
+        },
+        {
+          "n.id": "Determination of Actual Cash Value"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "category": "policy_terms",
+      "question": "What is the Liberalization Clause in NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    }
+  ],
+  "riskine_detail": {
+    "suffix": "zone3_multileiden",
+    "precision": 0.0714,
+    "recall": 0.1,
+    "f1": 0.0833,
+    "induced_label_count": 14,
+    "riskine_class_count": 10,
+    "riskine_covered_count": 1,
+    "alignment_table": [
+      {
+        "induced": "Property",
+        "riskine": "Property",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Class1201am",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "NFIPSuspension",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policyholder",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "SingleBuilding",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "LossPeriod",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "CollectionGroup",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "SubrogationTransfer",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "UnderpaymentofAmountsOwed",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "You",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "InsuranceLossEvent",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "FloodInsuranceConcepts",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "FloodLoss",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "InsurancePremium",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      }
+    ],
+    "unmatched_induced": [
+      "Class1201am",
+      "NFIPSuspension",
+      "Policyholder",
+      "SingleBuilding",
+      "LossPeriod",
+      "CollectionGroup",
+      "SubrogationTransfer",
+      "UnderpaymentofAmountsOwed",
+      "You",
+      "InsuranceLossEvent",
+      "FloodInsuranceConcepts",
+      "FloodLoss",
+      "InsurancePremium"
+    ],
+    "unmatched_riskine": [
+      "Product",
+      "Coverage",
+      "Damage",
+      "Risk",
+      "Structure",
+      "Person",
+      "Object",
+      "Organization",
+      "Address"
+    ],
+    "member_precision": 0.1786,
+    "member_recall": 0.4,
+    "member_f1": 0.2469,
+    "member_riskine_covered": [
+      "Coverage",
+      "Damage",
+      "Property",
+      "Structure"
+    ],
+    "member_alignment_table": [
+      {
+        "induced": "Property",
+        "members_sample": "Property: [Property]",
+        "riskine": "Property",
+        "cosine": 0.543,
+        "score": 0.5
+      },
+      {
+        "induced": "Class1201am",
+        "members_sample": "Class1201am: [12:01 a.m.]",
+        "riskine": null,
+        "cosine": 0.0791,
+        "score": 0.0
+      },
+      {
+        "induced": "NFIPSuspension",
+        "members_sample": "NFIPSuspension: [NFIP Suspension]",
+        "riskine": null,
+        "cosine": 0.1318,
+        "score": 0.0
+      },
+      {
+        "induced": "Policyholder",
+        "members_sample": "Policyholder: [National Flood Insurance Act of 1968, Named Insured, Insurer, Insured]",
+        "riskine": null,
+        "cosine": 0.4151,
+        "score": 0.0
+      },
+      {
+        "induced": "SingleBuilding",
+        "members_sample": "SingleBuilding: [Single Building]",
+        "riskine": "Structure",
+        "cosine": 0.457,
+        "score": 0.5
+      },
+      {
+        "induced": "LossPeriod",
+        "members_sample": "LossPeriod: [Proof of Loss, Loss Notification, 90 days, 60 days, 30 days]",
+        "riskine": null,
+        "cosine": 0.1988,
+        "score": 0.0
+      },
+      {
+        "induced": "CollectionGroup",
+        "members_sample": "CollectionGroup: [Group of identical or matching items, Pair or Set]",
+        "riskine": null,
+        "cosine": 0.2854,
+        "score": 0.0
+      },
+      {
+        "induced": "SubrogationTransfer",
+        "members_sample": "SubrogationTransfer: [Subrogation Transfer]",
+        "riskine": null,
+        "cosine": 0.1026,
+        "score": 0.0
+      },
+      {
+        "induced": "UnderpaymentofAmountsOwed",
+        "members_sample": "UnderpaymentofAmountsOwed: [Underpayment of Amounts Owed]",
+        "riskine": null,
+        "cosine": 0.2196,
+        "score": 0.0
+      },
+      {
+        "induced": "You",
+        "members_sample": "You: [You]",
+        "riskine": null,
+        "cosine": 0.1933,
+        "score": 0.0
+      },
+      {
+        "induced": "InsuranceLossEvent",
+        "members_sample": "InsuranceLossEvent: [Direct Physical Loss by Flood, Building Property, Personal Property, Increased Cost of Compliance, Loss...]",
+        "riskine": "Damage",
+        "cosine": 0.4692,
+        "score": 0.5
+      },
+      {
+        "induced": "FloodInsuranceConcepts",
+        "members_sample": "FloodInsuranceConcepts: [Deductible Amount, Amount of Insurance Entitled to, Multiple Policies, Deductible, Bailee...]",
+        "riskine": "Damage",
+        "cosine": 0.4708,
+        "score": 0.5
+      },
+      {
+        "induced": "FloodLoss",
+        "members_sample": "FloodLoss: [Actual Cash Value, Flood, Act, Mortgagee, Continuous Lake Flood...]",
+        "riskine": null,
+        "cosine": 0.3774,
+        "score": 0.0
+      },
+      {
+        "induced": "InsurancePremium",
+        "members_sample": "InsurancePremium: [Broadened Coverage, Coverage D, Sufficient Premium, Change, Contents Coverage...]",
+        "riskine": "Coverage",
+        "cosine": 0.5137,
+        "score": 0.5
+      }
+    ]
+  }
+}

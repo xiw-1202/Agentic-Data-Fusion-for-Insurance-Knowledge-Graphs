@@ -1,0 +1,33 @@
+{
+  "suffix": "zone2",
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "induced_label_count": 1,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 0,
+  "alignment_table": [
+    {
+      "induced": "Entity",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Entity"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Coverage",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Property",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ]
+}

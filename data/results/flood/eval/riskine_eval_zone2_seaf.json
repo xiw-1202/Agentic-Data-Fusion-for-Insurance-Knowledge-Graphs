@@ -1,0 +1,367 @@
+{
+  "suffix": "zone2_seaf",
+  "precision": 0.1316,
+  "recall": 0.2,
+  "f1": 0.1587,
+  "induced_label_count": 19,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 2,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "riskine": "Coverage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Location",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Building",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Party",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "VoidState",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Geohazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageLimit",
+      "riskine": "Coverage",
+      "cosine": 0.7452,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "HazardEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyChangeEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyDocument",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "AppraisalProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "AgreementTerms",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Location",
+    "Building",
+    "Deductible",
+    "Hazard",
+    "Party",
+    "Temporal",
+    "VoidState",
+    "Geohazard",
+    "HazardEvent",
+    "PolicyChangeEvent",
+    "Record",
+    "PolicyDocument",
+    "AppraisalProcess",
+    "AgreementTerms",
+    "ClaimEvent"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "entity_assignment_precision": 0.0263,
+  "entity_assignment_recall": 0.1,
+  "entity_assignment_f1": 0.0417,
+  "entity_assignment_riskine_covered": [
+    "Address"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [POL-3d2371dd159d, POL-2d77ad8e931f, POL-d12ec2c13e29, POL-ed43e06321ac, POL-60848e6329ab...]",
+      "riskine": null,
+      "cosine": 0.2947,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "members_sample": "Coverage: [681, 668, 1211, 460, 625...]",
+      "riskine": null,
+      "cosine": 0.292,
+      "score": 0.0
+    },
+    {
+      "induced": "Property",
+      "members_sample": "Property: [PROP-16e27a70530e, PROP-001810f36477, PROP-5c14d009a21c, PROP-a9a07c1f7b7d, PROP-32e1e7fa40fb...]",
+      "riskine": null,
+      "cosine": 0.2858,
+      "score": 0.0
+    },
+    {
+      "induced": "Location",
+      "members_sample": "Location: [NASHVILLE, CITY OF, MIAMI-DADE COUNTY*, MIDDLETOWN, TOWNSHIP OF, LEXINGTON COUNTY *, SINTON, CITY OF...]",
+      "riskine": "Address",
+      "cosine": 0.4505,
+      "score": 0.5
+    },
+    {
+      "induced": "Building",
+      "members_sample": "Building: [6, 13, 24, 7, 9...]",
+      "riskine": null,
+      "cosine": 0.2133,
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "members_sample": "Deductible: [Deductible, Separate Deductible, Deductible Amount]",
+      "riskine": null,
+      "cosine": 0.3393,
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "members_sample": "Hazard: [Insured, No Further Claim, No Policy Renewal, No Flood Insurance Application, No Premium Refund...]",
+      "riskine": null,
+      "cosine": 0.4126,
+      "score": 0.0
+    },
+    {
+      "induced": "Party",
+      "members_sample": "Party: [You, Named Insured(s)]",
+      "riskine": null,
+      "cosine": 0.2957,
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "members_sample": "Temporal: [2025-01-10T00:00:00.000Z, 2025-06-17T00:00:00.000Z, 2025-06-11T00:00:00.000Z, 2025-05-27T00:00:00.000Z, 2025-10-08T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2432,
+      "score": 0.0
+    },
+    {
+      "induced": "VoidState",
+      "members_sample": "VoidState: [Void, Void from Inception]",
+      "riskine": null,
+      "cosine": 0.1501,
+      "score": 0.0
+    },
+    {
+      "induced": "Geohazard",
+      "members_sample": "Geohazard: [Earth Movement, Earthquake, Landslide, Land Subsidence, Sinkholes...]",
+      "riskine": null,
+      "cosine": 0.2595,
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageLimit",
+      "members_sample": "CoverageLimit: [$1,000, $10,000, $30,000]",
+      "riskine": null,
+      "cosine": 0.1827,
+      "score": 0.0
+    },
+    {
+      "induced": "HazardEvent",
+      "members_sample": "HazardEvent: [Hurricane Ike, Hurricane Harvey, Flooding, Hurricane Alicia, Hurricane Sandy...]",
+      "riskine": null,
+      "cosine": 0.2616,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyChangeEvent",
+      "members_sample": "PolicyChangeEvent: [Insufficient Premium or Rating Information, Policy Change, Elevation Certificate Not Provided, Broadens Coverage]",
+      "riskine": null,
+      "cosine": 0.3835,
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "members_sample": "Record: [PolicyRecord, Property, ClaimRecord]",
+      "riskine": null,
+      "cosine": 0.4149,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyDocument",
+      "members_sample": "PolicyDocument: [Application, Declarations Page]",
+      "riskine": null,
+      "cosine": 0.3695,
+      "score": 0.0
+    },
+    {
+      "induced": "AppraisalProcess",
+      "members_sample": "AppraisalProcess: [Appraisal Process, Demand for Appraisal]",
+      "riskine": null,
+      "cosine": 0.303,
+      "score": 0.0
+    },
+    {
+      "induced": "AgreementTerms",
+      "members_sample": "AgreementTerms: [Paid Full Amount, Proportional Payment, Express Written Consent, Policy Requirements, Subrogation...]",
+      "riskine": null,
+      "cosine": 0.3423,
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimEvent",
+      "members_sample": "ClaimEvent: [CLM-d6de9ecd5122, CLM-6dd0bd4b9a34, CLM-aa5f507dbac7, CLM-e789a81339c1, CLM-96bfa55f2e08...]",
+      "riskine": null,
+      "cosine": 0.2207,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Address"
+  ],
+  "entity_assignment_evidenced_count": 1,
+  "entity_assignment_recall_present": 1.0,
+  "entity_assignment_f1_present": 0.0513,
+  "standard_metrics": {
+    "bertscore_precision": 0.4339,
+    "bertscore_recall": 0.5556,
+    "bertscore_f1": 0.4873,
+    "per_reference_recall": {
+      "Product": 0.5204,
+      "Coverage": 1.0,
+      "Damage": 0.4047,
+      "Risk": 0.4737,
+      "Structure": 0.5541,
+      "Property": 1.0,
+      "Person": 0.3627,
+      "Object": 0.4932,
+      "Organization": 0.4039,
+      "Address": 0.343
+    },
+    "fuzzy_precision": 0.25,
+    "fuzzy_recall": 0.027,
+    "fuzzy_f1": 0.0488,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 4,
+    "reference_edge_count": 37,
+    "continuous_precision": 0.3747,
+    "continuous_recall": 0.0405,
+    "continuous_f1": 0.0731,
+    "optimal_matching_score": 1.4987,
+    "taxonomy_precision": 0.25,
+    "taxonomy_recall": 0.027,
+    "taxonomy_f1": 0.0488,
+    "taxonomy_induced_edges": 4,
+    "taxonomy_reference_edges": 37,
+    "graph_precision": 0.2982,
+    "graph_recall": 0.6262,
+    "graph_f1": 0.404,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.6367,
+    "wu_palmer_matched_pairs": 10,
+    "depth_distribution_induced": {
+      "0": 17,
+      "1": 4
+    },
+    "depth_distribution_reference": {
+      "0": 1,
+      "1": 4,
+      "2": 4,
+      "3": 1
+    }
+  }
+}

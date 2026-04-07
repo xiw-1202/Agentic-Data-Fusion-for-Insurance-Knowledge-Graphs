@@ -1,0 +1,244 @@
+{
+  "suffix": "zone3_multileiden",
+  "precision": 0.0714,
+  "recall": 0.1,
+  "f1": 0.0833,
+  "induced_label_count": 14,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 1,
+  "alignment_table": [
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Class1201am",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NFIPSuspension",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Policyholder",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "SingleBuilding",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "LossPeriod",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CollectionGroup",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "SubrogationTransfer",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "UnderpaymentofAmountsOwed",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "You",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsuranceLossEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FloodInsuranceConcepts",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FloodLoss",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsurancePremium",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Class1201am",
+    "NFIPSuspension",
+    "Policyholder",
+    "SingleBuilding",
+    "LossPeriod",
+    "CollectionGroup",
+    "SubrogationTransfer",
+    "UnderpaymentofAmountsOwed",
+    "You",
+    "InsuranceLossEvent",
+    "FloodInsuranceConcepts",
+    "FloodLoss",
+    "InsurancePremium"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Coverage",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "member_precision": 0.1786,
+  "member_recall": 0.4,
+  "member_f1": 0.2469,
+  "member_riskine_covered": [
+    "Coverage",
+    "Damage",
+    "Property",
+    "Structure"
+  ],
+  "member_alignment_table": [
+    {
+      "induced": "Property",
+      "members_sample": "Property: [Property]",
+      "riskine": "Property",
+      "cosine": 0.543,
+      "score": 0.5
+    },
+    {
+      "induced": "Class1201am",
+      "members_sample": "Class1201am: [12:01 a.m.]",
+      "riskine": null,
+      "cosine": 0.0791,
+      "score": 0.0
+    },
+    {
+      "induced": "NFIPSuspension",
+      "members_sample": "NFIPSuspension: [NFIP Suspension]",
+      "riskine": null,
+      "cosine": 0.1318,
+      "score": 0.0
+    },
+    {
+      "induced": "Policyholder",
+      "members_sample": "Policyholder: [National Flood Insurance Act of 1968, Named Insured, Insurer, Insured]",
+      "riskine": null,
+      "cosine": 0.4151,
+      "score": 0.0
+    },
+    {
+      "induced": "SingleBuilding",
+      "members_sample": "SingleBuilding: [Single Building]",
+      "riskine": "Structure",
+      "cosine": 0.457,
+      "score": 0.5
+    },
+    {
+      "induced": "LossPeriod",
+      "members_sample": "LossPeriod: [Proof of Loss, Loss Notification, 90 days, 60 days, 30 days]",
+      "riskine": null,
+      "cosine": 0.1988,
+      "score": 0.0
+    },
+    {
+      "induced": "CollectionGroup",
+      "members_sample": "CollectionGroup: [Group of identical or matching items, Pair or Set]",
+      "riskine": null,
+      "cosine": 0.2854,
+      "score": 0.0
+    },
+    {
+      "induced": "SubrogationTransfer",
+      "members_sample": "SubrogationTransfer: [Subrogation Transfer]",
+      "riskine": null,
+      "cosine": 0.1026,
+      "score": 0.0
+    },
+    {
+      "induced": "UnderpaymentofAmountsOwed",
+      "members_sample": "UnderpaymentofAmountsOwed: [Underpayment of Amounts Owed]",
+      "riskine": null,
+      "cosine": 0.2196,
+      "score": 0.0
+    },
+    {
+      "induced": "You",
+      "members_sample": "You: [You]",
+      "riskine": null,
+      "cosine": 0.1933,
+      "score": 0.0
+    },
+    {
+      "induced": "InsuranceLossEvent",
+      "members_sample": "InsuranceLossEvent: [Direct Physical Loss by Flood, Building Property, Personal Property, Increased Cost of Compliance, Loss...]",
+      "riskine": "Damage",
+      "cosine": 0.4692,
+      "score": 0.5
+    },
+    {
+      "induced": "FloodInsuranceConcepts",
+      "members_sample": "FloodInsuranceConcepts: [Deductible Amount, Amount of Insurance Entitled to, Multiple Policies, Deductible, Bailee...]",
+      "riskine": "Damage",
+      "cosine": 0.4708,
+      "score": 0.5
+    },
+    {
+      "induced": "FloodLoss",
+      "members_sample": "FloodLoss: [Actual Cash Value, Flood, Act, Mortgagee, Continuous Lake Flood...]",
+      "riskine": null,
+      "cosine": 0.3774,
+      "score": 0.0
+    },
+    {
+      "induced": "InsurancePremium",
+      "members_sample": "InsurancePremium: [Broadened Coverage, Coverage D, Sufficient Premium, Change, Contents Coverage...]",
+      "riskine": "Coverage",
+      "cosine": 0.5137,
+      "score": 0.5
+    }
+  ]
+}

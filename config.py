@@ -23,4 +23,4 @@ CHUNKS_FILE       = "data/flood/processed/pdf_chunks.json"   # baseline 512-toke
 ZONE1_CHUNKS_FILE = "data/flood/processed/zone1_chunks.json" # Zone 1 section-aware chunks
 PDF_PATH          = "data/flood/raw/pdf/fema_F-123-general-property-SFIP_2021.pdf"
 OPENFEMA_DIR      = "data/flood/raw/openfema"
-RESULTS_DIR       = "data/results"
+RESULTS_DIR       = "data/results/flood"

@@ -1,0 +1,450 @@
+{
+  "suffix": "zone3_multileiden_70b",
+  "precision": 0.0714,
+  "recall": 0.2,
+  "f1": 0.1053,
+  "induced_label_count": 28,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 2,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsuredProperty",
+      "riskine": "Property",
+      "cosine": 0.6008,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Appraisal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FederalInsuranceAdministrator",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ActualCashValue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CommunitySuspendedfromNFIP",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "KeepingDamagedProperty",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "LimitationsRestrictionsandExclusions",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NationalFloodInsuranceActof1968",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Nullification",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyInformation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "UnderpaymentofPremium",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsuredAsset",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ReplacementValue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "DeceptiveConduct",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsuranceCoverageAmount",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PropertyAssessment",
+      "riskine": "Property",
+      "cosine": 0.6024,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "DeterminationofLoss",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FullAmountDue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "IncreasedCostofCompliance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "LeastofThreeAmounts",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PaymentforcompliancewithStateorlocalfloodplainmanagementlaworordinance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PropertyNotinParticipatingCommunity",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsuranceTerm",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Timeframe",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyParticipantOrEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InsurancePolicyProvisions",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageExpansionProvision",
+      "riskine": "Coverage",
+      "cosine": 0.6473,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Appraisal",
+    "FederalInsuranceAdministrator",
+    "ActualCashValue",
+    "CommunitySuspendedfromNFIP",
+    "KeepingDamagedProperty",
+    "LimitationsRestrictionsandExclusions",
+    "NationalFloodInsuranceActof1968",
+    "Nullification",
+    "PolicyInformation",
+    "UnderpaymentofPremium",
+    "InsuredAsset",
+    "ReplacementValue",
+    "DeceptiveConduct",
+    "InsuranceCoverageAmount",
+    "DeterminationofLoss",
+    "FullAmountDue",
+    "IncreasedCostofCompliance",
+    "LeastofThreeAmounts",
+    "PaymentforcompliancewithStateorlocalfloodplainmanagementlaworordinance",
+    "PropertyNotinParticipatingCommunity",
+    "InsuranceTerm",
+    "Timeframe",
+    "PolicyParticipantOrEvent",
+    "InsurancePolicyProvisions"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "member_precision": 0.1071,
+  "member_recall": 0.3,
+  "member_f1": 0.1579,
+  "member_riskine_covered": [
+    "Coverage",
+    "Damage",
+    "Product"
+  ],
+  "member_alignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [Policy]",
+      "riskine": null,
+      "cosine": 0.3535,
+      "score": 0.0
+    },
+    {
+      "induced": "InsuredProperty",
+      "members_sample": "InsuredProperty: [Debris Removal, Coverage D, FEMA, Coverage A, Coverage B...]",
+      "riskine": "Coverage",
+      "cosine": 0.4731,
+      "score": 0.5
+    },
+    {
+      "induced": "Appraisal",
+      "members_sample": "Appraisal: [Appraisal]",
+      "riskine": null,
+      "cosine": 0.3338,
+      "score": 0.0
+    },
+    {
+      "induced": "FederalInsuranceAdministrator",
+      "members_sample": "FederalInsuranceAdministrator: [Federal Insurance Administrator]",
+      "riskine": null,
+      "cosine": 0.2936,
+      "score": 0.0
+    },
+    {
+      "induced": "ActualCashValue",
+      "members_sample": "ActualCashValue: [Actual Cash Value]",
+      "riskine": null,
+      "cosine": 0.1953,
+      "score": 0.0
+    },
+    {
+      "induced": "CommunitySuspendedfromNFIP",
+      "members_sample": "CommunitySuspendedfromNFIP: [Community Suspended from NFIP]",
+      "riskine": null,
+      "cosine": 0.0388,
+      "score": 0.0
+    },
+    {
+      "induced": "KeepingDamagedProperty",
+      "members_sample": "KeepingDamagedProperty: [Keeping Damaged Property]",
+      "riskine": "Damage",
+      "cosine": 0.4442,
+      "score": 0.5
+    },
+    {
+      "induced": "LimitationsRestrictionsandExclusions",
+      "members_sample": "LimitationsRestrictionsandExclusions: [Limitations, Restrictions, and Exclusions]",
+      "riskine": null,
+      "cosine": 0.3433,
+      "score": 0.0
+    },
+    {
+      "induced": "NationalFloodInsuranceActof1968",
+      "members_sample": "NationalFloodInsuranceActof1968: [National Flood Insurance Act of 1968]",
+      "riskine": null,
+      "cosine": 0.3159,
+      "score": 0.0
+    },
+    {
+      "induced": "Nullification",
+      "members_sample": "Nullification: [Nullification]",
+      "riskine": null,
+      "cosine": 0.2028,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyInformation",
+      "members_sample": "PolicyInformation: [Policy Information]",
+      "riskine": "Product",
+      "cosine": 0.506,
+      "score": 0.5
+    },
+    {
+      "induced": "UnderpaymentofPremium",
+      "members_sample": "UnderpaymentofPremium: [Underpayment of Premium]",
+      "riskine": null,
+      "cosine": 0.3187,
+      "score": 0.0
+    },
+    {
+      "induced": "InsuredAsset",
+      "members_sample": "InsuredAsset: [Increased Hazard within Insured's Control, Insurer, Insured, Damaged or Undamaged Insured Property, Right to Recover from Third Party...]",
+      "riskine": null,
+      "cosine": 0.3946,
+      "score": 0.0
+    },
+    {
+      "induced": "ReplacementValue",
+      "members_sample": "ReplacementValue: [Pair and Set Clause, Replacement Cost, Cost of Replacing Article minus Depreciation, Cost of Replacing Article]",
+      "riskine": null,
+      "cosine": 0.1781,
+      "score": 0.0
+    },
+    {
+      "induced": "DeceptiveConduct",
+      "members_sample": "DeceptiveConduct: [Fraud, Fraudulent Conduct, Fraud or Misrepresentation]",
+      "riskine": null,
+      "cosine": 0.2994,
+      "score": 0.0
+    },
+    {
+      "induced": "InsuranceCoverageAmount",
+      "members_sample": "InsuranceCoverageAmount: [Amount of Insurance, Applicable Amount of Insurance]",
+      "riskine": "Coverage",
+      "cosine": 0.4618,
+      "score": 0.5
+    },
+    {
+      "induced": "PropertyAssessment",
+      "members_sample": "PropertyAssessment: [Damaged Property Inspection, Inventory of Lost Property]",
+      "riskine": null,
+      "cosine": 0.4056,
+      "score": 0.0
+    },
+    {
+      "induced": "DeterminationofLoss",
+      "members_sample": "DeterminationofLoss: [Determination of Loss]",
+      "riskine": null,
+      "cosine": 0.2287,
+      "score": 0.0
+    },
+    {
+      "induced": "FullAmountDue",
+      "members_sample": "FullAmountDue: [Full Amount Due]",
+      "riskine": null,
+      "cosine": 0.2629,
+      "score": 0.0
+    },
+    {
+      "induced": "IncreasedCostofCompliance",
+      "members_sample": "IncreasedCostofCompliance: [Increased Cost of Compliance]",
+      "riskine": null,
+      "cosine": 0.2713,
+      "score": 0.0
+    },
+    {
+      "induced": "LeastofThreeAmounts",
+      "members_sample": "LeastofThreeAmounts: [Least of Three Amounts]",
+      "riskine": null,
+      "cosine": 0.0865,
+      "score": 0.0
+    },
+    {
+      "induced": "PaymentforcompliancewithStateorlocalfloodplainmanagementlaworordinance",
+      "members_sample": "PaymentforcompliancewithStateorlocalfloodplainmanagementlaworordinance: [Payment for compliance with State or local floodplain management law or ordinance]",
+      "riskine": null,
+      "cosine": 0.2412,
+      "score": 0.0
+    },
+    {
+      "induced": "PropertyNotinParticipatingCommunity",
+      "members_sample": "PropertyNotinParticipatingCommunity: [Property Not in Participating Community]",
+      "riskine": null,
+      "cosine": 0.3774,
+      "score": 0.0
+    },
+    {
+      "induced": "InsuranceTerm",
+      "members_sample": "InsuranceTerm: [Sufficient Premium, Exceeds Deductible Amount, Contents Coverage, Building Coverage, Deductible Amount...]",
+      "riskine": "Coverage",
+      "cosine": 0.4717,
+      "score": 0.5
+    },
+    {
+      "induced": "Timeframe",
+      "members_sample": "Timeframe: [Proof of Loss, Loss Notification, Policy Term, 60 days, 30 days...]",
+      "riskine": null,
+      "cosine": 0.3343,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyParticipantOrEvent",
+      "members_sample": "PolicyParticipantOrEvent: [Bailee, Flood in Progress, You, Flood, Act...]",
+      "riskine": null,
+      "cosine": 0.3753,
+      "score": 0.0
+    },
+    {
+      "induced": "InsurancePolicyProvisions",
+      "members_sample": "InsurancePolicyProvisions: [Policy Cancellation, Before Suing, FEMA Flood Insurance Regulations, All Requirements, Policy Terms and Conditions...]",
+      "riskine": "Product",
+      "cosine": 0.4928,
+      "score": 0.5
+    },
+    {
+      "induced": "CoverageExpansionProvision",
+      "members_sample": "CoverageExpansionProvision: [Liberalization Clause, Changes Broadening Coverage, Date of Implementation, Change Broadens Coverage]",
+      "riskine": null,
+      "cosine": 0.3032,
+      "score": 0.0
+    }
+  ]
+}

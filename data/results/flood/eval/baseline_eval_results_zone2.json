@@ -1,0 +1,349 @@
+{
+  "mode": "zone2",
+  "baseline_metrics": {
+    "total_nodes": 68,
+    "total_relationships": 51,
+    "unique_labels": 2,
+    "duplicate_node_count": 0,
+    "duplication_rate": 0.0,
+    "concepts_with_multiple_labels": 0,
+    "type_inconsistency_rate": 0.0,
+    "tasks_total": 20,
+    "tasks_with_results": 9,
+    "tasks_keyword_match": 7,
+    "query_accuracy": 0.35,
+    "model": "llama3.1:8b",
+    "riskine_precision": 0.0,
+    "riskine_recall": 0.0,
+    "riskine_f1": 0.0,
+    "riskine_available": true
+  },
+  "duplication_detail": {
+    "duplicate_groups": 0,
+    "total_duplicated_nodes": 0,
+    "excess_nodes": 0
+  },
+  "type_consistency_detail": {
+    "total_labels": 1,
+    "unique_root_concepts": 1,
+    "concepts_with_multiple_labels": 0,
+    "examples": {}
+  },
+  "task_results": [
+    {
+      "id": 1,
+      "category": "coverage",
+      "question": "What types of property does NFIP cover under the General Property Form?",
+      "rows_returned": 12,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage A",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Coverage B",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Coverage D",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "category": "coverage",
+      "question": "What is the maximum building coverage amount under NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 3,
+      "category": "coverage",
+      "question": "What is the maximum contents coverage amount?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 4,
+      "category": "exclusions",
+      "question": "What types of damage are excluded from NFIP coverage?",
+      "rows_returned": 11,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Personal Property not inside the fully enclosed building"
+        },
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Loss of Revenue"
+        },
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Continuation of Pre-Existing Flood"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "category": "exclusions",
+      "question": "Is flood damage from earth movement covered?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Earth Movement",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "category": "policy_terms",
+      "question": "What is the waiting period before a new NFIP policy takes effect?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 7,
+      "category": "policy_terms",
+      "question": "What flood zones are mentioned in the SFIP?",
+      "rows_returned": 10,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage A",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Loss Avoidance Measures",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Act",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "category": "policy_terms",
+      "question": "What is Increased Cost of Compliance (ICC) coverage?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Increased Cost of Compliance",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "category": "claims",
+      "question": "What must a policyholder do after a flood loss?",
+      "rows_returned": 4,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Loss Payment",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Adjustment and Payment Process"
+        },
+        {
+          "n.id": "Loss Settlement",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Payment of Least Amount"
+        },
+        {
+          "n.id": "Flood Loss",
+          "type(r)": "HAS_SEPARATE_DEDUCTIBLE",
+          "m.id": "Building"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "category": "claims",
+      "question": "What is the deadline for filing a proof of loss?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 11,
+      "category": "definitions",
+      "question": "How does NFIP define 'flood'?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Flood",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "category": "definitions",
+      "question": "What is the definition of a 'building' under NFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Building",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "category": "coverage",
+      "question": "Does NFIP cover basement contents?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 14,
+      "category": "coverage",
+      "question": "What personal property is covered under contents coverage?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 15,
+      "category": "policy_terms",
+      "question": "What happens if there is a coinsurance or other insurance?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 16,
+      "category": "claims",
+      "question": "Can a policyholder appeal a claim decision?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 17,
+      "category": "coverage",
+      "question": "What improvements and betterments are covered?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 18,
+      "category": "exclusions",
+      "question": "What financial losses are excluded from NFIP (e.g., business interruption)?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 19,
+      "category": "policy_terms",
+      "question": "How is the replacement cost value (RCV) determined for building coverage?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Replacement Cost"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "category": "policy_terms",
+      "question": "What is the Liberalization Clause in NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    }
+  ],
+  "riskine_detail": {
+    "suffix": "zone2",
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "induced_label_count": 1,
+    "riskine_class_count": 10,
+    "riskine_covered_count": 0,
+    "alignment_table": [
+      {
+        "induced": "Entity",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      }
+    ],
+    "unmatched_induced": [
+      "Entity"
+    ],
+    "unmatched_riskine": [
+      "Product",
+      "Coverage",
+      "Damage",
+      "Risk",
+      "Structure",
+      "Property",
+      "Person",
+      "Object",
+      "Organization",
+      "Address"
+    ]
+  }
+}

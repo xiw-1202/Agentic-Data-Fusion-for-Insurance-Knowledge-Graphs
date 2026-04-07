@@ -1,0 +1,906 @@
+{
+  "suffix": "zone2_seaf_v4",
+  "model": "qwen2.5:72b",
+  "vocabulary_coverage": {
+    "token_coverage": 0.6124,
+    "source_vocab_size": 2059,
+    "covered_terms": 1261,
+    "uncovered_sample": [
+      "accordance",
+      "accounts",
+      "accurate",
+      "acids",
+      "acquire",
+      "acquired",
+      "acquires",
+      "activity",
+      "added",
+      "address",
+      "adjacent",
+      "adjusted",
+      "adjustment",
+      "administered",
+      "administrative",
+      "adopt",
+      "adopted",
+      "advisory",
+      "aerials",
+      "affairs"
+    ],
+    "total_entities": 7594,
+    "relation_types": 81,
+    "entity_types": 103,
+    "source_breakdown": {
+      "structured": 7198,
+      "decompose": 188,
+      "llm": 208
+    }
+  },
+  "triple_precision": {
+    "precision": 0.7889,
+    "accuracy": 0.71,
+    "sample_size": 100,
+    "correct": 71,
+    "incorrect": 19,
+    "uncertain": 10,
+    "llm_triples_total": 350,
+    "structured_triples_total": 25162,
+    "sampled_triples": [
+      {
+        "subject": "We",
+        "relation": "REQUIRES",
+        "object": "information review",
+        "source_type": "decompose",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage A\u2014Building Property",
+        "relation": "REQUIRES",
+        "object": "Mortgagee",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Household Personal Property",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "umpire",
+        "relation": "HAS_DEADLINE",
+        "object": "15 days",
+        "source_type": "decompose",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "adjuster",
+        "relation": "EXCLUDED_FROM",
+        "object": "claim approval",
+        "source_type": "decompose",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "You",
+        "relation": "DEFINED_AS",
+        "object": "Named Insured(s)",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "National Flood Insurance Program (NFIP)",
+        "relation": "EXCLUDED_FROM",
+        "object": "Rain, Snow, Sleet, Hail, or Water Spray",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "Void",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "POLICYHOLDER",
+        "relation": "MUST_NOTIFY",
+        "object": "Insurer",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "National Flood Insurance Program (NFIP)",
+        "relation": "EXCLUDED_FROM",
+        "object": "Water, Moisture, Mildew, or Mold Damage",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "HAS_CLAIM_PAYOUT",
+        "object": "Lesser of Two Amounts",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Coverage A\u2014Building Property",
+        "relation": "EXCLUDED_FROM",
+        "object": "Building Below Base Flood Elevation",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "proof of loss",
+        "relation": "REQUIRES",
+        "object": "judgment concerning the amount of loss",
+        "source_type": "decompose",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Insured",
+        "relation": "HAS_OPTION",
+        "object": "increasing the amount of coverage",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "COVERS",
+        "object": "Reasonable Expenses for Sandbags, Fill, Pumps, Plastic Sheeting, and Lumber",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Flood",
+        "relation": "DEFINED_AS",
+        "object": "II.B.1.c and II.B.2",
+        "source_type": "decompose",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Earth Movement",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "HAS_OPTION",
+        "object": "File Claim Under Q.1 or Q.2",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Conservation Easement",
+        "relation": "COVERS",
+        "object": "Special Consideration Area",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "bills, receipts, and related documents",
+        "relation": "MUST_NOTIFY",
+        "object": "inventory of damaged property",
+        "source_type": "decompose",
+        "verdict": "INCORRECT"
+      }
+    ]
+  },
+  "fact_recall": {
+    "fact_recall": 0.8159,
+    "total_facts": 239,
+    "found_facts": 195,
+    "chunks_sampled": 30,
+    "method": "G-BERTScore (fact-vs-linearized-triple, cosine)",
+    "match_threshold": 0.65,
+    "chunk_results": [
+      {
+        "chunk_id": 13,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.619,
+          0.75,
+          0.751,
+          0.651,
+          0.699,
+          0.688,
+          0.554,
+          0.796
+        ]
+      },
+      {
+        "chunk_id": 57,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.726,
+          0.601,
+          0.779,
+          0.707,
+          0.757,
+          0.727,
+          0.834,
+          0.838
+        ]
+      },
+      {
+        "chunk_id": 26,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.579,
+          0.622,
+          0.53,
+          0.685,
+          0.74,
+          0.637,
+          0.655,
+          0.664
+        ]
+      },
+      {
+        "chunk_id": 3,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.728,
+          0.632,
+          0.786,
+          0.788,
+          0.81,
+          0.596,
+          0.688,
+          0.743
+        ]
+      },
+      {
+        "chunk_id": 2,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.661,
+          0.583,
+          0.741,
+          0.677,
+          0.771,
+          0.548,
+          0.682,
+          0.749
+        ]
+      },
+      {
+        "chunk_id": 70,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.63,
+          0.729,
+          0.631,
+          0.782,
+          0.457,
+          0.638,
+          0.745,
+          0.781
+        ]
+      },
+      {
+        "chunk_id": 24,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.681,
+          0.75,
+          0.792,
+          0.626,
+          0.718,
+          0.758,
+          0.505,
+          0.662
+        ]
+      },
+      {
+        "chunk_id": 40,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.636,
+          0.737,
+          0.614,
+          0.677,
+          0.689,
+          0.539,
+          0.778,
+          0.579
+        ]
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.807,
+          0.743,
+          0.748,
+          0.798,
+          0.805,
+          0.737,
+          0.737,
+          0.758
+        ]
+      },
+      {
+        "chunk_id": 46,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375,
+        "best_match_sims": [
+          0.624,
+          0.617,
+          0.69,
+          0.758,
+          0.548,
+          0.589,
+          0.619,
+          0.788
+        ]
+      },
+      {
+        "chunk_id": 9,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.971,
+          0.928,
+          0.76,
+          0.947,
+          0.877,
+          0.71,
+          0.768,
+          0.714
+        ]
+      },
+      {
+        "chunk_id": 48,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.926,
+          0.922,
+          0.74,
+          0.735,
+          0.823,
+          0.63,
+          0.753,
+          0.688
+        ]
+      },
+      {
+        "chunk_id": 42,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.661,
+          0.665,
+          0.762,
+          0.649,
+          0.712,
+          0.71,
+          0.564,
+          0.784
+        ]
+      },
+      {
+        "chunk_id": 39,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.83,
+          0.867,
+          0.816,
+          0.7,
+          0.882,
+          0.837,
+          0.865,
+          0.828
+        ]
+      },
+      {
+        "chunk_id": 58,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.798,
+          0.852,
+          0.752,
+          0.858,
+          0.811,
+          0.874,
+          0.844,
+          0.828
+        ]
+      },
+      {
+        "chunk_id": 45,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.787,
+          0.752,
+          0.61,
+          0.489,
+          0.884,
+          0.809,
+          0.737,
+          0.815
+        ]
+      },
+      {
+        "chunk_id": 46,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.842,
+          0.876,
+          0.82,
+          0.752,
+          0.858,
+          0.848,
+          0.845,
+          0.844
+        ]
+      },
+      {
+        "chunk_id": 16,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625,
+        "best_match_sims": [
+          0.666,
+          0.762,
+          0.633,
+          0.704,
+          0.804,
+          0.543,
+          0.772,
+          0.616
+        ]
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.839,
+          0.87,
+          0.852,
+          0.781,
+          0.752,
+          0.874,
+          0.858,
+          0.84
+        ]
+      },
+      {
+        "chunk_id": 21,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.657,
+          0.624,
+          0.658,
+          0.783,
+          0.585,
+          0.545,
+          0.627,
+          0.806
+        ]
+      },
+      {
+        "chunk_id": 7,
+        "facts_extracted": 7,
+        "facts_found_in_kg": 6,
+        "recall": 0.857,
+        "best_match_sims": [
+          0.85,
+          0.679,
+          0.711,
+          0.761,
+          0.576,
+          0.663,
+          0.799
+        ]
+      },
+      {
+        "chunk_id": 38,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.809,
+          0.844,
+          0.883,
+          0.848,
+          0.874,
+          0.835,
+          0.817,
+          0.806
+        ]
+      },
+      {
+        "chunk_id": 33,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.74,
+          0.601,
+          0.781,
+          0.697,
+          0.716,
+          0.702,
+          0.816,
+          0.675
+        ]
+      },
+      {
+        "chunk_id": 16,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.839,
+          0.868,
+          0.803,
+          0.859,
+          0.853,
+          0.752,
+          0.858,
+          0.848
+        ]
+      },
+      {
+        "chunk_id": 34,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.668,
+          0.762,
+          0.762,
+          0.632,
+          0.702,
+          0.721,
+          0.574,
+          0.796
+        ]
+      },
+      {
+        "chunk_id": 43,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.791,
+          0.782,
+          0.735,
+          0.679,
+          0.69,
+          0.722,
+          0.68,
+          0.664
+        ]
+      },
+      {
+        "chunk_id": 47,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.805,
+          0.859,
+          0.743,
+          0.809,
+          0.758,
+          0.906,
+          0.828,
+          0.794
+        ]
+      },
+      {
+        "chunk_id": 47,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.676,
+          0.764,
+          0.633,
+          0.72,
+          0.744,
+          0.749,
+          0.599,
+          0.674
+        ]
+      },
+      {
+        "chunk_id": 21,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.817,
+          0.82,
+          0.752,
+          0.823,
+          0.848,
+          0.787,
+          0.769,
+          0.82
+        ]
+      },
+      {
+        "chunk_id": 10,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.811,
+          0.8,
+          0.7,
+          0.882,
+          0.769,
+          0.865,
+          0.828,
+          0.844
+        ]
+      }
+    ]
+  },
+  "source_grounding": {
+    "grounding_rate": 0.81,
+    "total_checked": 50,
+    "supported": 40,
+    "partially_supported": 1,
+    "not_supported": 0,
+    "no_source_found": 9,
+    "sampled_results": [
+      {
+        "subject": "Property in Coastal Barrier Areas",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Containers and Tanks",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Flood",
+        "relation": "DEFINED_AS",
+        "object": "a general and temporary condition of partial or complete inundation of two or more acres of normally dry land area",
+        "source_type": "decompose",
+        "grounded": "SUPPORTED",
+        "chunk_id": 8
+      },
+      {
+        "subject": "Increased Cost of Compliance",
+        "relation": "EXCLUDED_FROM",
+        "object": "Deductible",
+        "source_type": "decompose",
+        "grounded": "SUPPORTED",
+        "chunk_id": 13
+      },
+      {
+        "subject": "Coverage D\u2014Increased Cost of Compliance",
+        "relation": "HAS_COVERAGE_LIMIT",
+        "object": "Maximum Permitted Under the Act",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 13
+      },
+      {
+        "subject": "policy cancellation",
+        "relation": "REQUIRES",
+        "object": "terms and conditions of this policy and the applicable rules and regulations of the NFIP",
+        "source_type": "decompose",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "mudflow and land subsidence",
+        "relation": "HAS_CAUSE_OF_DAMAGE",
+        "object": "Flood",
+        "source_type": "decompose",
+        "grounded": "SUPPORTED",
+        "chunk_id": 17
+      },
+      {
+        "subject": "amount to repair or replace property",
+        "relation": "DEFINED_AS",
+        "object": "cost with material of like kind and quality within a reasonable time after the loss",
+        "source_type": "decompose",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "terms of this policy",
+        "relation": "COVERS",
+        "object": "Mortgagee",
+        "source_type": "decompose",
+        "grounded": "SUPPORTED",
+        "chunk_id": 36
+      },
+      {
+        "subject": "Pollution Damage",
+        "relation": "COVERS",
+        "object": "Damage Caused by Pollutants from Flood",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Carpets Not Permanently Installed",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 11
+      },
+      {
+        "subject": "Condominium",
+        "relation": "EXCLUDED_FROM",
+        "object": "regular program community",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 1
+      },
+      {
+        "subject": "Coverage B\u2014Personal Property",
+        "relation": "COVERS",
+        "object": "Carpets Over Finished Flooring",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 11
+      },
+      {
+        "subject": "National Flood Insurance Program (NFIP)",
+        "relation": "EXCLUDED_FROM",
+        "object": "Alteration of Insured Property Increasing Flood Risk",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Mortgagee",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "trustee",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 26
+      },
+      {
+        "subject": "Flood Insurance",
+        "relation": "DEFINED_AS",
+        "object": "Title 44 of the Code of Federal Regulations",
+        "source_type": "decompose",
+        "grounded": "SUPPORTED",
+        "chunk_id": 2
+      },
+      {
+        "subject": "dispute",
+        "relation": "REQUIRES",
+        "object": "handling of any claim under the policy",
+        "source_type": "decompose",
+        "grounded": "SUPPORTED",
+        "chunk_id": 37
+      },
+      {
+        "subject": "Deductible",
+        "relation": "DEFINED_AS",
+        "object": "The fixed amount of an insured loss that is your responsibility and that is incurred by you before any amounts are paid for the insured loss under this policy",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 9
+      },
+      {
+        "subject": "Buildings with More Than 49% Below Ground",
+        "relation": "EXCLUDED_FROM",
+        "object": "National Flood Insurance Program",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "Natural Lake",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      }
+    ]
+  },
+  "graph_statistics": {
+    "node_count": 7594,
+    "edge_count": 25512,
+    "density": 0.000442,
+    "avg_degree": 6.72,
+    "median_degree": 2.0,
+    "max_degree": 2052,
+    "isolated_nodes": 0,
+    "relation_types": 81,
+    "entity_types": 103,
+    "top_5_relations": [
+      [
+        "HAS_REPORTED_ZIP_CODE",
+        1837
+      ],
+      [
+        "IS_A",
+        1798
+      ],
+      [
+        "BELONGS_TO",
+        999
+      ],
+      [
+        "HAS_NUMBER_OF_FLOORS_IN_INSURED_BUILDING",
+        972
+      ],
+      [
+        "HAS_OCCUPANCY_TYPE",
+        947
+      ]
+    ],
+    "top_5_entity_types": [
+      [
+        "Numeric",
+        3363
+      ],
+      [
+        "Date",
+        1458
+      ],
+      [
+        "Property",
+        854
+      ],
+      [
+        "ClaimRecord",
+        485
+      ],
+      [
+        "Text",
+        482
+      ]
+    ],
+    "triples_per_entity": 3.36
+  }
+}

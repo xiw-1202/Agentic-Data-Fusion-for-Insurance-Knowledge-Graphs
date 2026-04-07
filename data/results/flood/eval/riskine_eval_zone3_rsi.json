@@ -1,0 +1,531 @@
+{
+  "suffix": "zone3_rsi",
+  "precision": 0.2333,
+  "recall": 0.4,
+  "f1": 0.2947,
+  "induced_label_count": 30,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 4,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Event",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "riskine": "Coverage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Location",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Definition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Condition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FloodEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Location2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Property2",
+      "riskine": "Property",
+      "cosine": 0.847,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Exclusion2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Property3",
+      "riskine": "Property",
+      "cosine": 0.8116,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "ProcedureMaterialCoveragePolicyExpense",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage2",
+      "riskine": "Coverage",
+      "cosine": 0.8224,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "TimePeriod",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage3",
+      "riskine": "Coverage",
+      "cosine": 0.8116,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage4",
+      "riskine": "Coverage",
+      "cosine": 0.8031,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage5",
+      "riskine": "Coverage",
+      "cosine": 0.777,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage6",
+      "riskine": "Coverage",
+      "cosine": 0.782,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Location3",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "TimePeriod2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Measurement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Address",
+      "riskine": "Address",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Procedure",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialAmounts",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialAmounts2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Financial",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialAmount",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "RiskType",
+      "riskine": "Risk",
+      "cosine": 0.7612,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Event",
+    "Location",
+    "Definition",
+    "Condition",
+    "FloodEvent",
+    "Exclusion",
+    "Location2",
+    "Exclusion2",
+    "ProcedureMaterialCoveragePolicyExpense",
+    "TimePeriod",
+    "Location3",
+    "TimePeriod2",
+    "Measurement",
+    "Procedure",
+    "FinancialAmounts",
+    "FinancialAmounts2",
+    "Financial",
+    "FinancialAmount"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Damage",
+    "Structure",
+    "Person",
+    "Object",
+    "Organization"
+  ],
+  "entity_assignment_precision": 0.2167,
+  "entity_assignment_recall": 0.5,
+  "entity_assignment_f1": 0.3023,
+  "entity_assignment_riskine_covered": [
+    "Address",
+    "Coverage",
+    "Damage",
+    "Product",
+    "Structure"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [Policy, Multiple Policies, Insurance Policy]",
+      "riskine": "Product",
+      "cosine": 0.4768,
+      "score": 0.5
+    },
+    {
+      "induced": "Event",
+      "members_sample": "Event: [Hurricane Ike, Hurricane Ian, Hurricane Irene, December Nor'easter, Tropical Storm Elsa...]",
+      "riskine": null,
+      "cosine": 0.2342,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "members_sample": "Coverage: [Flood, Substantial Damage Building, Earth Movement, Deductible, Base Flood...]",
+      "riskine": null,
+      "cosine": 0.4195,
+      "score": 0.0
+    },
+    {
+      "induced": "Property",
+      "members_sample": "Property: [Other-2022-09-28, Other-1981-08-28, Debris Removal, Sandbags, Supplies, and Labor, Property Removed to Safety...]",
+      "riskine": "Product",
+      "cosine": 0.4778,
+      "score": 0.5
+    },
+    {
+      "induced": "Location",
+      "members_sample": "Location: [CA-90210, BEVERLY HILLS, NJ-08008, JEFFERSON PARISH, LA MARQUE, CITY OF...]",
+      "riskine": "Address",
+      "cosine": 0.4423,
+      "score": 0.5
+    },
+    {
+      "induced": "Definition",
+      "members_sample": "Definition: [Maximum building claim payout under NFIP policy, Includes trustee, Cost to replace an insured item of property at the time of loss, less the value of its physical depreciation, Flood having a one percent chance of being equaled or exceeded in any given year, Location where the insured building(s) or personal property are found, shown on the Declarations Page...]",
+      "riskine": "Coverage",
+      "cosine": 0.4767,
+      "score": 0.5
+    },
+    {
+      "induced": "Condition",
+      "members_sample": "Condition: [Walled and Roofed, Base Flood Elevation, Imminent Flood Damage, Apparent Flood Threat, General and Temporary Flooding...]",
+      "riskine": "Damage",
+      "cosine": 0.4206,
+      "score": 0.5
+    },
+    {
+      "induced": "FloodEvent",
+      "members_sample": "FloodEvent: [Not a named storm, March 2010 Nor'easter, Hurricane Isaias, Hurricane Sally, Hurricane Isaac...]",
+      "riskine": null,
+      "cosine": 0.2221,
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "members_sample": "Exclusion: [Water or Waterborne Material Backup, Pressure or Weight of Water, Power, Heating, or Cooling Failure, Loss of Revenue or Profits, Loss of Access...]",
+      "riskine": "Damage",
+      "cosine": 0.455,
+      "score": 0.5
+    },
+    {
+      "induced": "Location2",
+      "members_sample": "Location2: [Natural Lake, Western United States, GA-31639, VA-23311, VIRGINIA BEACH...]",
+      "riskine": "Address",
+      "cosine": 0.5112,
+      "score": 0.5
+    },
+    {
+      "induced": "Property2",
+      "members_sample": "Property2: [Personal Property Not Inside Enclosed Building, Building or Personal Property in Water, Open Structures, Recreational Vehicles, Self-Propelled Vehicles or Machines...]",
+      "riskine": "Structure",
+      "cosine": 0.4501,
+      "score": 0.5
+    },
+    {
+      "induced": "Exclusion2",
+      "members_sample": "Exclusion2: [Sinkholes, NFIP, Gradual Erosion, 50% Repair Cost, Land Subsidence...]",
+      "riskine": null,
+      "cosine": 0.364,
+      "score": 0.0
+    },
+    {
+      "induced": "Property3",
+      "members_sample": "Property3: [Multifamily Buildings, One Building, Building Described on Declarations Page, Condominium Units and Improvements, Building Property at Another Location for 45 Days...]",
+      "riskine": "Structure",
+      "cosine": 0.5825,
+      "score": 1.0
+    },
+    {
+      "induced": "ProcedureMaterialCoveragePolicyExpense",
+      "members_sample": "ProcedureMaterialCoveragePolicyExpense: [Mudflow, Land Subsidence from Erosion, Reasonable Expenses, Sandbags and Sand, Fill for Temporary Levees...]",
+      "riskine": null,
+      "cosine": 0.3515,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage2",
+      "members_sample": "Coverage2: [Non-residential Buildings, Residential Buildings with Basements, Substantially Confined to Insured Building, Condition Within Your Control, Other Insurance...]",
+      "riskine": null,
+      "cosine": 0.3677,
+      "score": 0.0
+    },
+    {
+      "induced": "TimePeriod",
+      "members_sample": "TimePeriod: [1960-02-02T00:00:00.000Z, 12:01 a.m. on the last day of the policy term, 2009-01-01, 1990-01-01, 60 days...]",
+      "riskine": null,
+      "cosine": 0.3161,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage3",
+      "members_sample": "Coverage3: [Coverage B, Coverage C\u2014Other Coverages, Loss Avoidance Measures, Coverage A\u2014Building Property, Coverage D]",
+      "riskine": "Coverage",
+      "cosine": 0.5629,
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage4",
+      "members_sample": "Coverage4: [Mortgagee, Named Insured(s), You, Condominium, Gas or liquid storage tank, shipping container, or a recreational vehicle, park trailer, or other similar vehicle...]",
+      "riskine": null,
+      "cosine": 0.4094,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage5",
+      "members_sample": "Coverage5: [ICC, Contents Coverage, Building Coverage]",
+      "riskine": "Coverage",
+      "cosine": 0.4392,
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage6",
+      "members_sample": "Coverage6: [$1,000, $193,000, $37,000, $142,000, $169,000...]",
+      "riskine": null,
+      "cosine": 0.1873,
+      "score": 0.0
+    },
+    {
+      "induced": "Location3",
+      "members_sample": "Location3: [Fully Enclosed Building, Above Ground Level, Outside Special Flood Hazard Area, Area of Special Consideration (ASC), Property in ASC...]",
+      "riskine": "Address",
+      "cosine": 0.4283,
+      "score": 0.5
+    },
+    {
+      "induced": "TimePeriod2",
+      "members_sample": "TimePeriod2: [45 Consecutive Days, 1959-01-01T00:00:00.000Z, 1965-05-15T00:00:00.000Z, 2025-05-05, 1925-05-01T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2505,
+      "score": 0.0
+    },
+    {
+      "induced": "Measurement",
+      "members_sample": "Measurement: [1.9, 2.3, 13.1, 2.5, 12.5...]",
+      "riskine": null,
+      "cosine": 0.1788,
+      "score": 0.0
+    },
+    {
+      "induced": "Address",
+      "members_sample": "Address: [26187, 02110, 77060, 33010, 02066...]",
+      "riskine": null,
+      "cosine": 0.3176,
+      "score": 0.0
+    },
+    {
+      "induced": "Procedure",
+      "members_sample": "Procedure: [Review Information, Elevation or Floodproofing, Pay Cost of Replacement Minus Depreciation, Abandon Property, Keep Damaged Property...]",
+      "riskine": null,
+      "cosine": 0.4028,
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialAmounts",
+      "members_sample": "FinancialAmounts: [Flood Insurance, Paid Full Amount, Federal Minimum Wage, Coverage A Limit, Coverage B Limit...]",
+      "riskine": null,
+      "cosine": 0.3387,
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialAmounts2",
+      "members_sample": "FinancialAmounts2: [20, 75, 36, 41, 22...]",
+      "riskine": null,
+      "cosine": 0.2228,
+      "score": 0.0
+    },
+    {
+      "induced": "Financial",
+      "members_sample": "Financial: [Separate Deductible, Deductible Amount, Separate Deductibles for Building and Personal Property, Code 1, Code A...]",
+      "riskine": null,
+      "cosine": 0.2509,
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialAmount",
+      "members_sample": "FinancialAmount: [N, $300,000, $250,000, $500,000, $203,000...]",
+      "riskine": null,
+      "cosine": 0.1728,
+      "score": 0.0
+    },
+    {
+      "induced": "RiskType",
+      "members_sample": "RiskType: [1-Story Residential Building, 3-Story Residential Building, Flood Zone VE, Flood Zone AE, Flood Zone A...]",
+      "riskine": null,
+      "cosine": 0.3428,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Address",
+    "Coverage",
+    "Damage",
+    "Product",
+    "Property",
+    "Structure"
+  ],
+  "entity_assignment_evidenced_count": 6,
+  "entity_assignment_recall_present": 0.8333,
+  "entity_assignment_f1_present": 0.3439,
+  "standard_metrics": {
+    "bertscore_precision": 0.5435,
+    "bertscore_recall": 0.6156,
+    "bertscore_f1": 0.5773,
+    "per_reference_recall": {
+      "Product": 0.4488,
+      "Coverage": 1.0,
+      "Damage": 0.3715,
+      "Risk": 0.7612,
+      "Structure": 0.3906,
+      "Property": 1.0,
+      "Person": 0.3406,
+      "Object": 0.4932,
+      "Organization": 0.3502,
+      "Address": 1.0
+    },
+    "fuzzy_precision": 0.0,
+    "fuzzy_recall": 0.0,
+    "fuzzy_f1": 0.0,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 17,
+    "reference_edge_count": 37,
+    "continuous_precision": 0.2975,
+    "continuous_recall": 0.1367,
+    "continuous_f1": 0.1873,
+    "optimal_matching_score": 5.0573,
+    "taxonomy_precision": 0.0,
+    "taxonomy_recall": 0.0,
+    "taxonomy_f1": 0.0,
+    "taxonomy_induced_edges": 17,
+    "taxonomy_reference_edges": 37,
+    "graph_precision": 0.222,
+    "graph_recall": 0.6882,
+    "graph_f1": 0.3357,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.7333,
+    "wu_palmer_matched_pairs": 10,
+    "depth_distribution_induced": {
+      "0": 14,
+      "1": 17
+    },
+    "depth_distribution_reference": {
+      "0": 1,
+      "1": 4,
+      "2": 4,
+      "3": 1
+    }
+  }
+}

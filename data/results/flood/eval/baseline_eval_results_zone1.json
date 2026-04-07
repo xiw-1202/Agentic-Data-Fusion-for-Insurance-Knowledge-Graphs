@@ -1,0 +1,753 @@
+{
+  "mode": "zone1",
+  "baseline_metrics": {
+    "total_nodes": 242,
+    "total_relationships": 380,
+    "unique_labels": 44,
+    "duplicate_node_count": 0,
+    "duplication_rate": 0.0,
+    "concepts_with_multiple_labels": 5,
+    "type_inconsistency_rate": 0.15151515151515152,
+    "tasks_total": 20,
+    "tasks_with_results": 15,
+    "tasks_keyword_match": 10,
+    "query_accuracy": 0.5,
+    "model": "llama3.1:8b",
+    "riskine_precision": 0.1667,
+    "riskine_recall": 0.5,
+    "riskine_f1": 0.25,
+    "riskine_available": true
+  },
+  "duplication_detail": {
+    "duplicate_groups": 0,
+    "total_duplicated_nodes": 0,
+    "excess_nodes": 0
+  },
+  "type_consistency_detail": {
+    "total_labels": 42,
+    "unique_root_concepts": 33,
+    "concepts_with_multiple_labels": 5,
+    "examples": {
+      "policy": [
+        "Policy",
+        "Policy action",
+        "Policy feature",
+        "Policy type",
+        "Policy clause"
+      ],
+      "building": [
+        "Building type",
+        "Building feature"
+      ],
+      "property": [
+        "Property type",
+        "Property",
+        "Property exclusion"
+      ],
+      "flood": [
+        "Flood type",
+        "Flood insurance claim"
+      ],
+      "ownership": [
+        "Ownership type",
+        "Ownership unit"
+      ]
+    }
+  },
+  "task_results": [
+    {
+      "id": 1,
+      "category": "coverage",
+      "question": "What types of property does NFIP cover under the General Property Form?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Failure To Inspect And Maintain The Property After A Flood Recedes",
+          "labels(n)": [
+            "__Entity__",
+            "Event"
+          ]
+        },
+        {
+          "n.id": "Seeps Or Leaks On Or Through The Insured Property",
+          "labels(n)": [
+            "__Entity__",
+            "Event"
+          ]
+        },
+        {
+          "n.id": "Alteration Of The Insured Property That Significantly Increases The Risk Of Flooding",
+          "labels(n)": [
+            "__Entity__",
+            "Event"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "category": "coverage",
+      "question": "What is the maximum building coverage amount under NFIP?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Building Coverage",
+          "labels(n)": [
+            "__Entity__",
+            "Concept"
+          ]
+        },
+        {
+          "n.id": "Coverage A\u2014Building Property",
+          "labels(n)": [
+            "__Entity__",
+            "Concept"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "category": "coverage",
+      "question": "What is the maximum contents coverage amount?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 4,
+      "category": "exclusions",
+      "question": "What types of damage are excluded from NFIP coverage?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 5,
+      "category": "exclusions",
+      "question": "Is flood damage from earth movement covered?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "11. Buildings Or Units And All Their Contents If More Than 49 Percent Of The Actual Cash Value Of The Building Is Below Ground, Unless The Lowest Level Is At Or Above The Base Flood Elevation And Is Below Ground By Reason Of Earth Having Been Used As Insulation Material In Conjunction With Energy Efficient Building Techniques.",
+          "labels(n)": [
+            "__Entity__",
+            "Property exclusion"
+          ]
+        },
+        {
+          "n.id": "Earth Movement",
+          "labels(n)": [
+            "__Entity__",
+            "Concept"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "category": "policy_terms",
+      "question": "What is the waiting period before a new NFIP policy takes effect?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 7,
+      "category": "policy_terms",
+      "question": "What flood zones are mentioned in the SFIP?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Failure To Inspect And Maintain The Property After A Flood Recedes",
+          "labels(n)": [
+            "__Entity__",
+            "Event"
+          ]
+        },
+        {
+          "n.id": "Discharges Or Overflows From A Sump, Sump Pump, Or Related Equipment",
+          "labels(n)": [
+            "__Entity__",
+            "Event"
+          ]
+        },
+        {
+          "n.id": "Flood In The Area And The Flood Is The Proximate Cause Of The Sewer Or Drain Backup, Sump Pump Discharge Or Overflow, Or The Seepage Of Water",
+          "labels(n)": [
+            "__Entity__",
+            "Condition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "category": "policy_terms",
+      "question": "What is Increased Cost of Compliance (ICC) coverage?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Increased Cost Of Compliance",
+          "labels(n)": [
+            "__Entity__",
+            "Concept"
+          ]
+        },
+        {
+          "n.id": "Coverage D\u2014Increased Cost Of Compliance",
+          "labels(n)": [
+            "__Entity__",
+            "Concept"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "category": "claims",
+      "question": "What must a policyholder do after a flood loss?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Loss",
+          "type(r)": "RELATED_TO",
+          "m.id": "Flood"
+        },
+        {
+          "n.id": "Loss",
+          "type(r)": "EXCEEDS",
+          "m.id": "Deductible Amount"
+        },
+        {
+          "n.id": "Loss",
+          "type(r)": "SUBJECT_TO",
+          "m.id": "Limit Of Liability"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "category": "claims",
+      "question": "What is the deadline for filing a proof of loss?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Payment Deadline"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "category": "definitions",
+      "question": "How does NFIP define 'flood'?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Flood",
+          "labels(n)": [
+            "__Entity__",
+            "Concept",
+            "Event"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "category": "definitions",
+      "question": "What is the definition of a 'building' under NFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Building",
+          "labels(n)": [
+            "__Entity__",
+            "Property",
+            "Entity",
+            "Structure",
+            "Personnel property"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "category": "coverage",
+      "question": "Does NFIP cover basement contents?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Basement",
+          "labels(n)": [
+            "__Entity__",
+            "Building feature"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "category": "coverage",
+      "question": "What personal property is covered under contents coverage?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 15,
+      "category": "policy_terms",
+      "question": "What happens if there is a coinsurance or other insurance?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Other Insurance"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "category": "claims",
+      "question": "Can a policyholder appeal a claim decision?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 17,
+      "category": "coverage",
+      "question": "What improvements and betterments are covered?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Improvements"
+        },
+        {
+          "n.id": "15. Property Not Eligible For Flood Insurance Pursuant To The Provisions Of The Coastal Barrier Resources Act And The Coastal Barrier Improvement Act And Amendments To These Acts."
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "category": "exclusions",
+      "question": "What financial losses are excluded from NFIP (e.g., business interruption)?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Loss Of Revenue Or Profits"
+        },
+        {
+          "n.id": "Loss From Interruption Of Business Or Production"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "category": "policy_terms",
+      "question": "How is the replacement cost value (RCV) determined for building coverage?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Actual Cash Value"
+        },
+        {
+          "n.id": "11. Buildings Or Units And All Their Contents If More Than 49 Percent Of The Actual Cash Value Of The Building Is Below Ground, Unless The Lowest Level Is At Or Above The Base Flood Elevation And Is Below Ground By Reason Of Earth Having Been Used As Insulation Material In Conjunction With Energy Efficient Building Techniques."
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "category": "policy_terms",
+      "question": "What is the Liberalization Clause in NFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Liberalization Clause"
+        }
+      ]
+    }
+  ],
+  "riskine_detail": {
+    "suffix": "zone1",
+    "precision": 0.1667,
+    "recall": 0.5,
+    "f1": 0.25,
+    "induced_label_count": 42,
+    "riskine_class_count": 10,
+    "riskine_covered_count": 5,
+    "alignment_table": [
+      {
+        "induced": "Organization",
+        "riskine": "Organization",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Policy",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Person",
+        "riskine": "Person",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Concept",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Event",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Contract",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Section",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Building type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Property type",
+        "riskine": "Property",
+        "cosine": 0.759,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Coverage",
+        "riskine": "Coverage",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Property",
+        "riskine": "Property",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Regulation",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Location",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Entity",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Group",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Law",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Insurance",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Legislation",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Definition",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Flood type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Building feature",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Structure",
+        "riskine": "Structure",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Policy action",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Ownership type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policy feature",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Program",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Fee",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Substance",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Ownership unit",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policy type",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Property exclusion",
+        "riskine": "Property",
+        "cosine": 0.6026,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Exception",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Condition",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Personnel property",
+        "riskine": "Property",
+        "cosine": 0.6076,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Premium",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Rating information",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Elevation certificate",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Flood insurance claim",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Policy clause",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Term",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Entities",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Statute",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      }
+    ],
+    "unmatched_induced": [
+      "Policy",
+      "Concept",
+      "Event",
+      "Contract",
+      "Section",
+      "Building type",
+      "Regulation",
+      "Location",
+      "Entity",
+      "Group",
+      "Law",
+      "Insurance",
+      "Legislation",
+      "Definition",
+      "Flood type",
+      "Building feature",
+      "Policy action",
+      "Ownership type",
+      "Policy feature",
+      "Program",
+      "Fee",
+      "Substance",
+      "Ownership unit",
+      "Policy type",
+      "Exception",
+      "Condition",
+      "Premium",
+      "Rating information",
+      "Elevation certificate",
+      "Flood insurance claim",
+      "Policy clause",
+      "Term",
+      "Entities",
+      "Statute"
+    ],
+    "unmatched_riskine": [
+      "Product",
+      "Damage",
+      "Risk",
+      "Object",
+      "Address"
+    ]
+  }
+}

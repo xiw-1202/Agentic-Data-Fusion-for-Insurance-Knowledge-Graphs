@@ -1,0 +1,663 @@
+{
+  "mode": "zone3_svloi",
+  "baseline_metrics": {
+    "total_nodes": 1343,
+    "total_relationships": 1752,
+    "unique_labels": 11,
+    "duplicate_node_count": 0,
+    "duplication_rate": 0.0,
+    "concepts_with_multiple_labels": 0,
+    "type_inconsistency_rate": 0.0,
+    "tasks_total": 20,
+    "tasks_with_results": 19,
+    "tasks_keyword_match": 19,
+    "query_accuracy": 0.95,
+    "model": "qwen2.5:72b",
+    "riskine_precision": 0.6429,
+    "riskine_recall": 0.5,
+    "riskine_f1": 0.5625,
+    "riskine_available": true
+  },
+  "duplication_detail": {
+    "duplicate_groups": 0,
+    "total_duplicated_nodes": 0,
+    "excess_nodes": 0
+  },
+  "type_consistency_detail": {
+    "total_labels": 9,
+    "unique_root_concepts": 9,
+    "concepts_with_multiple_labels": 0,
+    "examples": {}
+  },
+  "task_results": [
+    {
+      "id": 1,
+      "category": "coverage",
+      "question": "What types of property does NFIP cover under the General Property Form?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "labels(n)": [
+            "Coverage",
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Coverage C\u2014Other Coverages",
+          "labels(n)": [
+            "Coverage",
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Property Removed to Safety",
+          "labels(n)": [
+            "Coverage",
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "category": "coverage",
+      "question": "What is the maximum limit for Increased Cost of Compliance (ICC / Coverage D) under NFIP?",
+      "rows_returned": 10,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Exclusion of Compliance Costs",
+          "type(r)": "REQUIRES",
+          "m.id": "Coverage D\u2014Increased Cost of Compliance"
+        },
+        {
+          "n.id": "Coverage D",
+          "type(r)": "COVERS",
+          "m.id": "Compliance with Floodplain Management Laws"
+        },
+        {
+          "n.id": "Coverage D",
+          "type(r)": "COVERS",
+          "m.id": "Elevation"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "category": "coverage",
+      "question": "What personal property is insured under Coverage B of the NFIP SFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "COVERS",
+          "m.id": "Personal Property"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "category": "exclusions",
+      "question": "What types of damage are excluded from NFIP coverage?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Water or Waterborne Material Backup"
+        },
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Pressure or Weight of Water"
+        },
+        {
+          "n.id": "Policy",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Power, Heating, or Cooling Failure"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "category": "exclusions",
+      "question": "Is flood damage from earth movement covered?",
+      "rows_returned": 3,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Sinkholes",
+          "labels(n)": [
+            "Entity",
+            "Risk"
+          ]
+        },
+        {
+          "n.id": "Earth Movement",
+          "labels(n)": [
+            "Entity",
+            "Risk"
+          ]
+        },
+        {
+          "n.id": "Earthquake",
+          "labels(n)": [
+            "Entity",
+            "Risk"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "category": "policy_terms",
+      "question": "Under NFIP, how many continuous days must a lake flood an insured building before a pre-loss claim may be filed?",
+      "rows_returned": 10,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Policy",
+          "type(r)": "HAS_WAITING_PERIOD",
+          "m.id": "90 days"
+        },
+        {
+          "n.id": "Policy-2025-01-01",
+          "type(r)": "REQUIRES",
+          "m.id": "690"
+        },
+        {
+          "n.id": "Policy-2025-01-01",
+          "type(r)": "REQUIRES",
+          "m.id": "CA-90210"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "category": "policy_terms",
+      "question": "What flood zones are mentioned in the SFIP?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Loss Avoidance Measures",
+          "labels(n)": [
+            "Coverage",
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Building Property at Another Location for 45 Days",
+          "labels(n)": [
+            "Property",
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Additions and Extensions Attached to Building",
+          "labels(n)": [
+            "Property",
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "category": "policy_terms",
+      "question": "What is Increased Cost of Compliance (ICC) coverage?",
+      "rows_returned": 7,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Compliance with Floodplain Management Laws",
+          "labels(n)": [
+            "Entity",
+            "Requirement"
+          ]
+        },
+        {
+          "n.id": "Exclusion of Compliance Costs",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "ICC-2012-10-29-HurricaneSandy-1",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "category": "claims",
+      "question": "What must a policyholder do after a flood loss?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Loss Avoidance Measures",
+          "type(r)": "COVERS",
+          "m.id": "Sandbags, Supplies, and Labor"
+        },
+        {
+          "n.id": "Insurer",
+          "type(r)": "MUST_NOTIFY",
+          "m.id": "Insured"
+        },
+        {
+          "n.id": "Insured",
+          "type(r)": "MUST_NOTIFY",
+          "m.id": "Insurer"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "category": "claims",
+      "question": "What is the deadline for filing a proof of loss?",
+      "rows_returned": 4,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Floodproofing"
+        },
+        {
+          "n.id": "Elevation or Floodproofing"
+        },
+        {
+          "n.id": "Eligible Floodproofing"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "category": "definitions",
+      "question": "How does NFIP define 'flood'?",
+      "rows_returned": 4,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Flood",
+          "type(r)": "DEFINED_AS",
+          "m.id": "General and temporary condition of partial or complete inundation"
+        },
+        {
+          "n.id": "Base Flood",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Flood having a one percent chance of being equaled or exceeded in any given year"
+        },
+        {
+          "n.id": "Standard Flood Insurance Policy",
+          "type(r)": "DEFINED_AS",
+          "m.id": "General Property Form"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "category": "definitions",
+      "question": "What is the definition of a 'building' under NFIP?",
+      "rows_returned": 6,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Substantial Damage Building",
+          "type(r)": "DEFINED_AS",
+          "m.id": "50% Repair Cost"
+        },
+        {
+          "n.id": "Building",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Manufactured home, also known as a mobile home, is a structure built on a permanent chassis, transported to its site in one or more sections, and affixed to a permanent foundation"
+        },
+        {
+          "n.id": "Building",
+          "type(r)": "DEFINED_AS",
+          "m.id": "Travel trailer without wheels, built on a chassis and affixed to a permanent foundation, that is regulated under the community\u2019s floodplain management and building ordinances or laws"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "category": "coverage",
+      "question": "Does NFIP cover basement contents?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Basement",
+          "labels(n)": [
+            "Property",
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Residential Buildings with Basements",
+          "labels(n)": [
+            "Property",
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "category": "coverage",
+      "question": "What personal property is covered under contents coverage?",
+      "rows_returned": 18,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "COVERS",
+          "m.id": "Personal Property"
+        },
+        {
+          "n.id": "Contents-1995-01-03",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "$72,500"
+        },
+        {
+          "n.id": "Contents-1995-01-03",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "$22,800"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "category": "policy_terms",
+      "question": "What happens if there is a coinsurance or other insurance?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Other Insurance"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "category": "claims",
+      "question": "What is the appraisal process for resolving disputes about the amount of an NFIP loss?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Appraisal",
+          "labels(n)": [
+            "Document",
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "category": "coverage",
+      "question": "What improvements and betterments are covered?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Condominium Units and Improvements"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "category": "exclusions",
+      "question": "What financial losses are excluded from NFIP (e.g., business interruption)?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Loss of Revenue or Profits"
+        },
+        {
+          "n.id": "Business Interruption Loss"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "category": "policy_terms",
+      "question": "How is the replacement cost value (RCV) determined for building coverage?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Actual Cash Value"
+        },
+        {
+          "n.id": "Pay Cost of Replacement Minus Depreciation"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "category": "policy_terms",
+      "question": "What is the Liberalization Clause in NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    }
+  ],
+  "riskine_detail": {
+    "suffix": "zone3_svloi",
+    "precision": 0.6429,
+    "recall": 0.5,
+    "f1": 0.5625,
+    "induced_label_count": 7,
+    "riskine_class_count": 10,
+    "riskine_covered_count": 5,
+    "alignment_table": [
+      {
+        "induced": "Coverage",
+        "riskine": "Coverage",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Property",
+        "riskine": "Property",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Requirement",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Risk",
+        "riskine": "Risk",
+        "cosine": 1.0,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Product",
+        "riskine": "Product",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Address",
+        "riskine": "Address",
+        "cosine": 1.0,
+        "verdict": "MATCH",
+        "score": 1.0
+      },
+      {
+        "induced": "Occupancy",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      }
+    ],
+    "unmatched_induced": [
+      "Requirement",
+      "Occupancy"
+    ],
+    "unmatched_riskine": [
+      "Damage",
+      "Structure",
+      "Person",
+      "Object",
+      "Organization"
+    ],
+    "entity_assignment_precision": 0.3571,
+    "entity_assignment_recall": 0.3,
+    "entity_assignment_f1": 0.3261,
+    "entity_assignment_riskine_covered": [
+      "Address",
+      "Coverage",
+      "Structure"
+    ],
+    "entity_assignment_table": [
+      {
+        "induced": "Coverage",
+        "members_sample": "Coverage: [Coverage B, Coverage C\u2014Other Coverages, Debris Removal, Loss Avoidance Measures, Sandbags, Supplies, and Labor...]",
+        "riskine": "Coverage",
+        "cosine": 0.5149,
+        "score": 0.5
+      },
+      {
+        "induced": "Property",
+        "members_sample": "Property: [1-Story Residential Building, Insured Property-2025-01-01, Contents-1995-01-03, Multifamily Buildings, One Building...]",
+        "riskine": "Structure",
+        "cosine": 0.5912,
+        "score": 1.0
+      },
+      {
+        "induced": "Requirement",
+        "members_sample": "Requirement: [Other-2022-09-28, Other-1981-08-28, Compliance with Floodplain Management Laws, Relocation, Demolition...]",
+        "riskine": null,
+        "cosine": 0.3618,
+        "score": 0.0
+      },
+      {
+        "induced": "Risk",
+        "members_sample": "Risk: [Mudflow, Land Subsidence from Erosion, Sinkholes, Flood, Water or Waterborne Material Backup...]",
+        "riskine": null,
+        "cosine": 0.4044,
+        "score": 0.0
+      },
+      {
+        "induced": "Product",
+        "members_sample": "Product: [Policy, Policy-2025-01-01, Standard Flood Insurance Policy, General Property Form, Express Written Consent...]",
+        "riskine": null,
+        "cosine": 0.3083,
+        "score": 0.0
+      },
+      {
+        "induced": "Address",
+        "members_sample": "Address: [BEVERLY HILLS, NJ-08008, LONG BEACH, TOWNSHIP OF, PELHAM MANOR, VILLAGE OF, JEFFERSON PARISH...]",
+        "riskine": "Address",
+        "cosine": 0.4636,
+        "score": 0.5
+      },
+      {
+        "induced": "Occupancy",
+        "members_sample": "Occupancy: [Agricultural and Recreational Uses, Type 2, Residential, Type 1, Occupancy Type 18...]",
+        "riskine": "Structure",
+        "cosine": 0.4239,
+        "score": 0.5
+      }
+    ],
+    "entity_assignment_evidenced_classes": [
+      "Address",
+      "Coverage",
+      "Damage",
+      "Product",
+      "Property",
+      "Structure"
+    ],
+    "entity_assignment_evidenced_count": 6,
+    "entity_assignment_recall_present": 0.5,
+    "entity_assignment_f1_present": 0.4167,
+    "standard_metrics": {
+      "bertscore_precision": 0.7607,
+      "bertscore_recall": 0.705,
+      "bertscore_f1": 0.7318,
+      "per_reference_recall": {
+        "Product": 1.0,
+        "Coverage": 1.0,
+        "Damage": 0.4545,
+        "Risk": 1.0,
+        "Structure": 0.3906,
+        "Property": 1.0,
+        "Person": 0.3608,
+        "Object": 0.4932,
+        "Organization": 0.3513,
+        "Address": 1.0
+      },
+      "fuzzy_precision": 0.1429,
+      "fuzzy_recall": 0.027,
+      "fuzzy_f1": 0.0455,
+      "fuzzy_threshold": 0.436,
+      "induced_edge_count": 7,
+      "reference_edge_count": 37,
+      "continuous_precision": 0.3824,
+      "continuous_recall": 0.0723,
+      "continuous_f1": 0.1217,
+      "optimal_matching_score": 2.6766,
+      "taxonomy_precision": 0.1429,
+      "taxonomy_recall": 0.027,
+      "taxonomy_f1": 0.0455,
+      "taxonomy_induced_edges": 7,
+      "taxonomy_reference_edges": 37,
+      "graph_precision": 0.8037,
+      "graph_recall": 0.6429,
+      "graph_f1": 0.7144,
+      "sgc_hops": 2,
+      "avg_wu_palmer": 0.7524,
+      "wu_palmer_matched_pairs": 7,
+      "depth_distribution_induced": {
+        "0": 1,
+        "1": 3,
+        "2": 4
+      },
+      "depth_distribution_reference": {
+        "0": 1,
+        "1": 4,
+        "2": 4,
+        "3": 1
+      }
+    }
+  }
+}

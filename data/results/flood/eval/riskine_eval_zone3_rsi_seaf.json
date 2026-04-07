@@ -1,0 +1,638 @@
+{
+  "suffix": "zone3_rsi_seaf",
+  "precision": 0.1486,
+  "recall": 0.2,
+  "f1": 0.1705,
+  "induced_label_count": 37,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 2,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Event",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "riskine": "Coverage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Date",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Location",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Condition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Claim",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Property2",
+      "riskine": "Property",
+      "cosine": 0.847,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Property3",
+      "riskine": "Property",
+      "cosine": 0.8116,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage2",
+      "riskine": "Coverage",
+      "cosine": 0.8224,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage3",
+      "riskine": "Coverage",
+      "cosine": 0.8116,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage4",
+      "riskine": "Coverage",
+      "cosine": 0.8031,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage5",
+      "riskine": "Coverage",
+      "cosine": 0.777,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage6",
+      "riskine": "Coverage",
+      "cosine": 0.782,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Deadline",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "State",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Year",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericEntity",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Amount",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue3",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericProperty",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue4",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue5",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValues",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue6",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue7",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue8",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Claim2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Date2",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Date3",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Date4",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Date5",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Event",
+    "Date",
+    "Location",
+    "Condition",
+    "Claim",
+    "Value",
+    "NumericValue",
+    "Exclusion",
+    "Deadline",
+    "State",
+    "Year",
+    "NumericEntity",
+    "Amount",
+    "NumericValue2",
+    "NumericValue3",
+    "NumericProperty",
+    "NumericValue4",
+    "NumericValue5",
+    "NumericValues",
+    "NumericValue6",
+    "NumericValue7",
+    "NumericValue8",
+    "Claim2",
+    "Date2",
+    "Date3",
+    "Date4",
+    "Date5"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "entity_assignment_precision": 0.0541,
+  "entity_assignment_recall": 0.3,
+  "entity_assignment_f1": 0.0916,
+  "entity_assignment_riskine_covered": [
+    "Address",
+    "Damage",
+    "Structure"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [POL-3d2371dd159d, POL-2d77ad8e931f, POL-d12ec2c13e29, POL-ed43e06321ac, POL-60848e6329ab...]",
+      "riskine": null,
+      "cosine": 0.2947,
+      "score": 0.0
+    },
+    {
+      "induced": "Event",
+      "members_sample": "Event: [Hurricane Ike, Hurricane Harvey, Flooding, Hurricane Alicia, Hurricane Sandy...]",
+      "riskine": null,
+      "cosine": 0.2616,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "members_sample": "Coverage: [81000, 250000, 500000, 134000, 193000...]",
+      "riskine": null,
+      "cosine": 0.2498,
+      "score": 0.0
+    },
+    {
+      "induced": "Property",
+      "members_sample": "Property: [PROP-5c14d009a21c, PROP-81b89033b1ff, PROP-2c7e79a56479, PROP-8f2d5d476494, PROP-727e256809d3...]",
+      "riskine": null,
+      "cosine": 0.2863,
+      "score": 0.0
+    },
+    {
+      "induced": "Date",
+      "members_sample": "Date: [2000-06-01T00:00:00.000Z, 1977-01-01T00:00:00.000Z, 2021-12-01T00:00:00.000Z, 1960-01-01T00:00:00.000Z, 1950-01-01T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.278,
+      "score": 0.0
+    },
+    {
+      "induced": "Location",
+      "members_sample": "Location: [NASHVILLE, CITY OF, MIAMI-DADE COUNTY*, MIDDLETOWN, TOWNSHIP OF, LEXINGTON COUNTY *, SINTON, CITY OF...]",
+      "riskine": "Address",
+      "cosine": 0.4505,
+      "score": 0.5
+    },
+    {
+      "induced": "Condition",
+      "members_sample": "Condition: [Walled and Roofed, Base Flood Elevation, Imminent Flood Damage, Apparent Threat of Flood Damage, General and Temporary Flooding...]",
+      "riskine": "Damage",
+      "cosine": 0.5208,
+      "score": 0.5
+    },
+    {
+      "induced": "Claim",
+      "members_sample": "Claim: [PROP-16e27a70530e, PROP-001810f36477, PROP-a9a07c1f7b7d, PROP-32e1e7fa40fb, PROP-fadafa0f6e4d...]",
+      "riskine": null,
+      "cosine": 0.2868,
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "members_sample": "Value: [PolicyRecord, Property, ClaimRecord, N, S...]",
+      "riskine": null,
+      "cosine": 0.3037,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue",
+      "members_sample": "NumericValue: [681, 668, 1211, 460, 625...]",
+      "riskine": null,
+      "cosine": 0.292,
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "members_sample": "Exclusion: [One Building, Pressure or Weight of Water, Power, Heating, or Cooling Failure, Gas or liquid storage tank, shipping container, or a recreational vehicle, park trailer, or other similar vehicle, Personal Property Not Inside Enclosed Building...]",
+      "riskine": null,
+      "cosine": 0.4082,
+      "score": 0.0
+    },
+    {
+      "induced": "Property2",
+      "members_sample": "Property2: [PROP-36ea0e1d3288, PROP-c9bbd901cd13, PROP-a07ed8078e13, PROP-27f7698a0d71, PROP-88038766911b...]",
+      "riskine": null,
+      "cosine": 0.2759,
+      "score": 0.0
+    },
+    {
+      "induced": "Property3",
+      "members_sample": "Property3: [Multifamily Buildings, Flood Insurance, Building Described on Declarations Page, All Units in Condominium Building, Building Property at Another Location for 45 Days...]",
+      "riskine": "Structure",
+      "cosine": 0.4796,
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage2",
+      "members_sample": "Coverage2: [36000, 54000, 123000, 66000, 80000...]",
+      "riskine": null,
+      "cosine": 0.2474,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage3",
+      "members_sample": "Coverage3: [10000, 100000, 25000, 5000, 60000...]",
+      "riskine": null,
+      "cosine": 0.2308,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage4",
+      "members_sample": "Coverage4: [A, AH, AE, X, VE...]",
+      "riskine": null,
+      "cosine": 0.2416,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage5",
+      "members_sample": "Coverage5: [Maximum building claim payout under NFIP policy, Named Insured(s), General and temporary condition of partial or complete inundation, National Flood Insurance Act of 1968 and any amendments to it, Cost to replace an insured item of property at the time of loss, less the value of its physical depreciation...]",
+      "riskine": "Damage",
+      "cosine": 0.474,
+      "score": 0.5
+    },
+    {
+      "induced": "Coverage6",
+      "members_sample": "Coverage6: [Policy, Debris Removal, Sandbags, Supplies, and Labor, Pollution Damage, Coverage D...]",
+      "riskine": null,
+      "cosine": 0.4087,
+      "score": 0.0
+    },
+    {
+      "induced": "Deadline",
+      "members_sample": "Deadline: [90 days, Proof of Loss, Loss Notification, 12:01 a.m. on the last day of the policy term, 60 days...]",
+      "riskine": null,
+      "cosine": 0.2534,
+      "score": 0.0
+    },
+    {
+      "induced": "State",
+      "members_sample": "State: [GA, FL, NJ, SC, TX...]",
+      "riskine": null,
+      "cosine": 0.3145,
+      "score": 0.0
+    },
+    {
+      "induced": "Year",
+      "members_sample": "Year: [1993, 2016, 2000, 2008, 2017...]",
+      "riskine": null,
+      "cosine": 0.2664,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericEntity",
+      "members_sample": "NumericEntity: [31639, 33175, 07758, 29054, 78387...]",
+      "riskine": null,
+      "cosine": 0.3382,
+      "score": 0.0
+    },
+    {
+      "induced": "Amount",
+      "members_sample": "Amount: [370, 70875.58, 4875, 4775.2, 34933.11...]",
+      "riskine": null,
+      "cosine": 0.2766,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue2",
+      "members_sample": "NumericValue2: [7900, 6500, 3400, 71876, 570...]",
+      "riskine": null,
+      "cosine": 0.3381,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue3",
+      "members_sample": "NumericValue3: [114000, 140000, 190000, 61000, 231000...]",
+      "riskine": null,
+      "cosine": 0.2576,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericProperty",
+      "members_sample": "NumericProperty: [300469, 1812788, 136901, 46901, 67128...]",
+      "riskine": null,
+      "cosine": 0.326,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue4",
+      "members_sample": "NumericValue4: [46, 12100, 21000, 1000, 27100...]",
+      "riskine": null,
+      "cosine": 0.289,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue5",
+      "members_sample": "NumericValue5: [10223, 20207, 755, 1060, 7073...]",
+      "riskine": null,
+      "cosine": 0.31,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValues",
+      "members_sample": "NumericValues: [13, 24, 12, 20, 75...]",
+      "riskine": null,
+      "cosine": 0.2196,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue6",
+      "members_sample": "NumericValue6: [9.8, 11.6, 7.9, 11.7, 8.5...]",
+      "riskine": null,
+      "cosine": 0.1744,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue7",
+      "members_sample": "NumericValue7: [7.5, 7.7, 9.2, 1.5, -3.5...]",
+      "riskine": null,
+      "cosine": 0.2145,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue8",
+      "members_sample": "NumericValue8: [1020, 10, 47, 50, 376...]",
+      "riskine": null,
+      "cosine": 0.1729,
+      "score": 0.0
+    },
+    {
+      "induced": "Claim2",
+      "members_sample": "Claim2: [CLM-dfe33c634e29, CLM-ddaf90eff6eb, CLM-c0a73a73fc57, CLM-5172064d6740, CLM-6ae4ac55c2ec...]",
+      "riskine": null,
+      "cosine": 0.2272,
+      "score": 0.0
+    },
+    {
+      "induced": "Date2",
+      "members_sample": "Date2: [2026-01-10T00:00:00.000Z, 2026-06-17T00:00:00.000Z, 2026-06-11T00:00:00.000Z, 2026-05-27T00:00:00.000Z, 2026-10-08T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.233,
+      "score": 0.0
+    },
+    {
+      "induced": "Date3",
+      "members_sample": "Date3: [1984-07-01T00:00:00.000Z, 2021-12-08T00:00:00.000Z, 2018-09-15T00:00:00.000Z, 1993-03-13T00:00:00.000Z, 2005-07-09T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2751,
+      "score": 0.0
+    },
+    {
+      "induced": "Date4",
+      "members_sample": "Date4: [2023-01-10T00:00:00.000Z, 2022-03-18T00:00:00.000Z, 2022-05-27T00:00:00.000Z, 2019-10-08T00:00:00.000Z, 2022-07-10T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2591,
+      "score": 0.0
+    },
+    {
+      "induced": "Date5",
+      "members_sample": "Date5: [2025-01-10T00:00:00.000Z, 2025-06-17T00:00:00.000Z, 2025-06-11T00:00:00.000Z, 2025-05-27T00:00:00.000Z, 2025-10-08T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2432,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Address",
+    "Coverage",
+    "Damage",
+    "Product",
+    "Property",
+    "Structure"
+  ],
+  "entity_assignment_evidenced_count": 6,
+  "entity_assignment_recall_present": 0.5,
+  "entity_assignment_f1_present": 0.0976,
+  "standard_metrics": {
+    "bertscore_precision": 0.4566,
+    "bertscore_recall": 0.5526,
+    "bertscore_f1": 0.5,
+    "per_reference_recall": {
+      "Product": 0.5204,
+      "Coverage": 1.0,
+      "Damage": 0.4139,
+      "Risk": 0.4332,
+      "Structure": 0.3906,
+      "Property": 1.0,
+      "Person": 0.34,
+      "Object": 0.4932,
+      "Organization": 0.3502,
+      "Address": 0.5842
+    },
+    "fuzzy_precision": 0.0,
+    "fuzzy_recall": 0.0,
+    "fuzzy_f1": 0.0,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 19,
+    "reference_edge_count": 37,
+    "continuous_precision": 0.2891,
+    "continuous_recall": 0.1484,
+    "continuous_f1": 0.1961,
+    "optimal_matching_score": 5.4922,
+    "taxonomy_precision": 0.0,
+    "taxonomy_recall": 0.0,
+    "taxonomy_f1": 0.0,
+    "taxonomy_induced_edges": 19,
+    "taxonomy_reference_edges": 37,
+    "graph_precision": 0.1879,
+    "graph_recall": 0.6953,
+    "graph_f1": 0.2959,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.77,
+    "wu_palmer_matched_pairs": 10,
+    "depth_distribution_induced": {
+      "0": 18,
+      "1": 19
+    },
+    "depth_distribution_reference": {
+      "0": 1,
+      "1": 4,
+      "2": 4,
+      "3": 1
+    }
+  }
+}

@@ -1,0 +1,203 @@
+{
+  "suffix": "zone3_v2_qwen72b",
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "induced_label_count": 11,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 0,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "HazardZone",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Obligation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "OccupancyType",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "VoidState",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Deductible",
+    "Hazard",
+    "Value",
+    "Temporal",
+    "NumericValue",
+    "HazardZone",
+    "Exclusion",
+    "Obligation",
+    "OccupancyType",
+    "VoidState"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Coverage",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Property",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "member_precision": 0.1818,
+  "member_recall": 0.33,
+  "member_f1": 0.2345,
+  "member_riskine_covered": [
+    "Damage",
+    "Product",
+    "Structure"
+  ],
+  "member_hierarchy_covered": [
+    "Object"
+  ],
+  "member_alignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [Policy, Policy-2025-01-01, Multiple Policies, Insurance Policy, Other Insurance]",
+      "riskine": "Product",
+      "cosine": 0.5199,
+      "score": 0.5
+    },
+    {
+      "induced": "Deductible",
+      "members_sample": "Deductible: [Separate Deductible, Deductible Amount, Separate Deductibles for Building and Personal Property, Code 1, Code A...]",
+      "riskine": null,
+      "cosine": 0.2509,
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "members_sample": "Hazard: [Coverage B, Mudflow, Land Subsidence from Erosion, 1-Story Residential Building, Sinkholes...]",
+      "riskine": "Structure",
+      "cosine": 0.5182,
+      "score": 0.5
+    },
+    {
+      "induced": "Value",
+      "members_sample": "Value: [Location-2012-04-15, Location-2012-10-29-HurricaneSandy-1, Location-2017-02-04, Location-1978-01-26, Location-2005-08-29-Katrina...]",
+      "riskine": null,
+      "cosine": 0.3887,
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "members_sample": "Temporal: [Other-2022-09-28, Other-1981-08-28, Other-1999-10-15, Contents-1995-01-03, Building...]",
+      "riskine": null,
+      "cosine": 0.3642,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue",
+      "members_sample": "NumericValue: [1, 7, 25, 6, 8...]",
+      "riskine": null,
+      "cosine": 0.2119,
+      "score": 0.0
+    },
+    {
+      "induced": "HazardZone",
+      "members_sample": "HazardZone: [N, S, VE, C, M...]",
+      "riskine": null,
+      "cosine": 0.3105,
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "members_sample": "Exclusion: [Water or Waterborne Material Backup, Pressure or Weight of Water, Power, Heating, or Cooling Failure, Loss of Revenue or Profits, Loss of Access...]",
+      "riskine": "Damage",
+      "cosine": 0.466,
+      "score": 0.5
+    },
+    {
+      "induced": "Obligation",
+      "members_sample": "Obligation: [Insurer, Insured]",
+      "riskine": null,
+      "cosine": 0.4114,
+      "score": 0.0
+    },
+    {
+      "induced": "OccupancyType",
+      "members_sample": "OccupancyType: [Occupancy Type 18, Occupancy Type 16]",
+      "riskine": "Structure",
+      "cosine": 0.4277,
+      "score": 0.5
+    },
+    {
+      "induced": "VoidState",
+      "members_sample": "VoidState: [Void, Void from Inception]",
+      "riskine": null,
+      "cosine": 0.1501,
+      "score": 0.0
+    }
+  ]
+}

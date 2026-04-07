@@ -1,0 +1,546 @@
+{
+  "mode": "zone3_sv_loi",
+  "model": "qwen2.5:72b",
+  "suffix": "zone3_svloi",
+  "elapsed_seconds": 1321.62,
+  "entity_count": 1335,
+  "class_vocab_discovered": [
+    "Coverage",
+    "Risk",
+    "Property",
+    "Policy",
+    "Premium",
+    "Deductible",
+    "Limit",
+    "Requirement",
+    "Deadline",
+    "Code",
+    "Year",
+    "State",
+    "County",
+    "City",
+    "Document",
+    "Occupancy",
+    "Other"
+  ],
+  "classes_final": [
+    "Address",
+    "Coverage",
+    "Document",
+    "Occupancy",
+    "Product",
+    "Property",
+    "Requirement",
+    "Risk"
+  ],
+  "class_distribution": {
+    "Coverage": 406,
+    "Requirement": 52,
+    "Risk": 105,
+    "Property": 141,
+    "Product": 56,
+    "Document": 11,
+    "Occupancy": 7,
+    "Address": 157
+  },
+  "flagged_count": 49,
+  "flagged_entities": [
+    {
+      "entity_id": "Maximum building claim payout under NFIP policy",
+      "assigned_class": "Limit",
+      "similarity": 0.0067,
+      "class_mean_sim": 0.8702,
+      "class_std_sim": 0.1496,
+      "nearest_class": "Document",
+      "nearest_sim": 0.6151
+    },
+    {
+      "entity_id": "Compliance with Floodplain Management Laws",
+      "assigned_class": "Requirement",
+      "similarity": 0.0721,
+      "class_mean_sim": 0.6796,
+      "class_std_sim": 0.3036,
+      "nearest_class": "Property",
+      "nearest_sim": 0.138
+    },
+    {
+      "entity_id": "Deductible",
+      "assigned_class": "Deductible",
+      "similarity": 0.0437,
+      "class_mean_sim": 0.7859,
+      "class_std_sim": 0.2756,
+      "nearest_class": "Document",
+      "nearest_sim": 0.2511
+    },
+    {
+      "entity_id": "Fixed amount of an insured loss that is your responsibility and that is incurred by you before any amounts are paid for the insured loss under this policy",
+      "assigned_class": "Deductible",
+      "similarity": 0.031,
+      "class_mean_sim": 0.7859,
+      "class_std_sim": 0.2756,
+      "nearest_class": "Document",
+      "nearest_sim": 0.6151
+    },
+    {
+      "entity_id": "Paid Full Amount",
+      "assigned_class": "Premium",
+      "similarity": 0.5003,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Deductible",
+      "nearest_sim": 0.6293
+    },
+    {
+      "entity_id": "Pay Cost of Replacement Minus Depreciation",
+      "assigned_class": "Premium",
+      "similarity": 0.5003,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Requirement",
+      "nearest_sim": 0.6617
+    },
+    {
+      "entity_id": "15",
+      "assigned_class": "Year",
+      "similarity": 0.606,
+      "class_mean_sim": 0.9459,
+      "class_std_sim": 0.1477,
+      "nearest_class": "Deductible",
+      "nearest_sim": 0.916
+    },
+    {
+      "entity_id": "02110",
+      "assigned_class": "County",
+      "similarity": 0.3512,
+      "class_mean_sim": 0.8097,
+      "class_std_sim": 0.1456,
+      "nearest_class": "Deductible",
+      "nearest_sim": 0.6137
+    },
+    {
+      "entity_id": "42",
+      "assigned_class": "Premium",
+      "similarity": 0.478,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Deductible",
+      "nearest_sim": 0.5885
+    },
+    {
+      "entity_id": "1960-02-02T00:00:00.000Z",
+      "assigned_class": "Year",
+      "similarity": 0.3122,
+      "class_mean_sim": 0.9459,
+      "class_std_sim": 0.1477,
+      "nearest_class": "Deadline",
+      "nearest_sim": 0.4533
+    },
+    {
+      "entity_id": "70358",
+      "assigned_class": "Limit",
+      "similarity": 0.4661,
+      "class_mean_sim": 0.8702,
+      "class_std_sim": 0.1496,
+      "nearest_class": "State",
+      "nearest_sim": 0.9552
+    },
+    {
+      "entity_id": "27",
+      "assigned_class": "Premium",
+      "similarity": 0.478,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Deductible",
+      "nearest_sim": 0.5885
+    },
+    {
+      "entity_id": "$1,000",
+      "assigned_class": "Limit",
+      "similarity": 0.4125,
+      "class_mean_sim": 0.8702,
+      "class_std_sim": 0.1496,
+      "nearest_class": "Deductible",
+      "nearest_sim": 0.1607
+    },
+    {
+      "entity_id": "$106900",
+      "assigned_class": "Limit",
+      "similarity": 0.5647,
+      "class_mean_sim": 0.8702,
+      "class_std_sim": 0.1496,
+      "nearest_class": "Premium",
+      "nearest_sim": 0.315
+    },
+    {
+      "entity_id": "$99,000",
+      "assigned_class": "Limit",
+      "similarity": 0.4879,
+      "class_mean_sim": 0.8702,
+      "class_std_sim": 0.1496,
+      "nearest_class": "Premium",
+      "nearest_sim": 0.2232
+    },
+    {
+      "entity_id": "$2,500",
+      "assigned_class": "Limit",
+      "similarity": 0.2015,
+      "class_mean_sim": 0.8702,
+      "class_std_sim": 0.1496,
+      "nearest_class": "Document",
+      "nearest_sim": 0.1484
+    },
+    {
+      "entity_id": "Separate Deductible",
+      "assigned_class": "Deductible",
+      "similarity": 0.0621,
+      "class_mean_sim": 0.7859,
+      "class_std_sim": 0.2756,
+      "nearest_class": "Code",
+      "nearest_sim": 0.4479
+    },
+    {
+      "entity_id": "Separate Deductibles for Building and Personal Property",
+      "assigned_class": "Deductible",
+      "similarity": 0.0747,
+      "class_mean_sim": 0.7859,
+      "class_std_sim": 0.2756,
+      "nearest_class": "Code",
+      "nearest_sim": 0.4479
+    },
+    {
+      "entity_id": "2009-01-01",
+      "assigned_class": "Year",
+      "similarity": 0.5187,
+      "class_mean_sim": 0.9459,
+      "class_std_sim": 0.1477,
+      "nearest_class": "Deadline",
+      "nearest_sim": 0.5638
+    },
+    {
+      "entity_id": "1990-01-01",
+      "assigned_class": "Year",
+      "similarity": 0.5187,
+      "class_mean_sim": 0.9459,
+      "class_std_sim": 0.1477,
+      "nearest_class": "Deadline",
+      "nearest_sim": 0.5638
+    },
+    {
+      "entity_id": "GREENVILLE COUNTY",
+      "assigned_class": "County",
+      "similarity": 0.373,
+      "class_mean_sim": 0.8097,
+      "class_std_sim": 0.1456,
+      "nearest_class": "City",
+      "nearest_sim": 0.4667
+    },
+    {
+      "entity_id": "PEMBROKE PINES, CITY OF",
+      "assigned_class": "City",
+      "similarity": 0.4667,
+      "class_mean_sim": 0.8802,
+      "class_std_sim": 0.1484,
+      "nearest_class": "County",
+      "nearest_sim": 0.373
+    },
+    {
+      "entity_id": "TEXAS CITY, CITY OF",
+      "assigned_class": "City",
+      "similarity": 0.4667,
+      "class_mean_sim": 0.8802,
+      "class_std_sim": 0.1484,
+      "nearest_class": "County",
+      "nearest_sim": 0.373
+    },
+    {
+      "entity_id": "PINELLAS PARK, CITY OF",
+      "assigned_class": "City",
+      "similarity": 0.4667,
+      "class_mean_sim": 0.8802,
+      "class_std_sim": 0.1484,
+      "nearest_class": "County",
+      "nearest_sim": 0.373
+    },
+    {
+      "entity_id": "BLACK MOUNTAIN, TOWN OF",
+      "assigned_class": "City",
+      "similarity": 0.4667,
+      "class_mean_sim": 0.8802,
+      "class_std_sim": 0.1484,
+      "nearest_class": "County",
+      "nearest_sim": 0.373
+    },
+    {
+      "entity_id": "BOSSIER PARISH",
+      "assigned_class": "County",
+      "similarity": 0.3974,
+      "class_mean_sim": 0.8097,
+      "class_std_sim": 0.1456,
+      "nearest_class": "City",
+      "nearest_sim": 0.4415
+    },
+    {
+      "entity_id": "PANOLA",
+      "assigned_class": "County",
+      "similarity": 0.3974,
+      "class_mean_sim": 0.8097,
+      "class_std_sim": 0.1456,
+      "nearest_class": "City",
+      "nearest_sim": 0.4415
+    },
+    {
+      "entity_id": "20",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "75",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "36",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "41",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "22",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "19",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "26",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "29",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "53",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "49",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "35",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "51",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "24",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "45",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "12",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "52",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "43",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "21",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "28",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "73",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "34",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    },
+    {
+      "entity_id": "31",
+      "assigned_class": "Premium",
+      "similarity": 0.579,
+      "class_mean_sim": 0.9131,
+      "class_std_sim": 0.1564,
+      "nearest_class": "Limit",
+      "nearest_sim": 0.4966
+    }
+  ],
+  "hierarchy": [
+    {
+      "child": "Address",
+      "parent": "Property"
+    },
+    {
+      "child": "Coverage",
+      "parent": "Risk"
+    },
+    {
+      "child": "Document",
+      "parent": "Requirement"
+    },
+    {
+      "child": "Occupancy",
+      "parent": "Property"
+    },
+    {
+      "child": "Product",
+      "parent": "Requirement"
+    },
+    {
+      "child": "Property",
+      "parent": "Risk"
+    },
+    {
+      "child": "Requirement",
+      "parent": "Risk"
+    }
+  ],
+  "neo4j_stats": {
+    "entities_labeled": 935,
+    "ontology_classes": 8,
+    "subclass_of_edges": 7,
+    "class_names": [
+      "Address",
+      "Coverage",
+      "Document",
+      "Occupancy",
+      "Product",
+      "Property",
+      "Requirement",
+      "Risk"
+    ],
+    "class_distribution": {
+      "Coverage": 406,
+      "Requirement": 52,
+      "Risk": 105,
+      "Property": 141,
+      "Product": 56,
+      "Document": 11,
+      "Occupancy": 7,
+      "Address": 157
+    },
+    "method": "SV-LOI"
+  }
+}

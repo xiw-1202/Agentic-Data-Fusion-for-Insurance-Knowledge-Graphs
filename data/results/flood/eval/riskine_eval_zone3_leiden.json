@@ -1,0 +1,258 @@
+{
+  "suffix": "zone3_leiden",
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "induced_label_count": 11,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 0,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Obligation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "OccupancyType",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "VoidState",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Geohazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Deductible",
+    "Hazard",
+    "Value",
+    "Temporal",
+    "NumericValue",
+    "Exclusion",
+    "Obligation",
+    "OccupancyType",
+    "VoidState",
+    "Geohazard"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Coverage",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Property",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "entity_assignment_precision": 0.1818,
+  "entity_assignment_recall": 0.3,
+  "entity_assignment_f1": 0.2264,
+  "entity_assignment_riskine_covered": [
+    "Damage",
+    "Product",
+    "Structure"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [Policy, Policy-2025-01-01, Multiple Policies, Insurance Policy, Other Insurance]",
+      "riskine": "Product",
+      "cosine": 0.5199,
+      "score": 0.5
+    },
+    {
+      "induced": "Deductible",
+      "members_sample": "Deductible: [Separate Deductible, Deductible Amount, Separate Deductibles for Building and Personal Property, Code 1, Code A...]",
+      "riskine": null,
+      "cosine": 0.2509,
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "members_sample": "Hazard: [Coverage B, Mudflow, Land Subsidence from Erosion, 1-Story Residential Building, Coverage C\u2014Other Coverages...]",
+      "riskine": "Structure",
+      "cosine": 0.5116,
+      "score": 0.5
+    },
+    {
+      "induced": "Value",
+      "members_sample": "Value: [Location-2012-04-15, Location-2012-10-29-HurricaneSandy-1, Location-2017-02-04, Location-1978-01-26, Location-2005-08-29-Katrina...]",
+      "riskine": null,
+      "cosine": 0.3887,
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "members_sample": "Temporal: [Other-2022-09-28, Other-1981-08-28, Other-1999-10-15, Contents-1995-01-03, Building...]",
+      "riskine": null,
+      "cosine": 0.3642,
+      "score": 0.0
+    },
+    {
+      "induced": "NumericValue",
+      "members_sample": "NumericValue: [1, 7, 25, 6, 8...]",
+      "riskine": null,
+      "cosine": 0.2119,
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "members_sample": "Exclusion: [Water or Waterborne Material Backup, Pressure or Weight of Water, Power, Heating, or Cooling Failure, Loss of Revenue or Profits, Loss of Access...]",
+      "riskine": "Damage",
+      "cosine": 0.466,
+      "score": 0.5
+    },
+    {
+      "induced": "Obligation",
+      "members_sample": "Obligation: [Insurer, Insured]",
+      "riskine": null,
+      "cosine": 0.4114,
+      "score": 0.0
+    },
+    {
+      "induced": "OccupancyType",
+      "members_sample": "OccupancyType: [Occupancy Type 18, Occupancy Type 16]",
+      "riskine": "Structure",
+      "cosine": 0.4277,
+      "score": 0.5
+    },
+    {
+      "induced": "VoidState",
+      "members_sample": "VoidState: [Void, Void from Inception]",
+      "riskine": null,
+      "cosine": 0.1501,
+      "score": 0.0
+    },
+    {
+      "induced": "Geohazard",
+      "members_sample": "Geohazard: [Sinkholes, Gradual Erosion, Earth Movement, Land Subsidence, Landslide...]",
+      "riskine": null,
+      "cosine": 0.2595,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Damage",
+    "Product",
+    "Property",
+    "Structure"
+  ],
+  "entity_assignment_evidenced_count": 4,
+  "entity_assignment_recall_present": 0.75,
+  "entity_assignment_f1_present": 0.2927,
+  "standard_metrics": {
+    "bertscore_precision": 0.4185,
+    "bertscore_recall": 0.488,
+    "bertscore_f1": 0.4506,
+    "per_reference_recall": {
+      "Product": 0.4894,
+      "Coverage": 0.7299,
+      "Damage": 0.4176,
+      "Risk": 0.517,
+      "Structure": 0.3662,
+      "Property": 0.759,
+      "Person": 0.3335,
+      "Object": 0.4599,
+      "Organization": 0.3751,
+      "Address": 0.4327
+    },
+    "fuzzy_precision": 0.0,
+    "fuzzy_recall": 0.0,
+    "fuzzy_f1": 0.0,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 4,
+    "reference_edge_count": 37,
+    "continuous_precision": 0.3537,
+    "continuous_recall": 0.0382,
+    "continuous_f1": 0.069,
+    "optimal_matching_score": 1.4147,
+    "taxonomy_precision": 0.0,
+    "taxonomy_recall": 0.0,
+    "taxonomy_f1": 0.0,
+    "taxonomy_induced_edges": 4,
+    "taxonomy_reference_edges": 37,
+    "graph_precision": 0.3579,
+    "graph_recall": 0.5727,
+    "graph_f1": 0.4405,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.6533,
+    "wu_palmer_matched_pairs": 10,
+    "depth_distribution_induced": {
+      "0": 12,
+      "1": 3,
+      "2": 1
+    },
+    "depth_distribution_reference": {
+      "0": 1,
+      "1": 4,
+      "2": 4,
+      "3": 1
+    }
+  }
+}

@@ -1,0 +1,605 @@
+{
+  "suffix": "zone2_seaf",
+  "model": "llama3.1:8b",
+  "vocabulary_coverage": {
+    "token_coverage": 0.4968,
+    "source_vocab_size": 2059,
+    "covered_terms": 1023,
+    "uncovered_sample": [
+      "abandonment",
+      "accept",
+      "accordance",
+      "accounts",
+      "accumulation",
+      "accurate",
+      "acids",
+      "acknowledge",
+      "acquire",
+      "acquired",
+      "acquires",
+      "acres",
+      "action",
+      "activity",
+      "acts",
+      "added",
+      "address",
+      "adjacent",
+      "adjust",
+      "adjusted"
+    ],
+    "total_entities": 7407,
+    "relation_types": 76,
+    "entity_types": 37,
+    "source_breakdown": {
+      "structured": 7199,
+      "llm": 208
+    }
+  },
+  "triple_precision": {
+    "precision": 0.7865,
+    "accuracy": 0.7,
+    "sample_size": 100,
+    "correct": 70,
+    "incorrect": 19,
+    "uncertain": 11,
+    "llm_triples_total": 187,
+    "structured_triples_total": 26963,
+    "sampled_triples": [
+      {
+        "subject": "Declarations Page",
+        "relation": "COVERS",
+        "object": "Flood Insurance",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Land and Land Values",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Containers and Tanks",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Property Removed to Safety",
+        "relation": "REQUIRES",
+        "object": "Imminent Flood Damage",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Water or Waterborne Material Backup",
+        "relation": "REQUIRES",
+        "object": "Seeps or Leaks on or Through Insured Property",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Earth Movement",
+        "relation": "HAS_CAUSE_OF_DAMAGE",
+        "object": "Flood",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Substantial Damage Building",
+        "relation": "REQUIRES",
+        "object": "Substantial Damage Provision",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Personal Property Not Inside Enclosed Building",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Exclusion of Compliance Costs",
+        "relation": "EXCLUDED_FROM",
+        "object": "Coverage D\u2014Increased Cost of Compliance",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Insurer",
+        "relation": "REQUIRES",
+        "object": "Subrogation",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "COVERS",
+        "object": "Pumps",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Valuable Papers and Coins",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "HAS_MAXIMUM",
+        "object": "Federal Minimum Wage",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Within Your Control",
+        "relation": "REQUIRES",
+        "object": "Design, Structural, or Mechanical Defects",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Cost of Compliance with Ordinances or Laws",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Earth Movement",
+        "relation": "DEFINED_AS",
+        "object": "Landslide",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Policy",
+        "relation": "REQUIRES",
+        "object": "Proportional Payment",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Sandbags, Supplies, and Labor",
+        "relation": "COVERS",
+        "object": "Plastic Sheeting and Lumber",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "FEMA",
+        "relation": "COVERS",
+        "object": "Flood Insurance",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Loss Settlement",
+        "relation": "HAS_CLAIM_PAYOUT",
+        "object": "The least of the following amounts after application of the deductible",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      }
+    ]
+  },
+  "fact_recall": {
+    "fact_recall": 0.5721,
+    "total_facts": 229,
+    "found_facts": 131,
+    "chunks_sampled": 30,
+    "match_threshold": 0.75,
+    "chunk_results": [
+      {
+        "chunk_id": 54,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 71,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 7,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 63,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 27,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 6,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 2,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 31,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25
+      },
+      {
+        "chunk_id": 37,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 20,
+        "facts_extracted": 7,
+        "facts_found_in_kg": 3,
+        "recall": 0.429
+      },
+      {
+        "chunk_id": 45,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375
+      },
+      {
+        "chunk_id": 10,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 13,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 26,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 0,
+        "recall": 0.0
+      },
+      {
+        "chunk_id": 3,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 2,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 24,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 40,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 35,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5
+      },
+      {
+        "chunk_id": 46,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 9,
+        "facts_extracted": 5,
+        "facts_found_in_kg": 4,
+        "recall": 0.8
+      },
+      {
+        "chunk_id": 48,
+        "facts_extracted": 7,
+        "facts_found_in_kg": 3,
+        "recall": 0.429
+      },
+      {
+        "chunk_id": 42,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      },
+      {
+        "chunk_id": 39,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 58,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0
+      },
+      {
+        "chunk_id": 60,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 46,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625
+      },
+      {
+        "chunk_id": 16,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75
+      }
+    ]
+  },
+  "source_grounding": {
+    "grounding_rate": 0.92,
+    "total_checked": 50,
+    "supported": 46,
+    "partially_supported": 0,
+    "not_supported": 1,
+    "no_source_found": 3,
+    "sampled_results": [
+      {
+        "subject": "Earth Movement",
+        "relation": "DEFINED_AS",
+        "object": "Earthquake",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 17
+      },
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "Surface Area > 1 Square Mile",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "Western United States",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Loss of Access",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Building Under Construction",
+        "relation": "REQUIRES",
+        "object": "Base Flood Elevation",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 10
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Condominium",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 1
+      },
+      {
+        "subject": "Property Removed to Safety",
+        "relation": "REQUIRES",
+        "object": "Imminent Flood Damage",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 10
+      },
+      {
+        "subject": "Described Location",
+        "relation": "DEFINED_AS",
+        "object": "Location where the insured building(s) or personal property are found, shown on the Declarations Page",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 9
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "Insured Loss \u2265 Policy Limits + Deductible",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Rain, Snow, Sleet, Hail, or Water Spray",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Continuous Lake Flood",
+        "relation": "REQUIRES",
+        "object": "File Claim Under Q.1 or Q.2",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      },
+      {
+        "subject": "Insured",
+        "relation": "MUST_NOTIFY",
+        "object": "No Premium Refund",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 3
+      },
+      {
+        "subject": "Water or Waterborne Material Backup",
+        "relation": "EXCLUDED_FROM",
+        "object": "Flood in the Area",
+        "source_type": "llm",
+        "grounded": "NOT_SUPPORTED",
+        "chunk_id": 18
+      },
+      {
+        "subject": "Policy",
+        "relation": "EXCLUDED_FROM",
+        "object": "Personal Property Not Inside Enclosed Building",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 14
+      },
+      {
+        "subject": "Policy",
+        "relation": "REQUIRES",
+        "object": "Flood Insurance",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Coverage A",
+        "relation": "COVERS",
+        "object": "Building Under Construction",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 10
+      },
+      {
+        "subject": "Policy",
+        "relation": "REQUIRES",
+        "object": "Express Written Consent",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 25
+      },
+      {
+        "subject": "Insurer",
+        "relation": "REQUIRES",
+        "object": "Policyholder to Keep Salvage",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 6
+      },
+      {
+        "subject": "Insurer",
+        "relation": "REQUIRES",
+        "object": "Review Information",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 6
+      },
+      {
+        "subject": "Closed Basin Lake",
+        "relation": "IS_CLASSIFIED_AS",
+        "object": "Fluctuating Levels",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 39
+      }
+    ]
+  },
+  "graph_statistics": {
+    "node_count": 7407,
+    "edge_count": 27150,
+    "density": 0.000495,
+    "avg_degree": 7.33,
+    "median_degree": 2.0,
+    "max_degree": 2052,
+    "isolated_nodes": 0,
+    "relation_types": 76,
+    "entity_types": 37,
+    "top_5_relations": [
+      [
+        "HAS_REPORTED_ZIP_CODE",
+        1837
+      ],
+      [
+        "IS_A",
+        1798
+      ],
+      [
+        "HAS_REPORTED_CITY",
+        1798
+      ],
+      [
+        "BELONGS_TO",
+        999
+      ],
+      [
+        "HAS_OCCUPANCY_TYPE",
+        947
+      ]
+    ],
+    "top_5_entity_types": [
+      [
+        "Numeric",
+        3363
+      ],
+      [
+        "Date",
+        1458
+      ],
+      [
+        "Property",
+        856
+      ],
+      [
+        "ClaimRecord",
+        485
+      ],
+      [
+        "Text",
+        483
+      ]
+    ],
+    "triples_per_entity": 3.67
+  }
+}

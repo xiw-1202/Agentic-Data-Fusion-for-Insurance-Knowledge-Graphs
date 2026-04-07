@@ -1,0 +1,628 @@
+{
+  "suffix": "zone2_seaf_v3",
+  "precision": 0.0882,
+  "recall": 0.1,
+  "f1": 0.0938,
+  "induced_label_count": 17,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 1,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "riskine": "Coverage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Location",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Building",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Party",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Agreement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "VoidState",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Geohazard",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageLimit",
+      "riskine": "Coverage",
+      "cosine": 0.7452,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "HazardEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "AppraisalProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ApplicationArtifact",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Location",
+    "Building",
+    "Deductible",
+    "Hazard",
+    "Party",
+    "Agreement",
+    "Temporal",
+    "VoidState",
+    "Geohazard",
+    "HazardEvent",
+    "Record",
+    "AppraisalProcess",
+    "ApplicationArtifact",
+    "ClaimEvent"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Damage",
+    "Risk",
+    "Structure",
+    "Property",
+    "Person",
+    "Object",
+    "Organization",
+    "Address"
+  ],
+  "entity_assignment_precision": 0.0588,
+  "entity_assignment_recall": 0.2,
+  "entity_assignment_f1": 0.0909,
+  "entity_assignment_riskine_covered": [
+    "Address",
+    "Structure"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [POL-3d2371dd159d, POL-2d77ad8e931f, POL-d12ec2c13e29, POL-ed43e06321ac, POL-60848e6329ab...]",
+      "riskine": null,
+      "cosine": 0.2947,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "members_sample": "Coverage: [681, 668, 1211, 460, 625...]",
+      "riskine": null,
+      "cosine": 0.292,
+      "score": 0.0
+    },
+    {
+      "induced": "Location",
+      "members_sample": "Location: [NASHVILLE, CITY OF, MIAMI-DADE COUNTY*, MIDDLETOWN, TOWNSHIP OF, LEXINGTON COUNTY *, SINTON, CITY OF...]",
+      "riskine": "Address",
+      "cosine": 0.4505,
+      "score": 0.5
+    },
+    {
+      "induced": "Building",
+      "members_sample": "Building: [6, 13, 24, 7, 9...]",
+      "riskine": null,
+      "cosine": 0.2133,
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "members_sample": "Deductible: [Deductible, Separate Deductible, Deductible Amount]",
+      "riskine": null,
+      "cosine": 0.3393,
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "members_sample": "Hazard: [Actual Cash Value, Base Flood, Basement, Building, Cancellation...]",
+      "riskine": "Structure",
+      "cosine": 0.5621,
+      "score": 0.5
+    },
+    {
+      "induced": "Party",
+      "members_sample": "Party: [You, Named Insured(s)]",
+      "riskine": null,
+      "cosine": 0.2957,
+      "score": 0.0
+    },
+    {
+      "induced": "Agreement",
+      "members_sample": "Agreement: [Paid Full Amount, Cancellation for Underpayment, Subrogation, Express Written Consent]",
+      "riskine": null,
+      "cosine": 0.2492,
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "members_sample": "Temporal: [2025-01-10T00:00:00.000Z, 2025-06-17T00:00:00.000Z, 2025-06-11T00:00:00.000Z, 2025-05-27T00:00:00.000Z, 2025-10-08T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2432,
+      "score": 0.0
+    },
+    {
+      "induced": "VoidState",
+      "members_sample": "VoidState: [Void]",
+      "riskine": null,
+      "cosine": 0.1976,
+      "score": 0.0
+    },
+    {
+      "induced": "Geohazard",
+      "members_sample": "Geohazard: [Earth Movement, Earthquake]",
+      "riskine": null,
+      "cosine": 0.2245,
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageLimit",
+      "members_sample": "CoverageLimit: [$1,000, $10,000, $30,000]",
+      "riskine": null,
+      "cosine": 0.1827,
+      "score": 0.0
+    },
+    {
+      "induced": "HazardEvent",
+      "members_sample": "HazardEvent: [Hurricane Ike, Hurricane Harvey, Flooding, Hurricane Alicia, Hurricane Sandy...]",
+      "riskine": null,
+      "cosine": 0.2616,
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "members_sample": "Record: [PolicyRecord, Property, ClaimRecord]",
+      "riskine": null,
+      "cosine": 0.4149,
+      "score": 0.0
+    },
+    {
+      "induced": "AppraisalProcess",
+      "members_sample": "AppraisalProcess: [Appraisal Process]",
+      "riskine": null,
+      "cosine": 0.3051,
+      "score": 0.0
+    },
+    {
+      "induced": "ApplicationArtifact",
+      "members_sample": "ApplicationArtifact: [Application, Declarations Page]",
+      "riskine": null,
+      "cosine": 0.3695,
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimEvent",
+      "members_sample": "ClaimEvent: [CLM-d6de9ecd5122, CLM-6dd0bd4b9a34, CLM-aa5f507dbac7, CLM-e789a81339c1, CLM-96bfa55f2e08...]",
+      "riskine": null,
+      "cosine": 0.2207,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Address",
+    "Property",
+    "Structure"
+  ],
+  "entity_assignment_evidenced_count": 3,
+  "entity_assignment_recall_present": 0.6667,
+  "entity_assignment_f1_present": 0.1081,
+  "standard_metrics": {
+    "bertscore_precision": 0.4448,
+    "bertscore_recall": 0.5575,
+    "bertscore_f1": 0.4948,
+    "per_reference_recall": {
+      "Product": 0.5204,
+      "Coverage": 1.0,
+      "Damage": 0.4047,
+      "Risk": 0.4737,
+      "Structure": 0.5541,
+      "Property": 1.0,
+      "Person": 0.3627,
+      "Object": 0.4932,
+      "Organization": 0.4235,
+      "Address": 0.343
+    },
+    "fuzzy_precision": 0.3333,
+    "fuzzy_recall": 0.027,
+    "fuzzy_f1": 0.05,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 3,
+    "reference_edge_count": 37,
+    "continuous_precision": 0.4003,
+    "continuous_recall": 0.0325,
+    "continuous_f1": 0.06,
+    "optimal_matching_score": 1.2008,
+    "taxonomy_precision": 0.3333,
+    "taxonomy_recall": 0.027,
+    "taxonomy_f1": 0.05,
+    "taxonomy_induced_edges": 3,
+    "taxonomy_reference_edges": 37,
+    "graph_precision": 0.3058,
+    "graph_recall": 0.6115,
+    "graph_f1": 0.4077,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.6367,
+    "wu_palmer_matched_pairs": 10,
+    "depth_distribution_induced": {
+      "0": 17,
+      "1": 3
+    },
+    "depth_distribution_reference": {
+      "0": 1,
+      "1": 4,
+      "2": 4,
+      "3": 1
+    },
+    "auc_roc": 0.9962,
+    "pr_auc": 0.5833,
+    "mrr": 1.0,
+    "recall_at_1": 1.0,
+    "recall_at_3": 1.0,
+    "gt_matches": 2,
+    "gt_source": "llm_judge",
+    "auc_classes_matched": 1,
+    "auc_classes_total": 10,
+    "auc_per_class": {
+      "Product": {
+        "matched": false,
+        "best_induced": "Claim",
+        "best_sim": 0.5204
+      },
+      "Coverage": {
+        "matched": true,
+        "matched_induced": "Coverage",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Damage": {
+        "matched": false,
+        "best_induced": "Claim",
+        "best_sim": 0.4047
+      },
+      "Risk": {
+        "matched": false,
+        "best_induced": "HazardEvent",
+        "best_sim": 0.4737
+      },
+      "Structure": {
+        "matched": false,
+        "best_induced": "Building",
+        "best_sim": 0.5541
+      },
+      "Property": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 1.0
+      },
+      "Person": {
+        "matched": false,
+        "best_induced": "Party",
+        "best_sim": 0.3627
+      },
+      "Object": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 0.4932
+      },
+      "Organization": {
+        "matched": false,
+        "best_induced": "Agreement",
+        "best_sim": 0.4235
+      },
+      "Address": {
+        "matched": false,
+        "best_induced": "Amount",
+        "best_sim": 0.343
+      }
+    },
+    "confusion_matrix": [
+      {
+        "reference": "Product",
+        "best_match": "Claim",
+        "best_similarity": 0.5204,
+        "top3_matches": [
+          {
+            "induced": "Claim",
+            "similarity": 0.5204
+          },
+          {
+            "induced": "Agreement",
+            "similarity": 0.4121
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.4106
+          }
+        ]
+      },
+      {
+        "reference": "Coverage",
+        "best_match": "Coverage",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Coverage",
+            "similarity": 1.0
+          },
+          {
+            "induced": "CoverageLimit",
+            "similarity": 0.7452
+          },
+          {
+            "induced": "Policy",
+            "similarity": 0.3931
+          }
+        ]
+      },
+      {
+        "reference": "Damage",
+        "best_match": "Claim",
+        "best_similarity": 0.4047,
+        "top3_matches": [
+          {
+            "induced": "Claim",
+            "similarity": 0.4047
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3674
+          },
+          {
+            "induced": "Record",
+            "similarity": 0.3535
+          }
+        ]
+      },
+      {
+        "reference": "Risk",
+        "best_match": "HazardEvent",
+        "best_similarity": 0.4737,
+        "top3_matches": [
+          {
+            "induced": "HazardEvent",
+            "similarity": 0.4737
+          },
+          {
+            "induced": "Policy",
+            "similarity": 0.4332
+          },
+          {
+            "induced": "Hazard",
+            "similarity": 0.4277
+          }
+        ]
+      },
+      {
+        "reference": "Structure",
+        "best_match": "Building",
+        "best_similarity": 0.5541,
+        "top3_matches": [
+          {
+            "induced": "Building",
+            "similarity": 0.5541
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3906
+          },
+          {
+            "induced": "Agreement",
+            "similarity": 0.3329
+          }
+        ]
+      },
+      {
+        "reference": "Property",
+        "best_match": "Property",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Policy",
+            "similarity": 0.3681
+          },
+          {
+            "induced": "Building",
+            "similarity": 0.3518
+          }
+        ]
+      },
+      {
+        "reference": "Person",
+        "best_match": "Party",
+        "best_similarity": 0.3627,
+        "top3_matches": [
+          {
+            "induced": "Party",
+            "similarity": 0.3627
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.34
+          },
+          {
+            "induced": "Hazard",
+            "similarity": 0.3335
+          }
+        ]
+      },
+      {
+        "reference": "Object",
+        "best_match": "Property",
+        "best_similarity": 0.4932,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 0.4932
+          },
+          {
+            "induced": "Building",
+            "similarity": 0.3896
+          },
+          {
+            "induced": "Party",
+            "similarity": 0.3308
+          }
+        ]
+      },
+      {
+        "reference": "Organization",
+        "best_match": "Agreement",
+        "best_similarity": 0.4235,
+        "top3_matches": [
+          {
+            "induced": "Agreement",
+            "similarity": 0.4235
+          },
+          {
+            "induced": "Building",
+            "similarity": 0.4039
+          },
+          {
+            "induced": "Party",
+            "similarity": 0.3637
+          }
+        ]
+      },
+      {
+        "reference": "Address",
+        "best_match": "Amount",
+        "best_similarity": 0.343,
+        "top3_matches": [
+          {
+            "induced": "Amount",
+            "similarity": 0.343
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.338
+          },
+          {
+            "induced": "Record",
+            "similarity": 0.3286
+          }
+        ]
+      }
+    ],
+    "intrinsic": {
+      "class_coverage": 0.8638,
+      "entities_labeled": 6440,
+      "entities_total": 7455,
+      "n_classes": 17,
+      "n_hierarchy_edges": 3,
+      "avg_class_size": 378.8,
+      "class_distribution": {
+        "Agreement": 4,
+        "ApplicationArtifact": 2,
+        "AppraisalProcess": 1,
+        "Building": 69,
+        "ClaimEvent": 485,
+        "Coverage": 3385,
+        "CoverageLimit": 3,
+        "Deductible": 3,
+        "Geohazard": 2,
+        "Hazard": 81,
+        "HazardEvent": 72,
+        "Location": 409,
+        "Party": 2,
+        "Policy": 459,
+        "Record": 3,
+        "Temporal": 1459,
+        "VoidState": 1
+      },
+      "class_balance_entropy": 0.4984,
+      "hierarchy_max_depth": 1,
+      "hierarchy_roots": 1,
+      "class_coherence": 0.503,
+      "coherence_n_classes": 15
+    }
+  }
+}

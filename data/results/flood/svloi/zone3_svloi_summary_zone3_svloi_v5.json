@@ -1,0 +1,213 @@
+{
+  "mode": "zone3_sv_loi",
+  "model": "qwen2.5:72b",
+  "suffix": "zone3_svloi_v5",
+  "seed": 42,
+  "elapsed_seconds": 943.49,
+  "entity_count": 7415,
+  "class_vocab_discovered": [
+    "Coverage",
+    "Structure",
+    "Person",
+    "Organization",
+    "Risk",
+    "Property",
+    "Damage",
+    "Process",
+    "Limit",
+    "Product",
+    "Claim",
+    "Address",
+    "Document",
+    "Requirement",
+    "Exclusion",
+    "Payment",
+    "Deadline",
+    "Deductible",
+    "Notification",
+    "Classification",
+    "Cost",
+    "Material",
+    "Labor",
+    "Other",
+    "PolicyRecord",
+    "ClaimRecord"
+  ],
+  "classes_final": [
+    "Address",
+    "Claim",
+    "Cost",
+    "Coverage",
+    "Damage",
+    "Deadline",
+    "Deductible",
+    "Document",
+    "Exclusion",
+    "Limit",
+    "Material",
+    "Notification",
+    "Organization",
+    "Payment",
+    "Person",
+    "PolicyRecord",
+    "Process",
+    "Product",
+    "Property",
+    "Requirement",
+    "Risk",
+    "Structure"
+  ],
+  "class_distribution": {
+    "Limit": 6,
+    "Structure": 24,
+    "Deadline": 5,
+    "PolicyRecord": 462,
+    "Property": 869,
+    "Claim": 486,
+    "Coverage": 12,
+    "Organization": 4,
+    "Product": 3,
+    "Payment": 5,
+    "Requirement": 24,
+    "Exclusion": 22,
+    "Person": 7,
+    "Damage": 13,
+    "Document": 8,
+    "Cost": 7,
+    "Risk": 17,
+    "Process": 14,
+    "Deductible": 3,
+    "Address": 2,
+    "Material": 8,
+    "Notification": 6
+  },
+  "flagged_count": 39,
+  "hierarchy": [
+    {
+      "child": "Limit",
+      "parent": "Product"
+    },
+    {
+      "child": "PolicyRecord",
+      "parent": "Property"
+    },
+    {
+      "child": "Claim",
+      "parent": "Property"
+    },
+    {
+      "child": "PolicyRecord",
+      "parent": "Structure"
+    },
+    {
+      "child": "PolicyRecord",
+      "parent": "Exclusion"
+    },
+    {
+      "child": "Coverage",
+      "parent": "Limit"
+    },
+    {
+      "child": "PolicyRecord",
+      "parent": "Damage"
+    },
+    {
+      "child": "Coverage",
+      "parent": "Property"
+    },
+    {
+      "child": "Person",
+      "parent": "Notification"
+    },
+    {
+      "child": "Organization",
+      "parent": "Requirement"
+    },
+    {
+      "child": "Organization",
+      "parent": "Payment"
+    },
+    {
+      "child": "Process",
+      "parent": "Material"
+    },
+    {
+      "child": "Material",
+      "parent": "Risk"
+    },
+    {
+      "child": "Process",
+      "parent": "Structure"
+    },
+    {
+      "child": "Document",
+      "parent": "Deadline"
+    }
+  ],
+  "neo4j_stats": {
+    "entities_labeled": 2007,
+    "ontology_classes": 22,
+    "subclass_of_edges": 15,
+    "class_names": [
+      "Address",
+      "Claim",
+      "Cost",
+      "Coverage",
+      "Damage",
+      "Deadline",
+      "Deductible",
+      "Document",
+      "Exclusion",
+      "Limit",
+      "Material",
+      "Notification",
+      "Organization",
+      "Payment",
+      "Person",
+      "PolicyRecord",
+      "Process",
+      "Product",
+      "Property",
+      "Requirement",
+      "Risk",
+      "Structure"
+    ],
+    "class_distribution": {
+      "Limit": 6,
+      "Structure": 24,
+      "Deadline": 5,
+      "PolicyRecord": 462,
+      "Property": 869,
+      "Claim": 486,
+      "Coverage": 12,
+      "Organization": 4,
+      "Product": 3,
+      "Payment": 5,
+      "Requirement": 24,
+      "Exclusion": 22,
+      "Person": 7,
+      "Damage": 13,
+      "Document": 8,
+      "Cost": 7,
+      "Risk": 17,
+      "Process": 14,
+      "Deductible": 3,
+      "Address": 2,
+      "Material": 8,
+      "Notification": 6
+    },
+    "method": "SV-LOI"
+  },
+  "ablation": {
+    "skip_verify": false,
+    "skip_arbitrate": false,
+    "skip_consolidate": false
+  },
+  "provenance_stats": {
+    "total_entities": 7415,
+    "flagged": 35,
+    "arbitrated": 12,
+    "consolidated": 0,
+    "type_changed_by_verification": 505
+  }
+}

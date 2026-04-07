@@ -1,0 +1,1556 @@
+{
+  "suffix": "emory_qwen25_72b",
+  "precision": 0.0933,
+  "recall": 0.6,
+  "f1": 0.1615,
+  "induced_label_count": 75,
+  "riskine_class_count": 10,
+  "riskine_covered_count": 6,
+  "alignment_table": [
+    {
+      "induced": "Policy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Person",
+      "riskine": "Person",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Event",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Regulation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Company",
+      "riskine": "Organization",
+      "cosine": 0.6277,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Party",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Claim",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Obligation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "HazardEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "AgreementTerms",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Cost",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "MetricValue",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "SurveyResponse",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CommunicationEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "DeviceRepairProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalCondition",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "FeePolicy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "VehiclePart",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalBucket",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyDetails",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "SurveyEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CancellationReason",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ExpenseCoverage",
+      "riskine": "Coverage",
+      "cosine": 0.6051,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "DeviceDamage",
+      "riskine": "Damage",
+      "cosine": 0.6786,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "SurveyID",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CaseLink",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyHolder",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "TravelDistance",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "RefundPolicy",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceOffering",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Channel",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageCost",
+      "riskine": "Coverage",
+      "cosine": 0.6392,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Interaction",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "LossType",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CoveragePlan",
+      "riskine": "Coverage",
+      "cosine": 0.8114,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "BillPlan",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "BatchProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "AssistanceService",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceInformation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "SupportResource",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyArtifact",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "InteractionChannel",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ServicePortal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ValueRange",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimPortal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "RiskFactor",
+      "riskine": "Risk",
+      "cosine": 0.6998,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "EmergencyService",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ProtectionService",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Regulator",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "BreachEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PartArtifact",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "NpsCategory",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "OrganizationInfo",
+      "riskine": "Organization",
+      "cosine": 0.7999,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "PlatformProvider",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "LegalCosts",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ProtectionProgram",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Guarantee",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "EnrollmentProcess",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Claimant",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageIssue",
+      "riskine": "Coverage",
+      "cosine": 0.765,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "DeductibleOption",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Objective",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "CostObligation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimInteraction",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Carrier",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "VehicleStatus",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Negation",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Policy",
+    "Event",
+    "Regulation",
+    "Party",
+    "Claim",
+    "Value",
+    "Exclusion",
+    "Obligation",
+    "TemporalEvent",
+    "HazardEvent",
+    "Record",
+    "AgreementTerms",
+    "ClaimEvent",
+    "Cost",
+    "MetricValue",
+    "SurveyResponse",
+    "CommunicationEvent",
+    "DeviceRepairProcess",
+    "TemporalCondition",
+    "ClaimProcess",
+    "FeePolicy",
+    "VehiclePart",
+    "TemporalBucket",
+    "PolicyDetails",
+    "SurveyEvent",
+    "CancellationReason",
+    "SurveyID",
+    "CaseLink",
+    "PolicyHolder",
+    "TravelDistance",
+    "RefundPolicy",
+    "ServiceOffering",
+    "Channel",
+    "Interaction",
+    "LossType",
+    "BillPlan",
+    "BatchProcess",
+    "AssistanceService",
+    "ServiceInformation",
+    "SupportResource",
+    "PolicyArtifact",
+    "InteractionChannel",
+    "ServicePortal",
+    "ValueRange",
+    "ClaimPortal",
+    "ServiceProcess",
+    "EmergencyService",
+    "ProtectionService",
+    "Regulator",
+    "BreachEvent",
+    "PartArtifact",
+    "NpsCategory",
+    "PlatformProvider",
+    "LegalCosts",
+    "ProtectionProgram",
+    "Guarantee",
+    "EnrollmentProcess",
+    "Claimant",
+    "DeductibleOption",
+    "Objective",
+    "CostObligation",
+    "ClaimInteraction",
+    "Carrier",
+    "VehicleStatus",
+    "Negation"
+  ],
+  "unmatched_riskine": [
+    "Product",
+    "Structure",
+    "Object",
+    "Address"
+  ],
+  "entity_assignment_precision": 0.1533,
+  "entity_assignment_recall": 0.7,
+  "entity_assignment_f1": 0.2516,
+  "entity_assignment_riskine_covered": [
+    "Coverage",
+    "Damage",
+    "Object",
+    "Organization",
+    "Product",
+    "Property",
+    "Risk"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Policy",
+      "members_sample": "Policy: [PIF, PNP, PAL]",
+      "riskine": null,
+      "cosine": 0.3397,
+      "score": 0.0
+    },
+    {
+      "induced": "Person",
+      "members_sample": "Person: [Nicola Pimentel, Melissa Grace, Daniel Reeter, Naraharisetty Rao, Randy Javier...]",
+      "riskine": null,
+      "cosine": 0.4092,
+      "score": 0.0
+    },
+    {
+      "induced": "Event",
+      "members_sample": "Event: [Effective Date and Reason for Cancellation, Mobile Number, Device Make and Model, Date of Incident, Last Device Usage Date...]",
+      "riskine": "Product",
+      "cosine": 0.4425,
+      "score": 0.5
+    },
+    {
+      "induced": "Property",
+      "members_sample": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "score": 1.0
+    },
+    {
+      "induced": "Regulation",
+      "members_sample": "Regulation: [Local Court Dispute Resolution, Iowa Consumer Credit Code, Utah Insurance Department Regulation]",
+      "riskine": null,
+      "cosine": 0.2829,
+      "score": 0.0
+    },
+    {
+      "induced": "Company",
+      "members_sample": "Company: [Aaa, AAA]",
+      "riskine": "Organization",
+      "cosine": 0.5256,
+      "score": 0.5
+    },
+    {
+      "induced": "Party",
+      "members_sample": "Party: [Insurer, Lienholder, Lienholder if Any, Otherwise Insured, You, Us...]",
+      "riskine": null,
+      "cosine": 0.398,
+      "score": 0.0
+    },
+    {
+      "induced": "Claim",
+      "members_sample": "Claim: [Device Protection Claim, Wireless Carrier Device Claims, Amazon Device Protection Claims, Samsung Device Protection Claims]",
+      "riskine": null,
+      "cosine": 0.4017,
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "members_sample": "Value: [Cost, Price]",
+      "riskine": null,
+      "cosine": 0.3917,
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "members_sample": "Exclusion: [Oklahoma Service Warranty Statutes, Commercial Use Reference in Service Warranty Contracts]",
+      "riskine": null,
+      "cosine": 0.3597,
+      "score": 0.0
+    },
+    {
+      "induced": "Obligation",
+      "members_sample": "Obligation: [Proof of Servicing, Parts Delay or Other Reasonable Cause, Other Coverage, Other Emergency Coverage, Lienholder Priority...]",
+      "riskine": null,
+      "cosine": 0.3333,
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalEvent",
+      "members_sample": "TemporalEvent: [2025-10-29T18:52:24.000Z, 2024-11-14T02:21:52.000Z, 2024-06-03T00:14:19.000Z, 2023-06-01T11:04:55.000Z, 2023-09-22T11:56:16.000Z...]",
+      "riskine": null,
+      "cosine": 0.13,
+      "score": 0.0
+    },
+    {
+      "induced": "HazardEvent",
+      "members_sample": "HazardEvent: [Other, ALL OTHER, ACCI DISCHARGE OF WATER, THEFT, WINDSTORM...]",
+      "riskine": "Damage",
+      "cosine": 0.4925,
+      "score": 0.5
+    },
+    {
+      "induced": "Record",
+      "members_sample": "Record: [ClaimRecord, Person, PolicyRecord, Record, Property]",
+      "riskine": null,
+      "cosine": 0.3901,
+      "score": 0.0
+    },
+    {
+      "induced": "AgreementTerms",
+      "members_sample": "AgreementTerms: [Vehicle Service Contract, SERVICE CONTRACT, Term Miles, Consumer Program Administrators, Inc., Automotive Warranty Services of Florida, Inc....]",
+      "riskine": null,
+      "cosine": 0.4162,
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimEvent",
+      "members_sample": "ClaimEvent",
+      "riskine": null,
+      "cosine": 0.363,
+      "score": 0.0
+    },
+    {
+      "induced": "Cost",
+      "members_sample": "Cost: [$25, $2 for Tier 1-2, $3 for Tier 3-4, $3 for all tiers]",
+      "riskine": null,
+      "cosine": 0.1996,
+      "score": 0.0
+    },
+    {
+      "induced": "MetricValue",
+      "members_sample": "MetricValue: [20250620, 20230702, 20230827, 20240310, 20230928...]",
+      "riskine": null,
+      "cosine": 0.2209,
+      "score": 0.0
+    },
+    {
+      "induced": "SurveyResponse",
+      "members_sample": "SurveyResponse",
+      "riskine": null,
+      "cosine": 0.2965,
+      "score": 0.0
+    },
+    {
+      "induced": "CommunicationEvent",
+      "members_sample": "CommunicationEvent: [Claims CWA Email, Claims CWOP Email, Onboarding_Geico OB Email, Renewal_Geico OB Email, GEICO Renters Cancel OB Email...]",
+      "riskine": null,
+      "cosine": 0.3881,
+      "score": 0.0
+    },
+    {
+      "induced": "DeviceRepairProcess",
+      "members_sample": "DeviceRepairProcess: [AIZMOB_POST_CALL_IVR, AIZMOB_ADV_EXCH (C), AIZMOB_EOWC, AIZMOB_SSIVR_FILE_CLAIM, (Unknown)...]",
+      "riskine": null,
+      "cosine": 0.2725,
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalCondition",
+      "members_sample": "TemporalCondition: [Term Months, Emergency Repairs, Maintenance Procedures, Not Otherwise Covered, Diagnostic Work for Uncovered Repairs...]",
+      "riskine": "Coverage",
+      "cosine": 0.525,
+      "score": 0.5
+    },
+    {
+      "induced": "ClaimProcess",
+      "members_sample": "ClaimProcess: [Claim Number, a understand your coverage, sub type, mld indicator, resolve case link...]",
+      "riskine": "Coverage",
+      "cosine": 0.5419,
+      "score": 0.5
+    },
+    {
+      "induced": "FeePolicy",
+      "members_sample": "FeePolicy: [Consumer Arbitration Rules, Service Contract Part Replacement, Dispute Resolution - Arbitration, Call Toll Free: 1-800-752-6265, Subrogation Rights Assignment...]",
+      "riskine": null,
+      "cosine": 0.215,
+      "score": 0.0
+    },
+    {
+      "induced": "VehiclePart",
+      "members_sample": "VehiclePart: [Actuator(s), Digital Instrument Display(s), Low Fuel Sensor, Low Coolant Sensor, Low Oil Sensor...]",
+      "riskine": null,
+      "cosine": 0.3543,
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalBucket",
+      "members_sample": "TemporalBucket: [> 8 & \u2264 24 hrs, > 48 & \u2264 72 hrs, > 24 & \u2264 48 hrs, > 1 & \u2264 8 hrs, > 72 & \u2264 168 hrs...]",
+      "riskine": null,
+      "cosine": 0.2138,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyDetails",
+      "members_sample": "PolicyDetails: [polno, agcy name, eproid, webclientid, policy issue paid...]",
+      "riskine": "Product",
+      "cosine": 0.5744,
+      "score": 0.5
+    },
+    {
+      "induced": "SurveyEvent",
+      "members_sample": "SurveyEvent: [Geicorentersurvey, Geicorenterscancelsurvey, Geicorentersclaims, Tmobileclaimsample, Tmobilesurveysample...]",
+      "riskine": null,
+      "cosine": 0.3733,
+      "score": 0.0
+    },
+    {
+      "induced": "CancellationReason",
+      "members_sample": "CancellationReason: [I purchased a new home, I purchased insurance from another company, I'm no longer required to carry insurance, I'm moving to another rental, and I don't wish to transfer my policy, Cost/billing issue...]",
+      "riskine": null,
+      "cosine": 0.2612,
+      "score": 0.0
+    },
+    {
+      "induced": "ExpenseCoverage",
+      "members_sample": "ExpenseCoverage: [Breakdown of Parts, Gasoline Engine - Cylinder Block and Internal Parts, Turbocharged/Supercharged/Rotary/Diesel/Enhanced Engines - Additional Parts, Automatic Transmission - Case and Internal Parts, Standard Transmission - Case and Internal Parts...]",
+      "riskine": "Coverage",
+      "cosine": 0.5837,
+      "score": 1.0
+    },
+    {
+      "induced": "DeviceDamage",
+      "members_sample": "DeviceDamage: [CRACKED SCREEN/DISPLAY, UNKNOWN-NULL, BROKEN FUNCTION/SCREEN SEPARATING, LIQUID EXPOSURE/DAMAGE, BACK OF PHONE IS DAMAGED...]",
+      "riskine": "Damage",
+      "cosine": 0.5002,
+      "score": 0.5
+    },
+    {
+      "induced": "SurveyID",
+      "members_sample": "SurveyID: [19161.0, 19713.0, 19016.0, 2283.0, 19163.0...]",
+      "riskine": null,
+      "cosine": 0.2351,
+      "score": 0.0
+    },
+    {
+      "induced": "CaseLink",
+      "members_sample": "CaseLink: [https://www.inmoment.com/focus/#/case/20310, https://www.inmoment.com/focus/#/case/30494, https://www.inmoment.com/focus/#/case/2974, https://app.inmoment.com/focus/#/case/52738, https://app.inmoment.com/focus/#/case/61074...]",
+      "riskine": null,
+      "cosine": 0.2417,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyHolder",
+      "members_sample": "PolicyHolder: [GCN, GCR, GCO, GCF, GCW...]",
+      "riskine": null,
+      "cosine": 0.3926,
+      "score": 0.0
+    },
+    {
+      "induced": "TravelDistance",
+      "members_sample": "TravelDistance: [> 5 & \u2264 10 mi, \u2264 5 mi, > 15 & \u2264 20 mi, > 20 & \u2264 30 mi, Less than 10 miles...]",
+      "riskine": null,
+      "cosine": 0.2806,
+      "score": 0.0
+    },
+    {
+      "induced": "RefundPolicy",
+      "members_sample": "RefundPolicy: [100% Refund within 60 Days Without Claim, Pro-Rata Refund After 60 Days or With Claim, Refund Payment, Refund After 60 Days, Refund by Us After Cancellation...]",
+      "riskine": null,
+      "cosine": 0.3175,
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceOffering",
+      "members_sample": "ServiceOffering: [Performance Management, F&I Product Suite, Automotive Training Academy, Profit Participation Models, Dealership Development Programs...]",
+      "riskine": null,
+      "cosine": 0.323,
+      "score": 0.0
+    },
+    {
+      "induced": "Channel",
+      "members_sample": "Channel: [DST, OTHR, WEB, Web, Phone...]",
+      "riskine": null,
+      "cosine": 0.316,
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageCost",
+      "members_sample": "CoverageCost: [$100 per occurrence, $35 per day, $200 per day, $100,000, $300,000 to $500,000...]",
+      "riskine": null,
+      "cosine": 0.4015,
+      "score": 0.0
+    },
+    {
+      "induced": "Interaction",
+      "members_sample": "Interaction: [Customer, Incident Reporting, Producer or Administrator, Other Party, Customer Support...]",
+      "riskine": "Object",
+      "cosine": 0.524,
+      "score": 0.5
+    },
+    {
+      "induced": "LossType",
+      "members_sample": "LossType: [Physical Damage, Missing or Lost, Mechanical Breakdown, MISSING OR LOST, PHYSICAL DAMAGE...]",
+      "riskine": "Damage",
+      "cosine": 0.4775,
+      "score": 0.5
+    },
+    {
+      "induced": "CoveragePlan",
+      "members_sample": "CoveragePlan: [PHP (Insurance + McAfee), PHP Insurance Only, McAfee Only, SILVER Coverage Plan, PHP Device Insurance...]",
+      "riskine": "Coverage",
+      "cosine": 0.5451,
+      "score": 0.5
+    },
+    {
+      "induced": "BillPlan",
+      "members_sample": "BillPlan: [FPAY, 4B25, 100T, 12A0, 12AT...]",
+      "riskine": null,
+      "cosine": 0.3397,
+      "score": 0.0
+    },
+    {
+      "induced": "BatchProcess",
+      "members_sample": "BatchProcess: [EzPass, Carrier Batch Warranty, ACS Carrier Batch, DISPATCH, CARRIER_BATCH_WARRANTY]",
+      "riskine": null,
+      "cosine": 0.2719,
+      "score": 0.0
+    },
+    {
+      "induced": "AssistanceService",
+      "members_sample": "AssistanceService: [Towing Assistance, Flat Tire Assistance, Fuel, Oil, Fluid and Water Delivery Service, Lock-out Assistance, Battery Assistance]",
+      "riskine": null,
+      "cosine": 0.3435,
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceInformation",
+      "members_sample": "ServiceInformation: [Customer Service Hours, Administrator\u2019s Self-Service Claim Portal, Administrator Contact Information, 7:00 a.m. \u2013 7:00 p.m. C.T. Monday \u2013 Friday]",
+      "riskine": null,
+      "cosine": 0.3858,
+      "score": 0.0
+    },
+    {
+      "induced": "SupportResource",
+      "members_sample": "SupportResource: [Claims Management Access, Phone Directory for Contacting Assurant, Office Locations Finder, Customer Support Portal]",
+      "riskine": null,
+      "cosine": 0.3842,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyArtifact",
+      "members_sample": "PolicyArtifact: [Policy Number, policy no, a policy billing setup, a reviewed policy docs]",
+      "riskine": "Product",
+      "cosine": 0.5127,
+      "score": 0.5
+    },
+    {
+      "induced": "InteractionChannel",
+      "members_sample": "InteractionChannel: [Website, Customer Service Representative, Virtual Chat Assistant, Interactive Phone System]",
+      "riskine": null,
+      "cosine": 0.2277,
+      "score": 0.0
+    },
+    {
+      "induced": "ServicePortal",
+      "members_sample": "ServicePortal: [mywirelessclaim.com, cellphonerepair.com, amz.assurantcustomerportal.com, sppmobileclaims.com]",
+      "riskine": null,
+      "cosine": 0.3042,
+      "score": 0.0
+    },
+    {
+      "induced": "ValueRange",
+      "members_sample": "ValueRange: [<$150, >$250, $150-$200]",
+      "riskine": null,
+      "cosine": 0.2047,
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimPortal",
+      "members_sample": "ClaimPortal: [My Wireless Claims Site, Amazon Portal, Samsung Protection Portal]",
+      "riskine": null,
+      "cosine": 0.2958,
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceProcess",
+      "members_sample": "ServiceProcess: [Claims Management, Service & Repair, Lifecycle Solutions]",
+      "riskine": null,
+      "cosine": 0.3597,
+      "score": 0.0
+    },
+    {
+      "induced": "RiskFactor",
+      "members_sample": "RiskFactor: [Conviction of Crime Increasing Risk, Act or Omission Increasing Risk, Conviction of Crime]",
+      "riskine": "Risk",
+      "cosine": 0.5451,
+      "score": 0.5
+    },
+    {
+      "induced": "EmergencyService",
+      "members_sample": "EmergencyService: [Emergency Travel Expense Reimbursement, Emergency Roadside Assistance, Rental Reimbursement]",
+      "riskine": null,
+      "cosine": 0.3373,
+      "score": 0.0
+    },
+    {
+      "induced": "ProtectionService",
+      "members_sample": "ProtectionService: [Online Threat Protection for up to 10 devices, True Key Premium Password Management, Identity Theft Protection and Restoration]",
+      "riskine": null,
+      "cosine": 0.2292,
+      "score": 0.0
+    },
+    {
+      "induced": "Regulator",
+      "members_sample": "Regulator: [Vehicle Manufacturer, Iowa Insurance Commissioner, Idaho Insurance Guarantee Association]",
+      "riskine": null,
+      "cosine": 0.3422,
+      "score": 0.0
+    },
+    {
+      "induced": "BreachEvent",
+      "members_sample": "BreachEvent: [Material Misrepresentation by You, Substantial Changes in Risk Assumed, Substantial Breaches in Contractual Duties]",
+      "riskine": "Damage",
+      "cosine": 0.4384,
+      "score": 0.5
+    },
+    {
+      "induced": "PartArtifact",
+      "members_sample": "PartArtifact: [Pre-owned Parts, Replacement Parts, New, Remanufactured, Used or Non-Original Equipment Manufactured Parts, Parts, Rebuilt Parts]",
+      "riskine": null,
+      "cosine": 0.4004,
+      "score": 0.0
+    },
+    {
+      "induced": "NpsCategory",
+      "members_sample": "NpsCategory: [Promoter, Detractor, Passive]",
+      "riskine": null,
+      "cosine": 0.2981,
+      "score": 0.0
+    },
+    {
+      "induced": "OrganizationInfo",
+      "members_sample": "OrganizationInfo: [organization id, organization name, mco]",
+      "riskine": "Organization",
+      "cosine": 0.5857,
+      "score": 1.0
+    },
+    {
+      "induced": "PlatformProvider",
+      "members_sample": "PlatformProvider: [ASAPP, 3CI]",
+      "riskine": null,
+      "cosine": 0.1986,
+      "score": 0.0
+    },
+    {
+      "induced": "LegalCosts",
+      "members_sample": "LegalCosts: [Arbitration Award, Attorney's Fees]",
+      "riskine": null,
+      "cosine": 0.1885,
+      "score": 0.0
+    },
+    {
+      "induced": "ProtectionProgram",
+      "members_sample": "ProtectionProgram: [Assurant Mobile Protection Programs, Assurant Mobile Device Insurance]",
+      "riskine": "Product",
+      "cosine": 0.4408,
+      "score": 0.5
+    },
+    {
+      "induced": "Guarantee",
+      "members_sample": "Guarantee: [Automotive Retailer Warranties, Property and Casualty Guaranty Association Guarantee]",
+      "riskine": null,
+      "cosine": 0.3642,
+      "score": 0.0
+    },
+    {
+      "induced": "EnrollmentProcess",
+      "members_sample": "EnrollmentProcess: [Device Protection Enrollment, BYOD Device Protection Enrollment]",
+      "riskine": null,
+      "cosine": 0.3306,
+      "score": 0.0
+    },
+    {
+      "induced": "Claimant",
+      "members_sample": "Claimant: [CWOP, CWA]",
+      "riskine": null,
+      "cosine": 0.3218,
+      "score": 0.0
+    },
+    {
+      "induced": "CoverageIssue",
+      "members_sample": "CoverageIssue: [Didn't cover something I need, Coverage level too low]",
+      "riskine": "Coverage",
+      "cosine": 0.6967,
+      "score": 1.0
+    },
+    {
+      "induced": "DeductibleOption",
+      "members_sample": "DeductibleOption: [Manufacturer's Deductible Reimbursement, Difference between Policy Deductible and Manufacturer\u2019s Deductible]",
+      "riskine": "Product",
+      "cosine": 0.4748,
+      "score": 0.5
+    },
+    {
+      "induced": "Objective",
+      "members_sample": "Objective: [Generate Profit and Wealth, Drive Customer Retention]",
+      "riskine": null,
+      "cosine": 0.3018,
+      "score": 0.0
+    },
+    {
+      "induced": "CostObligation",
+      "members_sample": "CostObligation: [Service Contract Transfer Fee, Arbitration Costs]",
+      "riskine": null,
+      "cosine": 0.2294,
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimInteraction",
+      "members_sample": "ClaimInteraction: [The interaction(s) I had with my claims adjuster a, the adjuster contacted the insured and addressed all questions/concerns.]",
+      "riskine": null,
+      "cosine": 0.3949,
+      "score": 0.0
+    },
+    {
+      "induced": "Carrier",
+      "members_sample": "Carrier: [UPS, FedEx]",
+      "riskine": null,
+      "cosine": 0.2093,
+      "score": 0.0
+    },
+    {
+      "induced": "VehicleStatus",
+      "members_sample": "VehicleStatus: [Vehicle, Current Mileage]",
+      "riskine": null,
+      "cosine": 0.2169,
+      "score": 0.0
+    },
+    {
+      "induced": "Negation",
+      "members_sample": "Negation: [no, No]",
+      "riskine": null,
+      "cosine": 0.1532,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Coverage",
+    "Damage",
+    "Object",
+    "Organization",
+    "Product",
+    "Property",
+    "Risk"
+  ],
+  "entity_assignment_evidenced_count": 7,
+  "entity_assignment_recall_present": 1.0,
+  "entity_assignment_f1_present": 0.2659,
+  "standard_metrics": {
+    "bertscore_precision": 0.3721,
+    "bertscore_recall": 0.638,
+    "bertscore_f1": 0.4701,
+    "per_reference_recall": {
+      "Product": 0.5683,
+      "Coverage": 0.8114,
+      "Damage": 0.6786,
+      "Risk": 0.6998,
+      "Structure": 0.4731,
+      "Property": 1.0,
+      "Person": 0.4749,
+      "Object": 0.4932,
+      "Organization": 0.7999,
+      "Address": 0.3805
+    },
+    "fuzzy_precision": 0.0,
+    "fuzzy_recall": 0.0,
+    "fuzzy_f1": 0.0,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 8,
+    "reference_edge_count": 37,
+    "continuous_precision": 0.2397,
+    "continuous_recall": 0.0518,
+    "continuous_f1": 0.0852,
+    "optimal_matching_score": 1.9174,
+    "taxonomy_precision": 0.0,
+    "taxonomy_recall": 0.0,
+    "taxonomy_f1": 0.0,
+    "taxonomy_induced_edges": 8,
+    "taxonomy_reference_edges": 37,
+    "graph_precision": 0.0756,
+    "graph_recall": 0.6049,
+    "graph_f1": 0.1344,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.64,
+    "wu_palmer_matched_pairs": 10,
+    "depth_distribution_induced": {
+      "0": 72,
+      "1": 8
+    },
+    "depth_distribution_reference": {
+      "0": 1,
+      "1": 4,
+      "2": 4,
+      "3": 1
+    },
+    "auc_roc": 1.0,
+    "pr_auc": 1.0,
+    "mrr": 0.75,
+    "recall_at_1": 0.6,
+    "recall_at_3": 0.8,
+    "gt_matches": 9,
+    "gt_source": "llm_judge",
+    "auc_classes_matched": 5,
+    "auc_classes_total": 10,
+    "auc_per_class": {
+      "Product": {
+        "matched": false,
+        "best_induced": "Company",
+        "best_sim": 0.5683
+      },
+      "Coverage": {
+        "matched": true,
+        "matched_induced": "ExpenseCoverage",
+        "match_sim": 0.6051,
+        "rank": 4
+      },
+      "Damage": {
+        "matched": true,
+        "matched_induced": "DeviceDamage",
+        "match_sim": 0.6786,
+        "rank": 1
+      },
+      "Risk": {
+        "matched": true,
+        "matched_induced": "RiskFactor",
+        "match_sim": 0.6998,
+        "rank": 1
+      },
+      "Structure": {
+        "matched": false,
+        "best_induced": "Company",
+        "best_sim": 0.4731
+      },
+      "Property": {
+        "matched": true,
+        "matched_induced": "Property",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Person": {
+        "matched": false,
+        "best_induced": "Claimant",
+        "best_sim": 0.4749
+      },
+      "Object": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 0.4932
+      },
+      "Organization": {
+        "matched": true,
+        "matched_induced": "Company",
+        "match_sim": 0.6277,
+        "rank": 2
+      },
+      "Address": {
+        "matched": false,
+        "best_induced": "ServiceInformation",
+        "best_sim": 0.3805
+      }
+    },
+    "confusion_matrix": [
+      {
+        "reference": "Product",
+        "best_match": "Company",
+        "best_similarity": 0.5683,
+        "top3_matches": [
+          {
+            "induced": "Company",
+            "similarity": 0.5683
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.5204
+          },
+          {
+            "induced": "Event",
+            "similarity": 0.4244
+          }
+        ]
+      },
+      {
+        "reference": "Coverage",
+        "best_match": "CoveragePlan",
+        "best_similarity": 0.8114,
+        "top3_matches": [
+          {
+            "induced": "CoveragePlan",
+            "similarity": 0.8114
+          },
+          {
+            "induced": "CoverageIssue",
+            "similarity": 0.765
+          },
+          {
+            "induced": "CoverageCost",
+            "similarity": 0.6392
+          }
+        ]
+      },
+      {
+        "reference": "Damage",
+        "best_match": "DeviceDamage",
+        "best_similarity": 0.6786,
+        "top3_matches": [
+          {
+            "induced": "DeviceDamage",
+            "similarity": 0.6786
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.4139
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.4047
+          }
+        ]
+      },
+      {
+        "reference": "Risk",
+        "best_match": "RiskFactor",
+        "best_similarity": 0.6998,
+        "top3_matches": [
+          {
+            "induced": "RiskFactor",
+            "similarity": 0.6998
+          },
+          {
+            "induced": "HazardEvent",
+            "similarity": 0.4737
+          },
+          {
+            "induced": "Guarantee",
+            "similarity": 0.4306
+          }
+        ]
+      },
+      {
+        "reference": "Structure",
+        "best_match": "Company",
+        "best_similarity": 0.4731,
+        "top3_matches": [
+          {
+            "induced": "Company",
+            "similarity": 0.4731
+          },
+          {
+            "induced": "OrganizationInfo",
+            "similarity": 0.4387
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3906
+          }
+        ]
+      },
+      {
+        "reference": "Property",
+        "best_match": "Property",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.5059
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.3911
+          }
+        ]
+      },
+      {
+        "reference": "Person",
+        "best_match": "Claimant",
+        "best_similarity": 0.4749,
+        "top3_matches": [
+          {
+            "induced": "Claimant",
+            "similarity": 0.4749
+          },
+          {
+            "induced": "Party",
+            "similarity": 0.3627
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.34
+          }
+        ]
+      },
+      {
+        "reference": "Object",
+        "best_match": "Property",
+        "best_similarity": 0.4932,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 0.4932
+          },
+          {
+            "induced": "VehiclePart",
+            "similarity": 0.4428
+          },
+          {
+            "induced": "Objective",
+            "similarity": 0.441
+          }
+        ]
+      },
+      {
+        "reference": "Organization",
+        "best_match": "OrganizationInfo",
+        "best_similarity": 0.7999,
+        "top3_matches": [
+          {
+            "induced": "OrganizationInfo",
+            "similarity": 0.7999
+          },
+          {
+            "induced": "Company",
+            "similarity": 0.6277
+          },
+          {
+            "induced": "Objective",
+            "similarity": 0.4116
+          }
+        ]
+      },
+      {
+        "reference": "Address",
+        "best_match": "ServiceInformation",
+        "best_similarity": 0.3805,
+        "top3_matches": [
+          {
+            "induced": "ServiceInformation",
+            "similarity": 0.3805
+          },
+          {
+            "induced": "Company",
+            "similarity": 0.3695
+          },
+          {
+            "induced": "ServiceOffering",
+            "similarity": 0.3662
+          }
+        ]
+      }
+    ],
+    "intrinsic": {
+      "class_coverage": 0.9861,
+      "entities_labeled": 8727,
+      "entities_total": 8850,
+      "n_classes": 75,
+      "n_hierarchy_edges": 8,
+      "avg_class_size": 116.4,
+      "class_distribution": {
+        "AgreementTerms": 19,
+        "AssistanceService": 5,
+        "BatchProcess": 5,
+        "BillPlan": 10,
+        "BreachEvent": 3,
+        "CancellationReason": 26,
+        "Carrier": 2,
+        "CaseLink": 13,
+        "Channel": 8,
+        "Claim": 4,
+        "ClaimEvent": 413,
+        "ClaimInteraction": 2,
+        "ClaimPortal": 3,
+        "ClaimProcess": 139,
+        "Claimant": 2,
+        "CommunicationEvent": 184,
+        "Company": 2,
+        "Cost": 4,
+        "CostObligation": 2,
+        "CoverageCost": 7,
+        "CoverageIssue": 2,
+        "CoveragePlan": 6,
+        "DeductibleOption": 2,
+        "DeviceDamage": 15,
+        "DeviceRepairProcess": 157,
+        "EmergencyService": 3,
+        "EnrollmentProcess": 2,
+        "Event": 6,
+        "Exclusion": 2,
+        "ExpenseCoverage": 17,
+        "FeePolicy": 58,
+        "Guarantee": 2,
+        "HazardEvent": 31,
+        "Interaction": 7,
+        "InteractionChannel": 4,
+        "LegalCosts": 2,
+        "LossType": 12,
+        "MetricValue": 4582,
+        "Negation": 2,
+        "NpsCategory": 3,
+        "Objective": 2,
+        "Obligation": 11,
+        "OrganizationInfo": 3,
+        "PartArtifact": 5,
+        "Party": 7,
+        "Person": 251,
+        "PlatformProvider": 2,
+        "Policy": 3,
+        "PolicyArtifact": 4,
+        "PolicyDetails": 30,
+        "PolicyHolder": 10,
+        "Property": 100,
+        "ProtectionProgram": 2,
+        "ProtectionService": 3,
+        "Record": 5,
+        "RefundPolicy": 9,
+        "Regulation": 3,
+        "Regulator": 3,
+        "RiskFactor": 3,
+        "ServiceInformation": 4,
+        "ServiceOffering": 11,
+        "ServicePortal": 4,
+        "ServiceProcess": 3,
+        "SupportResource": 4,
+        "SurveyEvent": 28,
+        "SurveyID": 14,
+        "SurveyResponse": 479,
+        "TemporalBucket": 35,
+        "TemporalCondition": 145,
+        "TemporalEvent": 1723,
+        "TravelDistance": 10,
+        "Value": 2,
+        "ValueRange": 3,
+        "VehiclePart": 36,
+        "VehicleStatus": 2
+      },
+      "class_balance_entropy": 0.4193,
+      "hierarchy_max_depth": 1,
+      "hierarchy_roots": 3,
+      "class_coherence": 0.4244,
+      "coherence_n_classes": 75
+    }
+  }
+}

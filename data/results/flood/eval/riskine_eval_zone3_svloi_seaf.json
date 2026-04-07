@@ -1,0 +1,1091 @@
+{
+  "suffix": "zone3_svloi_seaf",
+  "precision": 0.35,
+  "recall": 0.3077,
+  "f1": 0.3275,
+  "induced_label_count": 20,
+  "riskine_class_count": 26,
+  "riskine_covered_count": 8,
+  "alignment_table": [
+    {
+      "induced": "Organization",
+      "riskine": "Organization",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Person",
+      "riskine": "Person",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Coverage",
+      "riskine": "Coverage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Property",
+      "riskine": "Property",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Material",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Process",
+      "riskine": "BusinessProcess",
+      "cosine": 0.7429,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Structure",
+      "riskine": "Structure",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Requirement",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Payment",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_MATCH",
+      "score": 0.0
+    },
+    {
+      "induced": "Claim",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Damage",
+      "riskine": "Damage",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Risk",
+      "riskine": "Risk",
+      "cosine": 1.0,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Exclusion",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Deadline",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Limit",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimRecord",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyRecord",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Notification",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Cost",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Material",
+    "Requirement",
+    "Deductible",
+    "Payment",
+    "Claim",
+    "Exclusion",
+    "Deadline",
+    "Limit",
+    "ClaimRecord",
+    "PolicyRecord",
+    "Notification",
+    "Cost"
+  ],
+  "unmatched_riskine": [
+    "Address",
+    "Animal",
+    "BankAccount",
+    "CreditCard",
+    "DataProcessing",
+    "DrivingLicense",
+    "Education",
+    "Employee",
+    "Finances",
+    "Identification",
+    "Object",
+    "Preference",
+    "Product",
+    "Profession",
+    "Revenue",
+    "SecurityMeasure",
+    "Site",
+    "Vehicle"
+  ],
+  "entity_assignment_precision": 0.2,
+  "entity_assignment_recall": 0.1538,
+  "entity_assignment_f1": 0.1739,
+  "entity_assignment_riskine_covered": [
+    "Coverage",
+    "Damage",
+    "Product",
+    "Structure"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Organization",
+      "members_sample": "Organization: [Condominium Association, Entity made up of the unit owners responsible for the maintenance and operation of common elements owned in undivided shares by unit owners and other buildings in which the unit owners have use rights, FEMA, Insurer]",
+      "riskine": null,
+      "cosine": 0.41,
+      "score": 0.0
+    },
+    {
+      "induced": "Person",
+      "members_sample": "Person: [You, Mortgagee, Named Insured(s), Includes Trustee, Policyholder...]",
+      "riskine": null,
+      "cosine": 0.4109,
+      "score": 0.0
+    },
+    {
+      "induced": "Coverage",
+      "members_sample": "Coverage: [total building insurance coverage, Coverage A, Coverage B, Coverage C\u2014Other Coverages, Pollution Damage...]",
+      "riskine": "Coverage",
+      "cosine": 0.5146,
+      "score": 0.5
+    },
+    {
+      "induced": "Property",
+      "members_sample": "Property: [PROP-0c1c33332514, PROP-2c646210fb03, PROP-fbd085708541, PROP-00746a56c159, PROP-d82c72126a0c...]",
+      "riskine": null,
+      "cosine": 0.2884,
+      "score": 0.0
+    },
+    {
+      "induced": "Material",
+      "members_sample": "Material: [NFIP Insurance, Sandbags, Supplies, and Labor, Flood Insurance, Materials and Supplies for Construction, Non-Owned Debris...]",
+      "riskine": null,
+      "cosine": 0.3463,
+      "score": 0.0
+    },
+    {
+      "induced": "Process",
+      "members_sample": "Process: [Cancellation, Ending of the insurance coverage provided by this policy before the expiration date, Debris Removal, Loss Avoidance Measures, Property Removed to Safety...]",
+      "riskine": "Damage",
+      "cosine": 0.4249,
+      "score": 0.5
+    },
+    {
+      "induced": "Structure",
+      "members_sample": "Structure: [Basement, Building, Condominium, Any area of a building, including any sunken room or sunken portion of a room, having its floor below ground level on all sides, Structure with two or more outside rigid walls and a fully secured roof that is affixed to a permanent site...]",
+      "riskine": "Structure",
+      "cosine": 0.6222,
+      "score": 1.0
+    },
+    {
+      "induced": "Requirement",
+      "members_sample": "Requirement: [Repetitive Loss Building, Conservation Easement, Compliance with Floodplain Management Laws, Exceeding Minimum Standards, Review Information...]",
+      "riskine": null,
+      "cosine": 0.415,
+      "score": 0.0
+    },
+    {
+      "induced": "Deductible",
+      "members_sample": "Deductible: [Fixed amount of an insured loss that is your responsibility and that is incurred by you before any amounts are paid for the insured loss under this policy, Separate Deductible, The least of the following amounts after application of the deductible]",
+      "riskine": "Coverage",
+      "cosine": 0.4676,
+      "score": 0.5
+    },
+    {
+      "induced": "Payment",
+      "members_sample": "Payment: [Paid Full Amount, Pay Cost of Replacement Minus Depreciation, Proportional Payment, Lesser of Two Amounts, Negotiated Salvage Payment]",
+      "riskine": null,
+      "cosine": 0.3654,
+      "score": 0.0
+    },
+    {
+      "induced": "Claim",
+      "members_sample": "Claim: [Previous Qualifying Claim, Insured Loss \u2265 Policy Limits + Deductible, Covered Loss Before Policy Ends, Total Loss Claim]",
+      "riskine": "Product",
+      "cosine": 0.4298,
+      "score": 0.5
+    },
+    {
+      "induced": "Damage",
+      "members_sample": "Damage: [Flood, Direct Physical Loss By or From Flood, General and temporary condition of partial or complete inundation, Loss or damage to insured property directly caused by flood, Damage Caused by Pollutants...]",
+      "riskine": "Damage",
+      "cosine": 0.4608,
+      "score": 0.5
+    },
+    {
+      "induced": "Risk",
+      "members_sample": "Risk: [Earth Movement, Base Flood, Flood having a one percent chance of being equaled or exceeded in any given year, Earthquake, Landslide...]",
+      "riskine": null,
+      "cosine": 0.3868,
+      "score": 0.0
+    },
+    {
+      "induced": "Exclusion",
+      "members_sample": "Exclusion: [Water, Moisture, Mildew, or Mold Damage, Within Your Control, Water or Waterborne Material Backup, Design, Structural, or Mechanical Defects, Failures, Stoppages, or Breakage of Water or Sewer Lines...]",
+      "riskine": "Damage",
+      "cosine": 0.476,
+      "score": 0.5
+    },
+    {
+      "induced": "Deadline",
+      "members_sample": "Deadline: [Policy Term Ends Before 90 Days, 12:01 a.m. on the last day of the policy term]",
+      "riskine": null,
+      "cosine": 0.3977,
+      "score": 0.0
+    },
+    {
+      "induced": "Limit",
+      "members_sample": "Limit: [Maximum building claim payout under NFIP policy, Coverage A and B Limits, $1,000, $10,000, $30,000]",
+      "riskine": null,
+      "cosine": 0.3094,
+      "score": 0.0
+    },
+    {
+      "induced": "ClaimRecord",
+      "members_sample": "ClaimRecord: [CLM-d6de9ecd5122, CLM-6dd0bd4b9a34, CLM-aa5f507dbac7, CLM-e789a81339c1, CLM-96bfa55f2e08...]",
+      "riskine": null,
+      "cosine": 0.2845,
+      "score": 0.0
+    },
+    {
+      "induced": "PolicyRecord",
+      "members_sample": "PolicyRecord: [POL-50b7bc6306a6, POL-1118d1008b8b, POL-be25f7f0b8de, POL-a13cbe9458d1, POL-531a4c01e9d4...]",
+      "riskine": null,
+      "cosine": 0.3786,
+      "score": 0.0
+    },
+    {
+      "induced": "Notification",
+      "members_sample": "Notification: [Evacuation Order, No Further Claim, No Policy Renewal, No Flood Insurance Application, No Premium Refund]",
+      "riskine": null,
+      "cosine": 0.3416,
+      "score": 0.0
+    },
+    {
+      "induced": "Cost",
+      "members_sample": "Cost: [Actual Cash Value, Cost to replace an insured item of property at the time of loss, less the value of its physical depreciation, Reasonable Expenses, 25 Percent Repair Cost, 50 Percent Repair Cost...]",
+      "riskine": null,
+      "cosine": 0.276,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Coverage",
+    "Damage",
+    "Preference",
+    "Product",
+    "Structure"
+  ],
+  "entity_assignment_evidenced_count": 5,
+  "entity_assignment_recall_present": 0.8,
+  "entity_assignment_f1_present": 0.32,
+  "standard_metrics": {
+    "bertscore_precision": 0.6006,
+    "bertscore_recall": 0.6115,
+    "bertscore_f1": 0.606,
+    "per_reference_recall": {
+      "Address": 0.3975,
+      "Animal": 0.3932,
+      "BankAccount": 0.523,
+      "BusinessProcess": 0.7429,
+      "Coverage": 1.0,
+      "CreditCard": 0.6116,
+      "Damage": 1.0,
+      "DataProcessing": 0.507,
+      "DrivingLicense": 0.2858,
+      "Education": 0.4084,
+      "Employee": 0.52,
+      "Finances": 0.5511,
+      "Identification": 0.4813,
+      "Object": 0.5323,
+      "Organization": 1.0,
+      "Person": 1.0,
+      "Preference": 0.3532,
+      "Product": 0.5204,
+      "Profession": 0.4516,
+      "Property": 1.0,
+      "Revenue": 0.4706,
+      "Risk": 1.0,
+      "SecurityMeasure": 0.3951,
+      "Site": 0.3549,
+      "Structure": 1.0,
+      "Vehicle": 0.3989
+    },
+    "fuzzy_precision": 0.1429,
+    "fuzzy_recall": 0.0652,
+    "fuzzy_f1": 0.0896,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 14,
+    "reference_edge_count": 46,
+    "continuous_precision": 0.3359,
+    "continuous_recall": 0.1022,
+    "continuous_f1": 0.1568,
+    "optimal_matching_score": 4.7032,
+    "taxonomy_precision": 0.1429,
+    "taxonomy_recall": 0.0652,
+    "taxonomy_f1": 0.0896,
+    "taxonomy_induced_edges": 14,
+    "taxonomy_reference_edges": 46,
+    "graph_precision": 0.663,
+    "graph_recall": 0.5355,
+    "graph_f1": 0.5925,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.7511,
+    "wu_palmer_matched_pairs": 15,
+    "depth_distribution_induced": {
+      "0": 13,
+      "1": 8
+    },
+    "depth_distribution_reference": {
+      "0": 9,
+      "1": 5,
+      "2": 10,
+      "3": 1,
+      "4": 1
+    },
+    "auc_roc": 1.0,
+    "pr_auc": 1.0,
+    "mrr": 1.0,
+    "recall_at_1": 1.0,
+    "recall_at_3": 1.0,
+    "gt_matches": 8,
+    "gt_source": "llm_judge",
+    "auc_classes_matched": 8,
+    "auc_classes_total": 26,
+    "auc_per_class": {
+      "Address": {
+        "matched": false,
+        "best_induced": "Requirement",
+        "best_sim": 0.3975
+      },
+      "Animal": {
+        "matched": false,
+        "best_induced": "Material",
+        "best_sim": 0.3932
+      },
+      "BankAccount": {
+        "matched": false,
+        "best_induced": "Payment",
+        "best_sim": 0.523
+      },
+      "BusinessProcess": {
+        "matched": true,
+        "matched_induced": "Process",
+        "match_sim": 0.7429,
+        "rank": 1
+      },
+      "Coverage": {
+        "matched": true,
+        "matched_induced": "Coverage",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "CreditCard": {
+        "matched": false,
+        "best_induced": "Payment",
+        "best_sim": 0.6116
+      },
+      "Damage": {
+        "matched": true,
+        "matched_induced": "Damage",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "DataProcessing": {
+        "matched": false,
+        "best_induced": "Process",
+        "best_sim": 0.507
+      },
+      "DrivingLicense": {
+        "matched": false,
+        "best_induced": "Requirement",
+        "best_sim": 0.2858
+      },
+      "Education": {
+        "matched": false,
+        "best_induced": "Organization",
+        "best_sim": 0.4084
+      },
+      "Employee": {
+        "matched": false,
+        "best_induced": "Person",
+        "best_sim": 0.52
+      },
+      "Finances": {
+        "matched": false,
+        "best_induced": "Payment",
+        "best_sim": 0.5511
+      },
+      "Identification": {
+        "matched": false,
+        "best_induced": "Person",
+        "best_sim": 0.4813
+      },
+      "Object": {
+        "matched": false,
+        "best_induced": "Person",
+        "best_sim": 0.5323
+      },
+      "Organization": {
+        "matched": true,
+        "matched_induced": "Organization",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Person": {
+        "matched": true,
+        "matched_induced": "Person",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Preference": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 0.3532
+      },
+      "Product": {
+        "matched": false,
+        "best_induced": "Claim",
+        "best_sim": 0.5204
+      },
+      "Profession": {
+        "matched": false,
+        "best_induced": "Person",
+        "best_sim": 0.4516
+      },
+      "Property": {
+        "matched": true,
+        "matched_induced": "Property",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Revenue": {
+        "matched": false,
+        "best_induced": "Payment",
+        "best_sim": 0.4706
+      },
+      "Risk": {
+        "matched": true,
+        "matched_induced": "Risk",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "SecurityMeasure": {
+        "matched": false,
+        "best_induced": "Risk",
+        "best_sim": 0.3951
+      },
+      "Site": {
+        "matched": false,
+        "best_induced": "Requirement",
+        "best_sim": 0.3549
+      },
+      "Structure": {
+        "matched": true,
+        "matched_induced": "Structure",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Vehicle": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 0.3989
+      }
+    },
+    "confusion_matrix": [
+      {
+        "reference": "Address",
+        "best_match": "Requirement",
+        "best_similarity": 0.3975,
+        "top3_matches": [
+          {
+            "induced": "Requirement",
+            "similarity": 0.3975
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.3482
+          },
+          {
+            "induced": "Person",
+            "similarity": 0.3406
+          }
+        ]
+      },
+      {
+        "reference": "Animal",
+        "best_match": "Material",
+        "best_similarity": 0.3932,
+        "top3_matches": [
+          {
+            "induced": "Material",
+            "similarity": 0.3932
+          },
+          {
+            "induced": "Person",
+            "similarity": 0.3891
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3289
+          }
+        ]
+      },
+      {
+        "reference": "BankAccount",
+        "best_match": "Payment",
+        "best_similarity": 0.523,
+        "top3_matches": [
+          {
+            "induced": "Payment",
+            "similarity": 0.523
+          },
+          {
+            "induced": "ClaimRecord",
+            "similarity": 0.2818
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.2754
+          }
+        ]
+      },
+      {
+        "reference": "BusinessProcess",
+        "best_match": "Process",
+        "best_similarity": 0.7429,
+        "top3_matches": [
+          {
+            "induced": "Process",
+            "similarity": 0.7429
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.3293
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.3204
+          }
+        ]
+      },
+      {
+        "reference": "Coverage",
+        "best_match": "Coverage",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Coverage",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.3831
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.3413
+          }
+        ]
+      },
+      {
+        "reference": "CreditCard",
+        "best_match": "Payment",
+        "best_similarity": 0.6116,
+        "top3_matches": [
+          {
+            "induced": "Payment",
+            "similarity": 0.6116
+          },
+          {
+            "induced": "Cost",
+            "similarity": 0.2999
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.2929
+          }
+        ]
+      },
+      {
+        "reference": "Damage",
+        "best_match": "Damage",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Damage",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.4112
+          },
+          {
+            "induced": "Risk",
+            "similarity": 0.4061
+          }
+        ]
+      },
+      {
+        "reference": "DataProcessing",
+        "best_match": "Process",
+        "best_similarity": 0.507,
+        "top3_matches": [
+          {
+            "induced": "Process",
+            "similarity": 0.507
+          },
+          {
+            "induced": "Structure",
+            "similarity": 0.2886
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.2761
+          }
+        ]
+      },
+      {
+        "reference": "DrivingLicense",
+        "best_match": "Requirement",
+        "best_similarity": 0.2858,
+        "top3_matches": [
+          {
+            "induced": "Requirement",
+            "similarity": 0.2858
+          },
+          {
+            "induced": "Coverage",
+            "similarity": 0.2432
+          },
+          {
+            "induced": "Limit",
+            "similarity": 0.2385
+          }
+        ]
+      },
+      {
+        "reference": "Education",
+        "best_match": "Organization",
+        "best_similarity": 0.4084,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.4084
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.3648
+          },
+          {
+            "induced": "Risk",
+            "similarity": 0.3577
+          }
+        ]
+      },
+      {
+        "reference": "Employee",
+        "best_match": "Person",
+        "best_similarity": 0.52,
+        "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 0.52
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.4725
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.3359
+          }
+        ]
+      },
+      {
+        "reference": "Finances",
+        "best_match": "Payment",
+        "best_similarity": 0.5511,
+        "top3_matches": [
+          {
+            "induced": "Payment",
+            "similarity": 0.5511
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.3798
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3451
+          }
+        ]
+      },
+      {
+        "reference": "Identification",
+        "best_match": "Person",
+        "best_similarity": 0.4813,
+        "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 0.4813
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.3864
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.3741
+          }
+        ]
+      },
+      {
+        "reference": "Object",
+        "best_match": "Person",
+        "best_similarity": 0.5323,
+        "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 0.5323
+          },
+          {
+            "induced": "Structure",
+            "similarity": 0.5053
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.4932
+          }
+        ]
+      },
+      {
+        "reference": "Organization",
+        "best_match": "Organization",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Structure",
+            "similarity": 0.5445
+          },
+          {
+            "induced": "Process",
+            "similarity": 0.3426
+          }
+        ]
+      },
+      {
+        "reference": "Person",
+        "best_match": "Person",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.3845
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.34
+          }
+        ]
+      },
+      {
+        "reference": "Preference",
+        "best_match": "Property",
+        "best_similarity": 0.3532,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 0.3532
+          },
+          {
+            "induced": "Risk",
+            "similarity": 0.3024
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.2998
+          }
+        ]
+      },
+      {
+        "reference": "Product",
+        "best_match": "Claim",
+        "best_similarity": 0.5204,
+        "top3_matches": [
+          {
+            "induced": "Claim",
+            "similarity": 0.5204
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.494
+          },
+          {
+            "induced": "Damage",
+            "similarity": 0.4545
+          }
+        ]
+      },
+      {
+        "reference": "Profession",
+        "best_match": "Person",
+        "best_similarity": 0.4516,
+        "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 0.4516
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.4291
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.4039
+          }
+        ]
+      },
+      {
+        "reference": "Property",
+        "best_match": "Property",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.3911
+          },
+          {
+            "induced": "Structure",
+            "similarity": 0.3906
+          }
+        ]
+      },
+      {
+        "reference": "Revenue",
+        "best_match": "Payment",
+        "best_similarity": 0.4706,
+        "top3_matches": [
+          {
+            "induced": "Payment",
+            "similarity": 0.4706
+          },
+          {
+            "induced": "Cost",
+            "similarity": 0.4073
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.3722
+          }
+        ]
+      },
+      {
+        "reference": "Risk",
+        "best_match": "Risk",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Risk",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Damage",
+            "similarity": 0.4061
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3306
+          }
+        ]
+      },
+      {
+        "reference": "SecurityMeasure",
+        "best_match": "Risk",
+        "best_similarity": 0.3951,
+        "top3_matches": [
+          {
+            "induced": "Risk",
+            "similarity": 0.3951
+          },
+          {
+            "induced": "Requirement",
+            "similarity": 0.3546
+          },
+          {
+            "induced": "Coverage",
+            "similarity": 0.3339
+          }
+        ]
+      },
+      {
+        "reference": "Site",
+        "best_match": "Requirement",
+        "best_similarity": 0.3549,
+        "top3_matches": [
+          {
+            "induced": "Requirement",
+            "similarity": 0.3549
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.325
+          },
+          {
+            "induced": "Payment",
+            "similarity": 0.2998
+          }
+        ]
+      },
+      {
+        "reference": "Structure",
+        "best_match": "Structure",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Structure",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.5445
+          },
+          {
+            "induced": "Material",
+            "similarity": 0.4693
+          }
+        ]
+      },
+      {
+        "reference": "Vehicle",
+        "best_match": "Property",
+        "best_similarity": 0.3989,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 0.3989
+          },
+          {
+            "induced": "Person",
+            "similarity": 0.3971
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.3882
+          }
+        ]
+      }
+    ],
+    "intrinsic": {
+      "class_coverage": 0.2688,
+      "entities_labeled": 1991,
+      "entities_total": 7407,
+      "n_classes": 20,
+      "n_hierarchy_edges": 14,
+      "avg_class_size": 99.5,
+      "class_distribution": {
+        "Claim": 4,
+        "ClaimRecord": 485,
+        "Cost": 7,
+        "Coverage": 10,
+        "Damage": 13,
+        "Deadline": 2,
+        "Deductible": 3,
+        "Exclusion": 31,
+        "Limit": 5,
+        "Material": 10,
+        "Notification": 5,
+        "Organization": 4,
+        "Payment": 5,
+        "Person": 7,
+        "PolicyRecord": 463,
+        "Process": 14,
+        "Property": 862,
+        "Requirement": 21,
+        "Risk": 17,
+        "Structure": 23
+      },
+      "class_balance_entropy": 0.5001,
+      "hierarchy_max_depth": 1,
+      "hierarchy_roots": 10,
+      "class_coherence": 0.3804,
+      "coherence_n_classes": 20
+    }
+  }
+}
