@@ -327,7 +327,11 @@ def _sub_chunk_section(section: dict,
 
     paragraphs = [p.strip() for p in section["text"].split("\n\n") if p.strip()]
     if len(paragraphs) <= 1:
-        # Can't split further (single unsplittable block); return as-is
+        # Fallback: split on single newlines when no double-newline breaks exist.
+        # Common with PDF extractions where paragraphs aren't separated by blank lines.
+        paragraphs = [p.strip() for p in section["text"].split("\n") if p.strip()]
+    if len(paragraphs) <= 1:
+        # Truly unsplittable single block; return as-is
         return [section]
 
     header = paragraphs[0]   # section heading — prepended to every sub-chunk
