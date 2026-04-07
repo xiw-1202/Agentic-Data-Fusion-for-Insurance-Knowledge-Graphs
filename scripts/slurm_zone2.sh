@@ -14,8 +14,8 @@
 #SBATCH --output=/local/scratch/%u/logs/%j.out
 #SBATCH --error=/local/scratch/%u/logs/%j.err
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/_env.sh"
+SCRATCH=/local/scratch/$USER
+source "$SCRATCH/project/scripts/_env.sh"
 
 if [ ! -f "$CHUNKS_FILE" ]; then
     echo "ERROR: $CHUNKS_FILE not found. Run slurm_pipeline.sh first."
