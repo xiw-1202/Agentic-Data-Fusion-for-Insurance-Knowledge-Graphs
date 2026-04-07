@@ -54,10 +54,12 @@ export OLLAMA_MODELS=$SCRATCH/models
 export PIP_CACHE_DIR=$SCRATCH/.cache/pip
 export LD_LIBRARY_PATH=$SCRATCH/lib/ollama:${LD_LIBRARY_PATH:-}
 
-# Ollama context window: 4096 tokens is sufficient for our prompts.
-# Default (auto) = 131072 → massive KV cache → fewer layers on GPU → slower.
-# At 4096: KV cache ~1.3 GB → model gets full GPU memory → all layers on GPU.
-export OLLAMA_CONTEXT_LENGTH=4096
+# Ollama context window: 8192 tokens needed for system prompt (~970 tok) +
+# 8 few-shot examples (~2380 tok) + chunk content (~1200 tok) + output (~2000 tok).
+# Previous 4096 was too small — left ~746 tokens for chunk+output, causing
+# the model to produce only 1 triple per chunk instead of 5-20.
+# At 8192: KV cache ~2.6 GB → still fits with 72b model on 2×48GB GPUs.
+export OLLAMA_CONTEXT_LENGTH=8192
 
 # Force Ollama to use both GPUs (it auto-detects, but be explicit)
 export CUDA_VISIBLE_DEVICES=0,1
