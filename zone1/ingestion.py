@@ -950,6 +950,85 @@ def ingest_generic_csv(
 
 
 # ---------------------------------------------------------------------------
+# Plain text ingestion (web-scraped policy documents)
+# ---------------------------------------------------------------------------
+
+def ingest_text_file(
+    txt_path: str,
+    max_tokens: int = MAX_CHUNK_TOKENS,
+) -> list[HybridChunk]:
+    """Zone 1 ingestion for plain text files (e.g., scraped web policies).
+
+    Splits text into token-capped chunks using paragraph breaks (double
+    newlines), falling back to single newlines if needed.
+    """
+    filename = os.path.basename(txt_path)
+    print(f"\n[TXT] {filename}")
+
+    with open(txt_path, encoding="utf-8") as f:
+        text = f.read().strip()
+
+    # Strip metadata header lines (Source:, Title:, Retrieved:) from scraped pages.
+    lines = text.split("\n")
+    content_start = 0
+    for i, line in enumerate(lines):
+        if line.startswith(("Source:", "Title:", "Retrieved:")):
+            content_start = i + 1
+        else:
+            break
+    if content_start > 0:
+        text = "\n".join(lines[content_start:]).strip()
+
+    if not text:
+        print("  ⚠ Empty file, skipping")
+        return []
+
+    total_tokens = _approx_tokens(text)
+    print(f"  {total_tokens} tokens, {len(text)} chars")
+
+    # Try splitting by double newlines first, fallback to single.
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if len(paragraphs) <= 1:
+        paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+
+    # Batch paragraphs into token-capped chunks.
+    chunks: list[HybridChunk] = []
+    current_batch: list[str] = []
+    current_tokens: int = 0
+
+    def flush() -> None:
+        nonlocal current_batch, current_tokens
+        if not current_batch:
+            return
+        chunk_text = "\n\n".join(current_batch)
+        chunks.append(HybridChunk(
+            chunk_id=len(chunks),
+            content=chunk_text,
+            source=txt_path,
+            section_hierarchy=[filename],
+            temporal_markers=[],
+            pages=[],
+            token_count=_approx_tokens(chunk_text),
+            merged_from=[],
+            chunk_type="text",
+        ))
+        current_batch = []
+        current_tokens = 0
+
+    for para in paragraphs:
+        tok = _approx_tokens(para)
+        if current_tokens + tok > max_tokens and current_batch:
+            flush()
+        current_batch.append(para)
+        current_tokens += tok
+
+    flush()
+
+    print(f"  → {len(chunks)} chunks (tok-cap max={max_tokens})")
+    return chunks
+
+
+# ---------------------------------------------------------------------------
 # Main ingestion functions
 # ---------------------------------------------------------------------------
 
@@ -1133,6 +1212,14 @@ def run_zone1(
                     )
                     all_chunks.extend(chunks)
                     csv_chunk_groups.append((f, chunks))
+
+        # Discover plain text files (e.g., scraped web policies).
+        for root, _dirs, files in os.walk(data_dir):
+            for f in sorted(files):
+                fpath = os.path.join(root, f)
+                if f.lower().endswith(".txt"):
+                    chunks = ingest_text_file(fpath)
+                    all_chunks.extend(chunks)
 
         # Discover OpenFEMA JSONs (in case they're mixed in).
         for root, _dirs, files in os.walk(data_dir):
