@@ -63,6 +63,7 @@ echo "Zone 3 complete: $(($(date +%s) - ZONE3_START))s"
 echo ""
 echo "===== ZONE 3 EVAL — Riskine Ontology Alignment ====="
 python3 baseline/eval.py \
+    --results-dir "${RESULTS_DIR}/eval" \
     --suffix "$SUFFIX" --riskine --all-classes --model "$MODEL"
 
 _stop_ollama

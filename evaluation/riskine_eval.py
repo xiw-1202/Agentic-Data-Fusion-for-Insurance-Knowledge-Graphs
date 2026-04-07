@@ -319,6 +319,7 @@ def measure_riskine_alignment(
     riskine_classes: list[dict],
     suffix: str = "zone1",
     use_all_classes: bool = False,
+    results_dir: str | None = None,
 ) -> dict:
     """
     Compute Riskine alignment P/R/F1 against the live Neo4j graph.
@@ -468,8 +469,9 @@ def measure_riskine_alignment(
     except Exception as exc:
         print(f"  [ontology-metrics] WARNING: standard metrics failed: {exc}")
 
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
-    out_path = os.path.join(config.RESULTS_DIR, f"riskine_eval_{suffix}.json")
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
+    out_path = os.path.join(rdir, f"riskine_eval_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
     print(f"\n  ✓ Riskine alignment saved → {out_path}")

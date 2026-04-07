@@ -34,6 +34,7 @@ python3 evaluation/extraction_quality.py \
 echo ""
 echo "===== RISKINE EVAL (26 classes) ====="
 python3 baseline/eval.py \
+    --results-dir "${RESULTS_DIR}/eval" \
     --suffix "$SUFFIX" --riskine --all-classes --model "$MODEL"
 
 _stop_ollama

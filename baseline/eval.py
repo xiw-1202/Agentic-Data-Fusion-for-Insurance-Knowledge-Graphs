@@ -467,6 +467,7 @@ def run_evaluation(
     run_riskine: bool = False,
     model: str = config.OLLAMA_MODEL,
     use_all_classes: bool = False,
+    results_dir: str | None = None,
 ):
     """
     Run evaluation against the current Neo4j graph.
@@ -477,7 +478,8 @@ def run_evaluation(
         model:            Ollama model name for LLM judge in Riskine step
         use_all_classes:  if True, use ALL 26 Riskine classes (not just 10 flood-relevant)
     """
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
 
     label = "Zone1 Chunks (Ablation)" if suffix.startswith("zone1") else "Original 512-Token Chunks"
     print("=" * 60)
@@ -565,6 +567,7 @@ def run_evaluation(
         llm = ChatOllama(model=model, base_url=config.OLLAMA_BASE_URL, temperature=0)
         riskine_result = riskine_eval.measure_riskine_alignment(
             graph, llm, riskine_classes, suffix=suffix, use_all_classes=use_all_classes,
+            results_dir=rdir,
         )
         metrics.riskine_precision = riskine_result["precision"]
         metrics.riskine_recall    = riskine_result["recall"]
@@ -577,7 +580,7 @@ def run_evaluation(
     # --- Load ontology induction detail from pipeline run summary (if available) ---
     ontology_detail: dict = {}
     run_summary_path = os.path.join(
-        config.RESULTS_DIR, f"baseline_run_summary_{suffix}.json"
+        rdir, f"baseline_run_summary_{suffix}.json"
     )
     if os.path.exists(run_summary_path):
         try:
@@ -602,7 +605,7 @@ def run_evaluation(
         report["ontology_induction_detail"] = ontology_detail
     if riskine_detail:
         report["riskine_detail"] = riskine_detail
-    out_path = os.path.join(config.RESULTS_DIR, f"baseline_eval_results_{suffix}.json")
+    out_path = os.path.join(rdir, f"baseline_eval_results_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(report, f, indent=2, default=str)
 
@@ -631,8 +634,11 @@ if __name__ == "__main__":
                         help=f"Ollama model for Riskine LLM judge (default: {config.OLLAMA_MODEL})")
     parser.add_argument("--all-classes", action="store_true",
                         help="Use ALL 26 Riskine classes for evaluation (default: 10 flood-relevant)")
+    parser.add_argument("--results-dir", default=None,
+                        help="Output directory for results (default: config.RESULTS_DIR)")
     args = parser.parse_args()
     run_evaluation(
         suffix=args.suffix, run_riskine=args.riskine,
         model=args.model, use_all_classes=getattr(args, 'all_classes', False),
+        results_dir=args.results_dir,
     )
