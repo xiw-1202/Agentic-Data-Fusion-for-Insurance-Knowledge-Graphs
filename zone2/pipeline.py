@@ -1224,7 +1224,11 @@ def extract_triples(state: Zone2State) -> dict:
     chunks       = state.get("chunks", [])
     num_passes   = state.get("num_passes", 3)
 
-    llm = get_llm(model, json_mode=True)
+    # json_mode=False: Ollama >=0.19 structured output grammar stops after
+    # the first complete JSON value, producing 1-item arrays.  Disabling
+    # json_mode lets the model output full multi-item arrays; the robust
+    # _parse_json_list() parser handles any formatting issues.
+    llm = get_llm(model, json_mode=False)
     all_raw_triples: list[dict] = []
     errors:          list[dict] = []
 
