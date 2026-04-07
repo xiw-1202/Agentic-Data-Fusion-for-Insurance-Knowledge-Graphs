@@ -129,6 +129,23 @@ grep -i "layer" "$SCRATCH/logs/ollama_$SLURM_JOB_ID.log" 2>/dev/null | tail -3 |
 echo ""
 
 # ---------------------------------------------------------------------------
+# Zone 1: Re-run ingestion (if DATA_DIR != default flood data)
+# ---------------------------------------------------------------------------
+if [ "$DATA_DIR" != "data/flood" ]; then
+    echo "================================================================"
+    echo "ZONE 1 — Re-running ingestion on ${DATA_DIR}"
+    echo "  Started: $(date)"
+    echo "================================================================"
+    ZONE1_START=$(date +%s)
+    python3 zone1/ingestion.py \
+        --data-dir ${DATA_DIR} \
+        --output ${DATA_DIR}/processed/zone1_chunks.json \
+        --model $MODEL
+    ZONE1_END=$(date +%s)
+    echo "Zone 1 complete: $((ZONE1_END - ZONE1_START))s"
+fi
+
+# ---------------------------------------------------------------------------
 # Zone 2: Domain-agnostic Open IE
 # ---------------------------------------------------------------------------
 echo "================================================================"
