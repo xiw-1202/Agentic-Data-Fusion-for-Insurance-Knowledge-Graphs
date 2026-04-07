@@ -359,9 +359,21 @@ def measure_riskine_alignment(
 
     # Humanize + add domain context for embedding.
     # Bare words like "Policy" vs "Product" have low cosine (0.37) but with
-    # domain context ("Policy (insurance ontology class)") similarity jumps
-    # to 0.84 — essential for cross-name matching in ontology alignment.
-    domain_ctx = "(insurance ontology class)"
+    # domain context similarity jumps significantly — essential for cross-name
+    # matching in ontology alignment.
+    # Domain is read from zone3 summary (LLM-detected, not hardcoded).
+    rdir = results_dir or config.RESULTS_DIR
+    detected_domain = ""
+    for fn in os.listdir(rdir):
+        if fn.startswith("zone3_svloi_summary") and fn.endswith(".json"):
+            try:
+                z3 = json.load(open(os.path.join(rdir, fn)))
+                detected_domain = z3.get("domain", "")
+                break
+            except Exception:
+                pass
+    domain_ctx = f"({detected_domain} ontology class)" if detected_domain else "(ontology class)"
+    print(f"  Embedding context: {domain_ctx}")
     induced_for_embed = [f"{_humanize_label(l)} {domain_ctx}" for l in induced_labels]
     riskine_for_embed = [f"{_humanize_label(n)} {domain_ctx}" for n in riskine_names]
 

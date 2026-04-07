@@ -252,12 +252,14 @@ def discover_class_vocabulary(
     entities: list[dict],
     llm: ChatOllama,
     record_evidence: str = "",
-) -> list[str]:
+) -> tuple[list[str], str]:
     """Two-stage class discovery: detect domain → propose domain-role classes.
 
     Stage 1: Ask LLM what domain this KG is about.
     Stage 2: Given domain, propose classes for real-world ROLES, not data types.
     Post-process: Filter out any forbidden data-type class names.
+
+    Returns (class_list, detected_domain).
     """
     print("\n[Phase 2] Class vocabulary discovery (two-stage)", flush=True)
 
@@ -459,7 +461,7 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
     print(f"  ✓ Discovered {len(classes) - 1} classes + Other:", flush=True)
     for c in classes:
         print(f"    - {c}", flush=True)
-    return classes
+    return classes, domain
 
 
 def batch_type_entities(
@@ -2206,7 +2208,7 @@ def run_sv_loi(
     if record_evidence:
         _flush_print(f"\n[Phase 1] Record evidence:\n{record_evidence}")
 
-    class_vocab = discover_class_vocabulary(concept_entities, llm, record_evidence=record_evidence)
+    class_vocab, detected_domain = discover_class_vocabulary(concept_entities, llm, record_evidence=record_evidence)
 
     # Phase 3: Batch LLM entity typing
     assignments = batch_type_entities(entities, class_vocab, llm)
@@ -2427,6 +2429,7 @@ def run_sv_loi(
         "model": model,
         "suffix": suffix,
         "seed": seed,
+        "domain": detected_domain,
         "elapsed_seconds": round(elapsed, 2),
         "entity_count": len(entities),
         "class_vocab_discovered": class_vocab,
