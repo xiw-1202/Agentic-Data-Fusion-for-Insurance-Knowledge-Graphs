@@ -83,9 +83,9 @@ Rules:
 - Negation ("not covered", "does not insure", "excluded") → use an exclusion relation
 - Sequential steps → use PRECEDES (step A PRECEDES step B)
 - MANDATORY LIST EXTRACTION: When a passage lists items "A, B, C are excluded/defined/required", extract EACH item as a separate triple — never collapse a list into one triple
-- Extract 3-5 triples per passage. Only return 1-2 if the passage is very short.
-- STRUCTURED DATA: When the passage contains records, tables, or key-value fields, extract EVERY field as a separate triple — dates, amounts, locations, codes, classifications. Each record should yield 5-10 triples.
-- SHORT CLAUSES: Even brief passages (1-2 sentences) usually contain 2-3 extractable facts — look for implicit relations (options, conditions, parties involved).
+- Extract ALL facts from the passage — do not stop at a fixed number
+- STRUCTURED DATA: When the passage contains records, tables, or key-value fields, extract EVERY field as a separate triple — dates, amounts, locations, codes, classifications
+- SHORT CLAUSES: Even brief passages (1-2 sentences) usually contain 2-3 extractable facts — look for implicit relations (options, conditions, parties involved)
 - Include span: verbatim quote <=120 chars supporting the triple
 - Include confidence: 0.0–1.0
 - Include subject_type and object_type: assign one entity type from the list above to each (use "Unknown" if none fit)
