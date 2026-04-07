@@ -171,12 +171,12 @@ def _invoke_llm(llm: ChatOllama, prompt: str) -> str:
 
 def load_entities() -> list[dict]:
     """Load all Entity nodes from local cache (zero Neo4j round-trips)."""
-    print("\n[Phase 0] Loading entities from cache...", flush=True)
+    print("\n[Phase 0] Load graph cache", flush=True)
     return load_cached_entities(fmt="sv_loi")
 
 
 # ---------------------------------------------------------------------------
-# Phase 0.5: Record Evidence Analysis
+# Phase 1: Record Evidence Analysis
 # ---------------------------------------------------------------------------
 
 def analyze_record_evidence(all_entities: list[dict]) -> str:
@@ -246,7 +246,7 @@ def analyze_record_evidence(all_entities: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Phase 1: Class Discovery + Batched LLM Entity Typing
+# Phase 2: Class Discovery + Phase 3: Batched LLM Entity Typing (concept entities)
 # ---------------------------------------------------------------------------
 
 def discover_class_vocabulary(
@@ -260,7 +260,7 @@ def discover_class_vocabulary(
     Stage 2: Given domain, propose classes for real-world ROLES, not data types.
     Post-process: Filter out any forbidden data-type class names.
     """
-    print("\n[Phase 1a] Discovering class vocabulary (two-stage)...", flush=True)
+    print("\n[Phase 2] Class vocabulary discovery (two-stage)", flush=True)
 
     # Collect entity name samples (ungrouped — raw names)
     import random
@@ -347,7 +347,6 @@ Output ONLY a JSON array:
 [{{"name": "ClassName", "definition": "what entities belong here"}}]
 """
     raw = _invoke_llm(llm, prompt)
-    print(f"  [debug] Raw LLM response ({len(raw)} chars): {raw[:300]}...", flush=True)
     parsed = _parse_json_safely(raw)
 
     if isinstance(parsed, list):
@@ -359,14 +358,11 @@ Output ONLY a JSON array:
 
     # Fallback: extract class names from lines like "1. ClassName" or "- ClassName"
     if not classes:
-        print("  [debug] JSON parse found 0 classes, trying line-based extraction...", flush=True)
         line_re = re.compile(
             r'(?:^|\n)\s*(?:\d+[\.\)]\s*|[-*]\s*)'  # "1. " or "- "
             r'\**([A-Z][A-Za-z]+)\**',                # PascalCase word (possibly bold)
         )
         classes = [m.group(1) for m in line_re.finditer(raw)]
-        if classes:
-            print(f"  [debug] Line-based extraction found: {classes}", flush=True)
 
     # Sanitize
     classes = [_sanitize_label(c) for c in classes if c]
@@ -411,7 +407,6 @@ FORBIDDEN: Amount, Date, Number, Measurement, Event, Condition, Location, Text, 
 
 Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
         raw2 = _invoke_llm(llm, retry_prompt)
-        print(f"  [debug] Retry response ({len(raw2)} chars): {raw2[:300]}...", flush=True)
         parsed2 = _parse_json_safely(raw2)
         if isinstance(parsed2, list):
             extra = [item["name"] for item in parsed2 if isinstance(item, dict) and "name" in item]
@@ -541,7 +536,7 @@ def batch_type_entities(
     assignments: dict[str, str] = {}
 
     # Pre-assign value entities to "Other" — will be overridden by
-    # type_value_entities() (Phase 1f) using relation-range induction.
+    # type_value_entities() (Phase 9) using relation-range induction.
     for e in value_entities:
         assignments[e["id"]] = "Other"
 
@@ -565,7 +560,7 @@ def batch_type_entities(
                 class_vocab.append(sanitized_et)
             assignments[e["id"]] = sanitized_et
 
-    print(f"\n[Phase 1b] Batched LLM entity typing "
+    print(f"\n[Phase 3] Batched LLM entity typing "
           f"({len(llm_entities)} concept entities via LLM, "
           f"{len(structured_entities)} structured + {len(value_entities)} value pre-assigned, "
           f"batch={BATCH_SIZE})...")
@@ -668,11 +663,11 @@ def rescue_other_entities(
     target_max = int(total * max_other_frac)
 
     if len(other_ids) <= target_max:
-        print(f"\n[Phase 1d] Concept-Other={len(other_ids)}, Value-Other={all_other - len(other_ids)} "
+        print(f"\n[Phase 5] Concept-Other={len(other_ids)}, Value-Other={all_other - len(other_ids)} "
               f"— concept entities below threshold, skipping rescue.", flush=True)
         return assignments
 
-    print(f"\n[Phase 1d] Rescuing {len(other_ids)} 'Other' CONCEPT entities "
+    print(f"\n[Phase 5] Rescuing {len(other_ids)} 'Other' CONCEPT entities "
           f"(skipping {all_other - len(other_ids)} value entities)...", flush=True)
 
     entity_map = entity_map_full
@@ -792,7 +787,7 @@ def type_value_entities(
     Args:
         confidence_threshold: Min P(class|relation) to assign (default: 0.50)
     """
-    print(f"\n[Phase 1f] Value entity typing via relation-range induction...", flush=True)
+    print(f"\n[Phase 9] Value entity typing via relation-range induction...", flush=True)
 
     entity_map = {e["id"]: e for e in entities}
     updated = dict(assignments)
@@ -910,10 +905,10 @@ def rebalance_mega_classes(
 
     if not mega_classes:
         denom_type = "total" if use_old_rebalance else "concept"
-        print(f"\n[Phase 1c] No mega-classes detected ({denom_type} threshold={threshold}) — skipping rebalance.", flush=True)
+        print(f"\n[Phase 4] No mega-classes detected ({denom_type} threshold={threshold}) — skipping rebalance.", flush=True)
         return assignments, updated_vocab
 
-    print(f"\n[Phase 1c] Rebalancing {len(mega_classes)} mega-classes (threshold={threshold})...", flush=True)
+    print(f"\n[Phase 4] Rebalancing {len(mega_classes)} mega-classes (threshold={threshold})...", flush=True)
     entity_map = {e["id"]: e for e in entities}
     updated = dict(assignments)
 
@@ -1019,7 +1014,7 @@ Output: entity_name -> ClassName
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: Structural Consensus Verification
+# Phase 6/10: Structural Consensus Verification
 # ---------------------------------------------------------------------------
 
 def propagate_to_records(
@@ -1061,7 +1056,7 @@ def propagate_to_records(
     Returns:
         {record_eid: class_name} for all record entities
     """
-    print("\n[Phase 1e] Schema mapping: record types → induced classes...", flush=True)
+    print("\n[Phase 8] Schema mapping: record types → induced classes...", flush=True)
 
     # Step 1: Group records by entity_type, collect relation profiles
     type_records: dict[str, list[str]] = defaultdict(list)
@@ -1148,7 +1143,7 @@ def propagate_to_records(
     # Step 3: Bulk-assign records AND redirect any entities already typed
     # with the record-type class name (e.g., "PolicyRecord") to the mapped
     # ontology class (e.g., "Product"). This cleans up record-type names
-    # that leaked into the class vocabulary during Phase 1a discovery.
+    # that leaked into the class vocabulary during Phase 2 discovery.
     record_assignments: dict[str, str] = {}
     redirects: dict[str, str] = {}  # old_class → new_class
     mapped = 0
@@ -1239,7 +1234,7 @@ def structural_consensus_check(
         class_stats: {class_name: {centroid, mean_sim, std_sim, member_count}}
         flagged: [{entity_id, assigned_class, similarity, nearest_class, nearest_sim}]
     """
-    print(f"\n[Phase 2] Structural consensus verification (σ threshold={DEVIATION_THRESHOLD})...")
+    print(f"\n[Phase 6/10] Structural consensus verification (σ threshold={DEVIATION_THRESHOLD})...")
 
     eid_to_idx = {eid: i for i, eid in enumerate(entity_ids)}
 
@@ -1321,7 +1316,7 @@ def structural_consensus_check(
 
 
 # ---------------------------------------------------------------------------
-# Phase 3: Disagreement Arbitration
+# Phase 7: Disagreement Arbitration
 # ---------------------------------------------------------------------------
 
 def arbitrate_disagreements(
@@ -1336,10 +1331,10 @@ def arbitrate_disagreements(
     Returns updated assignments dict.
     """
     if not flagged:
-        print("\n[Phase 3] No disagreements to arbitrate.")
+        print("\n[Phase 7] No disagreements to arbitrate.")
         return assignments
 
-    print(f"\n[Phase 3] Arbitrating {len(flagged)} disagreements...")
+    print(f"\n[Phase 7] Arbitrating {len(flagged)} disagreements...")
 
     entity_map = {e["id"]: e for e in entities}
     updated = dict(assignments)
@@ -1399,7 +1394,7 @@ Output one line per entity: entity_id -> CorrectClass
 
 
 # ---------------------------------------------------------------------------
-# Phase 4: Post-processing — consolidate, merge small, derive hierarchy
+# Phase 11-14: Post-processing — consolidate, merge small, derive hierarchy
 # ---------------------------------------------------------------------------
 
 def infer_class_relations(
@@ -1421,7 +1416,7 @@ def infer_class_relations(
     Returns:
         (updated_assignments, hierarchy_edges)
     """
-    print("\n[Phase 4] Class relation inference (5-way)...", flush=True)
+    print("\n[Phase 11] Class relation inference (5-way)...", flush=True)
 
     dist = Counter(v for v in assignments.values() if v != "Other")
     class_names = sorted(dist.keys())
@@ -1636,7 +1631,7 @@ def merge_small_classes(
     min_size: int = MIN_CLASS_SIZE,
 ) -> dict[str, str]:
     """Merge classes with fewer than min_size members into the nearest class."""
-    print(f"\n[Phase 4a] Merging small classes (min_size={min_size})...")
+    print(f"\n[Phase 12] Merging small classes (min_size={min_size})...")
 
     eid_to_idx = {eid: i for i, eid in enumerate(entity_ids)}
 
@@ -1701,7 +1696,7 @@ def merge_small_classes(
 
 
 # ---------------------------------------------------------------------------
-# Phase 4b+: Structural leaf-class merging
+# Phase 13: LLM-guided class validation
 # ---------------------------------------------------------------------------
 
 def merge_leaf_classes(
@@ -1732,7 +1727,7 @@ def merge_leaf_classes(
 
     Domain-agnostic — uses graph structure + LLM reasoning, no hardcoded names.
     """
-    print("\n[Phase 4b+] LLM-guided class validation...", flush=True)
+    print("\n[Phase 13] LLM-guided class validation...", flush=True)
 
     entity_map = {e["id"]: e for e in entities}
     class_counts = Counter(assignments.values())
@@ -1969,7 +1964,7 @@ def derive_interclass_edges(
         for compatibility with evaluation metrics, but semantically these are
         inter-class associations).
     """
-    print(f"\n[Phase 4b] Deriving inter-class edges from entity connections...", flush=True)
+    print(f"\n[Phase 14] Deriving inter-class edges from entity connections...", flush=True)
 
     # Count entity-level connections between classes
     class_connections: Counter = Counter()  # (src_class, tgt_class) → count
@@ -2017,7 +2012,7 @@ def derive_hierarchy(
     llm: ChatOllama,
 ) -> list[tuple[str, str]]:
     """Legacy LLM-based hierarchy (kept for ablation comparison)."""
-    print("\n[Phase 4b-legacy] LLM hierarchy derivation...", flush=True)
+    print("\n[Phase 11-legacy] LLM hierarchy derivation...", flush=True)
 
     class_counts = Counter(v for v in assignments.values() if v != "Other")
     class_names = sorted(class_counts.keys())
@@ -2058,7 +2053,7 @@ Rules:
 
 
 # ---------------------------------------------------------------------------
-# Phase 5: Write to Neo4j
+# Phase 15: Write to Neo4j
 # ---------------------------------------------------------------------------
 
 def write_ontology(
@@ -2066,7 +2061,7 @@ def write_ontology(
     hierarchy: list[tuple[str, str]],
 ) -> dict:
     """Write ontology layer to Neo4j."""
-    print("\n[Phase 5] Writing ontology to Neo4j...")
+    print("\n[Phase 15] Writing ontology to Neo4j...")
 
     try:
         graph = get_neo4j_graph()
@@ -2190,7 +2185,7 @@ def run_sv_loi(
         skip_verify:              Skip Phase 2 structural consensus verification
         skip_arbitrate:           Skip Phase 3 disagreement arbitration
         skip_consolidate:         Skip Phase 4 LLM-guided class consolidation
-        skip_record_propagation:  Skip Phase 1e (use Zone 2 entity_type for records)
+        skip_record_propagation:  Skip Phase 8 (use Zone 2 entity_type for records)
         use_old_rebalance:        Use old rebalance (total entities, 25% threshold)
         seed:                     Random seed for reproducibility
     """
@@ -2229,28 +2224,28 @@ def run_sv_loi(
     llm = get_llm(model)
     entity_map_all = {e["id"]: e for e in entities}
 
-    # Phase 1a: Discover class vocabulary (concept entities only)
+    # Phase 2: Discover class vocabulary (concept entities only)
     concept_entities = get_concept_entities(entities)
-    # Phase 0.5: Analyze record relation signatures for class discovery evidence
+    # Phase 1: Analyze record relation signatures for class discovery evidence
     record_evidence = analyze_record_evidence(entities)
     if record_evidence:
-        _flush_print(f"\n[Phase 0.5] Record evidence:\n{record_evidence}")
+        _flush_print(f"\n[Phase 1] Record evidence:\n{record_evidence}")
 
     class_vocab = discover_class_vocabulary(concept_entities, llm, record_evidence=record_evidence)
 
-    # Phase 1b: Batch LLM entity typing
+    # Phase 3: Batch LLM entity typing
     assignments = batch_type_entities(entities, class_vocab, llm)
 
-    # Phase 1c: Rebalance mega-classes (split any class > 30% of entities)
+    # Phase 4: Rebalance mega-classes (split any class > 30% of entities)
     assignments, class_vocab = rebalance_mega_classes(
         assignments, entities, class_vocab, llm,
         use_old_rebalance=use_old_rebalance,
     )
 
-    # Phase 1d: Rescue "Other" entities with targeted re-typing
+    # Phase 5: Rescue "Other" entities with targeted re-typing
     assignments = rescue_other_entities(assignments, entities, llm)
 
-    # NOTE: Phase 1f (value typing) moved AFTER Phase 1e (record propagation)
+    # NOTE: Phase 9 (value typing) moved AFTER Phase 8 (record propagation)
     # so value entities can see record neighbor classes, not just concept neighbors.
 
     # --- Decision provenance tracking ---
@@ -2268,8 +2263,8 @@ def run_sv_loi(
     if skip_verify:
         _flush_print("\n--- [ABLATION] Skipping structural verification ---")
     else:
-        # Phase 2a: Concept-only structural verification
-        _flush_print("\n--- Phase 2a: Concept-only structural verification ---")
+        # Phase 6: Concept-only structural verification
+        _flush_print("\n[Phase 6] Concept-only structural verification")
         concept_only_assignments = {
             eid: cls for eid, cls in assignments.items()
             if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
@@ -2298,7 +2293,7 @@ def run_sv_loi(
         elif flagged and skip_arbitrate:
             _flush_print(f"  [ABLATION] Skipping arbitration — {len(flagged)} flagged")
 
-    # Phase 1e: Propagate verified concept types to records
+    # Phase 8: Schema mapping — propagate verified concept types to records
     if skip_record_propagation:
         _flush_print("\n--- [ABLATION] Skipping record propagation (using Zone 2 types) ---")
     else:
@@ -2330,13 +2325,13 @@ def run_sv_loi(
             _flush_print(f"  Redirected {redirected} entities, "
                          f"cleaned vocab: removed {list(redirects.keys())}")
 
-    # Phase 1f: Generalized value entity typing (AFTER record propagation
+    # Phase 9: Value typing (AFTER record propagation
     # so value entities can see record neighbor classes for majority voting)
     assignments = type_value_entities(assignments, entities, class_vocab)
 
-    # Phase 2b: Full structural verification (all entities, clean centroids)
+    # Phase 10: Full structural verification (all entities, clean centroids)
     if not skip_verify:
-        _flush_print("\n--- Phase 2b: Full structural verification ---")
+        _flush_print("\n[Phase 10] Full structural verification")
         class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
         total_flagged += len(flagged)
 
@@ -2362,7 +2357,7 @@ def run_sv_loi(
     }
     _flush_print(f"\n  Two-lane: {len(concept_assignments)} concepts drive consolidation")
 
-    # Phase 4: Unified class relation inference (5-way) + hierarchy (Changes C+D+E)
+    # Phase 11: 5-way class consolidation + hierarchy (Changes C+D+E)
     pre_consolidate = dict(assignments)
     if skip_consolidate:
         _flush_print("\n--- [ABLATION] Skipping class relation inference ---")
@@ -2406,17 +2401,17 @@ def run_sv_loi(
             if eid in provenance:
                 provenance[eid]["consolidated_from"] = pre_consolidate[eid]
 
-    # Phase 4b: Merge remaining small classes structurally
+    # Phase 12: Merge small classes structurally
     assignments = merge_small_classes(assignments, features, entity_ids)
 
-    # Phase 4b+: Merge leaf classes (property-value classes) into parent classes
+    # Phase 13: LLM class validation (property-value classes into parent classes)
     assignments = merge_leaf_classes(assignments, entities, llm=llm)
 
-    # Phase 4c: Data-driven inter-class edge derivation
+    # Phase 14: Data-driven inter-class edge derivation
     # Instead of LLM-guessing IS-A relationships (which are mostly wrong),
     # derive association edges from actual entity-level connections.
     # This matches how Riskine defines inter-class links ($ref = HAS-A/REFERENCES).
-    _flush_print("\n[Phase 4c] Data-driven inter-class edge derivation...")
+    _flush_print("\n[Phase 14] Data-driven inter-class edge derivation...")
     data_edges = derive_interclass_edges(assignments, entities)
     existing_edges = set(hierarchy)
     for edge in data_edges:
@@ -2431,7 +2426,7 @@ def run_sv_loi(
         if eid in provenance:
             provenance[eid]["final_type"] = cls
 
-    # Phase 5: Write to Neo4j
+    # Phase 15: Write to Neo4j
     neo4j_stats = write_ontology(assignments, hierarchy)
 
     elapsed = time.time() - start
@@ -2531,7 +2526,7 @@ After running, evaluate with:
     parser.add_argument("--skip-consolidate", action="store_true",
                         help="[ABLATION] Skip Phase 4 LLM-guided consolidation")
     parser.add_argument("--skip-record-propagation", action="store_true",
-                        help="[ABLATION] Skip Phase 1e record propagation (use Zone 2 types)")
+                        help="[ABLATION] Skip Phase 8 record propagation (use Zone 2 types)")
     parser.add_argument("--use-old-rebalance", action="store_true",
                         help="[ABLATION] Use old rebalance (total entities, 25% threshold)")
     parser.add_argument("--seed", type=int, default=42,
