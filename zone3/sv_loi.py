@@ -584,7 +584,7 @@ in the real world — its domain role, not its data type.
 
 AVAILABLE CLASSES: {class_list}, Other
 
-For each entity, ask: "What IS this thing in the {domain} domain?"
+For each entity, ask: "What IS this thing in the real world?"
 - A deductible is a feature of a product/coverage, not a financial amount
 - A company or agency is an organization
 - A named coverage type is a type of coverage
