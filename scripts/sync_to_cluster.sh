@@ -26,11 +26,15 @@ SSH_JUMP="-J ${NETID}@lab0z.mathcs.emory.edu"
 # ---------------------------------------------------------------------------
 if [ "$MODE" = "--fetch" ]; then
     echo "Fetching results $REMOTE:$SCRATCH/project/data/results/ → $PROJECT_ROOT/data/results/"
+    echo "  (only subdirectories: flood/, emory/, visualizations/)"
     echo ""
-    rsync -avz --progress \
-        -e "ssh $SSH_JUMP" \
-        "$REMOTE:$SCRATCH/project/data/results/" \
-        "$PROJECT_ROOT/data/results/"
+    # Only fetch organized subdirectories, skip flat top-level files from old layout
+    for subdir in flood emory visualizations; do
+        rsync -avz --progress \
+            -e "ssh $SSH_JUMP" \
+            "$REMOTE:$SCRATCH/project/data/results/$subdir/" \
+            "$PROJECT_ROOT/data/results/$subdir/" 2>/dev/null || true
+    done
     echo ""
     echo "Fetch complete."
     echo ""

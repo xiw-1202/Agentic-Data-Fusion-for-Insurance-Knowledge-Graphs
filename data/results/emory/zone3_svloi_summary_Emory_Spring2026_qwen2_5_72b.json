@@ -1,0 +1,154 @@
+{
+  "mode": "zone3_sv_loi",
+  "model": "qwen2.5:72b",
+  "suffix": "Emory_Spring2026_qwen2_5_72b",
+  "seed": 42,
+  "elapsed_seconds": 829.52,
+  "entity_count": 8850,
+  "class_vocab_discovered": [
+    "Coverage",
+    "Organization",
+    "Address",
+    "Damage",
+    "Risk",
+    "Policy",
+    "Claim",
+    "ServiceContract",
+    "VehiclePart",
+    "Procedure",
+    "Other"
+  ],
+  "classes_final": [
+    "Address",
+    "Claim",
+    "Coverage",
+    "Damage",
+    "Organization",
+    "Policy",
+    "Risk",
+    "ServiceContract"
+  ],
+  "class_distribution": {
+    "ServiceContract": 256,
+    "Damage": 33,
+    "Organization": 60,
+    "Risk": 35,
+    "Claim": 445,
+    "Coverage": 613,
+    "Policy": 110,
+    "Address": 13
+  },
+  "flagged_count": 141,
+  "hierarchy": [
+    {
+      "child": "Coverage",
+      "parent": "Policy"
+    },
+    {
+      "child": "Claim",
+      "parent": "Coverage"
+    },
+    {
+      "child": "Policy",
+      "parent": "Coverage"
+    },
+    {
+      "child": "ServiceContract",
+      "parent": "Organization"
+    },
+    {
+      "child": "ServiceContract",
+      "parent": "Risk"
+    },
+    {
+      "child": "Policy",
+      "parent": "ServiceContract"
+    },
+    {
+      "child": "ServiceContract",
+      "parent": "Damage"
+    },
+    {
+      "child": "Coverage",
+      "parent": "Damage"
+    },
+    {
+      "child": "Claim",
+      "parent": "Organization"
+    },
+    {
+      "child": "ServiceContract",
+      "parent": "Coverage"
+    },
+    {
+      "child": "Organization",
+      "parent": "Policy"
+    },
+    {
+      "child": "Coverage",
+      "parent": "Risk"
+    },
+    {
+      "child": "ServiceContract",
+      "parent": "Claim"
+    },
+    {
+      "child": "ServiceContract",
+      "parent": "Address"
+    },
+    {
+      "child": "Organization",
+      "parent": "Risk"
+    },
+    {
+      "child": "Claim",
+      "parent": "Address"
+    },
+    {
+      "child": "Claim",
+      "parent": "Damage"
+    },
+    {
+      "child": "Policy",
+      "parent": "Risk"
+    }
+  ],
+  "neo4j_stats": {
+    "entities_labeled": 1565,
+    "ontology_classes": 8,
+    "subclass_of_edges": 18,
+    "class_names": [
+      "Address",
+      "Claim",
+      "Coverage",
+      "Damage",
+      "Organization",
+      "Policy",
+      "Risk",
+      "ServiceContract"
+    ],
+    "class_distribution": {
+      "ServiceContract": 256,
+      "Damage": 33,
+      "Organization": 60,
+      "Risk": 35,
+      "Claim": 445,
+      "Coverage": 613,
+      "Policy": 110,
+      "Address": 13
+    },
+    "method": "SV-LOI"
+  },
+  "ablation": {
+    "skip_verify": false,
+    "skip_arbitrate": false,
+    "skip_consolidate": false
+  },
+  "provenance_stats": {
+    "total_entities": 8850,
+    "flagged": 136,
+    "arbitrated": 66,
+    "consolidated": 0,
+    "type_changed_by_verification": 1323
+  }
+}
