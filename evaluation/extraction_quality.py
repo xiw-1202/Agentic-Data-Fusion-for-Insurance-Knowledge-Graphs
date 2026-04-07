@@ -128,9 +128,9 @@ def _get_all_triples(graph: Neo4jGraph) -> list[dict]:
     ]
 
 
-def _load_chunks() -> list[dict]:
+def _load_chunks(chunks_file: str | None = None) -> list[dict]:
     """Load Zone 1 chunks from disk."""
-    chunks_path = config.ZONE1_CHUNKS_FILE
+    chunks_path = chunks_file or config.ZONE1_CHUNKS_FILE
     if not os.path.exists(chunks_path):
         print(f"  Warning: chunks not found at {chunks_path}", flush=True)
         return []
@@ -347,6 +347,7 @@ def measure_fact_recall(
     graph: Neo4jGraph,
     llm: ChatOllama,
     n_chunks: int = DEFAULT_RECALL_CHUNKS,
+    chunks_file: str | None = None,
 ) -> dict:
     """Fact recall via G-BERTScore (Ghanem & Cruz KGSWC 2024, PiVe 2023).
 
@@ -367,7 +368,7 @@ def measure_fact_recall(
     print(f"\n[Metric 3] Fact Recall — G-BERTScore style (n_chunks={n_chunks})...",
           flush=True)
 
-    chunks = _load_chunks()
+    chunks = _load_chunks(chunks_file)
     if not chunks:
         return {"fact_recall": 0.0, "note": "chunks not found"}
 
@@ -376,7 +377,7 @@ def measure_fact_recall(
         import numpy as np
     except ImportError:
         print("  sentence_transformers not available; falling back to substring match")
-        return _measure_fact_recall_substring(graph, llm, n_chunks)
+        return _measure_fact_recall_substring(graph, llm, n_chunks, chunks_file)
 
     # Sample diverse chunks (prefer content-rich, skip schema chunks).
     content_chunks = [
@@ -490,9 +491,10 @@ def _measure_fact_recall_substring(
     graph: Neo4jGraph,
     llm: ChatOllama,
     n_chunks: int,
+    chunks_file: str | None = None,
 ) -> dict:
     """Fallback fact recall using substring matching (no sentence-transformers)."""
-    chunks = _load_chunks()
+    chunks = _load_chunks(chunks_file)
     content_chunks = [c for c in chunks if c.get("token_count", 0) > 100]
     if not content_chunks:
         content_chunks = chunks
@@ -564,6 +566,7 @@ def measure_source_grounding(
     graph: Neo4jGraph,
     llm: ChatOllama,
     sample_size: int = DEFAULT_GROUNDING_SAMPLES,
+    chunks_file: str | None = None,
 ) -> dict:
     """Check if extracted triples can be traced back to source text.
 
@@ -575,7 +578,7 @@ def measure_source_grounding(
     """
     print(f"\n[Metric 4] Source Grounding (n={sample_size})...", flush=True)
 
-    chunks = _load_chunks()
+    chunks = _load_chunks(chunks_file)
     if not chunks:
         return {"grounding_rate": 0.0, "note": "chunks not found"}
 
@@ -757,6 +760,8 @@ def run_extraction_quality(
     model: str = config.OLLAMA_MODEL,
     suffix: str = "zone2_seaf",
     sample_size: int = DEFAULT_PRECISION_SAMPLES,
+    chunks_file: str | None = None,
+    results_dir: str | None = None,
 ) -> dict:
     """Run Zone 2 extraction quality evaluation (3 metrics + graph stats).
 
@@ -780,10 +785,12 @@ def run_extraction_quality(
     precision = measure_triple_precision(graph, llm, sample_size)
 
     # Metric 2: Fact recall (G-BERTScore style).
-    fact_recall = measure_fact_recall(graph, llm, n_chunks=DEFAULT_RECALL_CHUNKS)
+    fact_recall = measure_fact_recall(graph, llm, n_chunks=DEFAULT_RECALL_CHUNKS,
+                                     chunks_file=chunks_file)
 
     # Metric 3: Source grounding.
-    grounding = measure_source_grounding(graph, llm, sample_size=DEFAULT_GROUNDING_SAMPLES)
+    grounding = measure_source_grounding(graph, llm, sample_size=DEFAULT_GROUNDING_SAMPLES,
+                                         chunks_file=chunks_file)
 
     # Supplementary: Graph statistics.
     stats = measure_graph_statistics(graph)
@@ -798,8 +805,9 @@ def run_extraction_quality(
     }
 
     # Save.
-    os.makedirs(config.RESULTS_DIR, exist_ok=True)
-    out_path = os.path.join(config.RESULTS_DIR, f"extraction_quality_{suffix}.json")
+    rdir = results_dir or config.RESULTS_DIR
+    os.makedirs(rdir, exist_ok=True)
+    out_path = os.path.join(rdir, f"extraction_quality_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2, default=str)
     print(f"\n✓ Results saved to {out_path}")
@@ -836,6 +844,13 @@ Metrics (following AutoSchemaKG 2025, Ghanem & Cruz KGSWC 2024):
     parser.add_argument("--model", default=config.OLLAMA_MODEL, help="Ollama model")
     parser.add_argument("--sample-size", type=int, default=DEFAULT_PRECISION_SAMPLES,
                         help="Triples to sample for precision")
+    parser.add_argument("--chunks", default=None,
+                        help="Path to zone1_chunks.json (default: config.ZONE1_CHUNKS_FILE)")
+    parser.add_argument("--results-dir", default=None,
+                        help="Output directory for results (default: config.RESULTS_DIR)")
     args = parser.parse_args()
 
-    run_extraction_quality(model=args.model, suffix=args.suffix, sample_size=args.sample_size)
+    run_extraction_quality(model=args.model, suffix=args.suffix,
+                           sample_size=args.sample_size,
+                           chunks_file=args.chunks,
+                           results_dir=args.results_dir)

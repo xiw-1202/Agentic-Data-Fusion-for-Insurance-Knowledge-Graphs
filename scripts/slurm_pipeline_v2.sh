@@ -185,7 +185,8 @@ echo "  Started: $(date)"
 echo "================================================================"
 
 Z2_EVAL_START=$(date +%s)
-python3 evaluation/extraction_quality.py --suffix $SUFFIX --model $MODEL --sample-size 100
+python3 evaluation/extraction_quality.py --suffix $SUFFIX --model $MODEL --sample-size 100 \
+    --chunks ${DATA_DIR}/processed/zone1_chunks.json --results-dir $RESULTS_DIR
 Z2_EVAL_END=$(date +%s)
 Z2_EVAL_TIME=$((Z2_EVAL_END - Z2_EVAL_START))
 
