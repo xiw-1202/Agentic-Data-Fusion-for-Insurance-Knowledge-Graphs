@@ -362,16 +362,25 @@ def measure_riskine_alignment(
     # domain context similarity jumps significantly — essential for cross-name
     # matching in ontology alignment.
     # Domain is read from zone3 summary (LLM-detected, not hardcoded).
+    # Search both results_dir and its parent (zone3 summary may be one level up).
     rdir = results_dir or config.RESULTS_DIR
     detected_domain = ""
-    for fn in os.listdir(rdir):
-        if fn.startswith("zone3_svloi_summary") and fn.endswith(".json"):
-            try:
-                z3 = json.load(open(os.path.join(rdir, fn)))
-                detected_domain = z3.get("domain", "")
-                break
-            except Exception:
-                pass
+    search_dirs = [rdir, os.path.dirname(rdir.rstrip("/"))]
+    for search_dir in search_dirs:
+        if not os.path.isdir(search_dir):
+            continue
+        for fn in os.listdir(search_dir):
+            if fn.startswith("zone3_svloi_summary") and fn.endswith(".json"):
+                try:
+                    with open(os.path.join(search_dir, fn)) as fh:
+                        z3 = json.load(fh)
+                    detected_domain = z3.get("domain", "")
+                except Exception:
+                    pass
+                if detected_domain:
+                    break
+        if detected_domain:
+            break
     domain_ctx = f"({detected_domain} ontology class)" if detected_domain else "(ontology class)"
     print(f"  Embedding context: {domain_ctx}")
     induced_for_embed = [f"{_humanize_label(l)} {domain_ctx}" for l in induced_labels]

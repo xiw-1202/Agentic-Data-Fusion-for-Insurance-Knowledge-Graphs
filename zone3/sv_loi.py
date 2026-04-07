@@ -816,7 +816,7 @@ def type_value_entities(
         for cls, cnt in class_gains.most_common():
             print(f"    → {cls}: +{cnt}", flush=True)
     else:
-        print(f"  ✓ No value entities met the {threshold:.0%} threshold — all stay as Other", flush=True)
+        print(f"  ✓ No value entities met the {confidence_threshold:.0%} threshold — all stay as Other", flush=True)
 
     return updated
 
