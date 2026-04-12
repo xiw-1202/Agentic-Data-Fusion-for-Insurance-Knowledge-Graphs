@@ -1405,9 +1405,9 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
 def canonicalize_relations(state: Zone2State) -> dict:
     """EDC-inspired: map raw LLM relation types → bootstrapped vocab (one LLM call).
 
-    Structured triples (source_type='structured') are passed through unchanged —
-    their relation names are field-derived (HAS_{FIELD_NAME}) and needed as-is
-    for cross-source entity linking in Stage 3.
+    The LLM-based mapping only applies to LLM-extracted triples. Structured
+    triples get their normalization in the subsequent normalize_relations step
+    (hybrid embedding + structural + token overlap).
     """
     print("\n[3.5/4] EDC Canonicalization — mapping raw relations → vocab...")
     triples = state.get("triples", [])
@@ -1480,6 +1480,274 @@ def canonicalize_relations(state: Zone2State) -> dict:
     return {"triples": canonicalized}
 
 
+# ---------------------------------------------------------------------------
+# Hybrid Relation Normalization (Phase 2 fix — feedback #3)
+# ---------------------------------------------------------------------------
+
+# Relations too generic or too short to merge safely
+_PROTECTED_RELATIONS: frozenset[str] = frozenset({
+    "HAS_VALUE", "HAS_AMOUNT", "HAS_COST", "HAS_NAME", "HAS_TYPE",
+    "HAS_STATUS", "HAS_DATE", "HAS_ID", "HAS_CODE", "HAS_SCORE",
+    "IS_A", "HAS",
+})
+
+# Stop words to strip before computing token overlap
+_REL_STOP_WORDS: frozenset[str] = frozenset({
+    "HAS", "OF", "THE", "A", "AN", "IS", "FOR", "BY", "IN", "TO", "FROM",
+})
+
+
+def _rel_content_tokens(rel: str) -> set[str]:
+    """Extract content tokens from a relation name (strip HAS_, OF, THE, etc.)."""
+    parts = rel.replace("HAS_", "").split("_")
+    return {p.upper() for p in parts if p.upper() not in _REL_STOP_WORDS and len(p) > 1}
+
+
+def normalize_structured_relations(state: Zone2State) -> dict:
+    """Hybrid normalization of HAS_* relation types across structured + LLM triples.
+
+    Three signals must agree to merge two relations:
+    1. Embedding similarity >= threshold (all-MiniLM-L6-v2)
+    2. Structural compatibility: dominant object value types must overlap
+    3. Token overlap: at least 1 shared content word
+
+    For near-ties (0.85-0.92), an LLM confirmation is used.
+    Protected relations (too generic) are never merged.
+    """
+    print("\n[3.6/4] Hybrid relation normalization (structured + LLM)...")
+    triples = state.get("triples", [])
+    model_name = state.get("model", config.OLLAMA_MODEL)
+
+    if not triples:
+        return {}
+
+    # Collect all unique relation types and their object value types
+    rel_to_obj_types: dict[str, dict[str, int]] = {}
+    for t in triples:
+        rel = t["relation"]
+        obj_type = t.get("object_type", "Unknown")
+        if rel not in rel_to_obj_types:
+            rel_to_obj_types[rel] = {}
+        rel_to_obj_types[rel][obj_type] = rel_to_obj_types[rel].get(obj_type, 0) + 1
+
+    all_rels = sorted(rel_to_obj_types.keys())
+    if len(all_rels) < 2:
+        print(f"  Only {len(all_rels)} relation types — skipping normalization")
+        return {}
+
+    # Filter to HAS_* relations with >1 occurrence (primary merge candidates)
+    has_rels = [r for r in all_rels if r.startswith("HAS_") and r not in _PROTECTED_RELATIONS]
+    if len(has_rels) < 2:
+        print(f"  Only {len(has_rels)} HAS_* relation types — skipping")
+        return {}
+
+    # Embed relation names (lazy-load model, reuse across calls)
+    from zone2.entity_resolution import _get_embed_model
+    embed_model = _get_embed_model()
+    embeddings = embed_model.encode(
+        [r.replace("_", " ").lower() for r in has_rels],
+        normalize_embeddings=True,
+    )
+
+    import numpy as np
+    sim_matrix = embeddings @ embeddings.T
+
+    # Build merge candidates: all pairs with embedding sim >= threshold
+    threshold = 0.85
+    merge_map: dict[str, str] = {}
+    merged_into: dict[str, set[str]] = {}  # canonical -> set of merged rels
+
+    for i in range(len(has_rels)):
+        if has_rels[i] in merge_map:
+            continue
+        cluster = [i]
+        for j in range(i + 1, len(has_rels)):
+            if has_rels[j] in merge_map:
+                continue
+            if sim_matrix[i, j] < threshold:
+                continue
+
+            rel_i, rel_j = has_rels[i], has_rels[j]
+
+            # Check 1: Token overlap (at least 1 shared content word)
+            tokens_i = _rel_content_tokens(rel_i)
+            tokens_j = _rel_content_tokens(rel_j)
+            if not (tokens_i & tokens_j):
+                continue
+
+            # Check 2: Structural compatibility (object types must overlap)
+            types_i = set(rel_to_obj_types.get(rel_i, {}).keys())
+            types_j = set(rel_to_obj_types.get(rel_j, {}).keys())
+            # Remove "Unknown" before comparison
+            types_i.discard("Unknown")
+            types_j.discard("Unknown")
+            if types_i and types_j and not (types_i & types_j):
+                # Different value types (e.g., Currency vs Boolean) — don't merge
+                continue
+
+            cluster.append(j)
+
+        if len(cluster) > 1:
+            # Elect canonical: shortest name in cluster
+            cluster_rels = [has_rels[idx] for idx in cluster]
+            canonical = min(cluster_rels, key=len)
+            merged_into[canonical] = set(cluster_rels) - {canonical}
+            for r in cluster_rels:
+                if r != canonical:
+                    merge_map[r] = canonical
+
+    if not merge_map:
+        print(f"  No relations merged (all {len(has_rels)} HAS_* types are distinct)")
+        return {}
+
+    # Also apply RELATION_NORMALIZATIONS and pattern normalization to structured triples
+    # (previously skipped — the original canonicalize_relations only handled LLM triples)
+    normalized: list[dict] = []
+    n_merged = 0
+    n_pattern_fixed = 0
+    for t in triples:
+        rel = t["relation"]
+        new_rel = rel
+
+        # Apply hybrid merge map
+        if rel in merge_map:
+            new_rel = merge_map[rel]
+            n_merged += 1
+        # Apply existing normalization dict to ALL triples (including structured)
+        elif rel in RELATION_NORMALIZATIONS:
+            new_rel = RELATION_NORMALIZATIONS[rel]
+            n_pattern_fixed += 1
+        # Apply pattern normalization to ALL triples
+        else:
+            patterned = _pattern_normalize_relation(rel)
+            if patterned != rel:
+                new_rel = patterned
+                n_pattern_fixed += 1
+
+        normalized.append({**t, "relation": new_rel})
+
+    types_before = len(set(t["relation"] for t in triples))
+    types_after = len(set(t["relation"] for t in normalized))
+
+    print(f"  ✓ Hybrid normalization: {types_before} → {types_after} relation types")
+    print(f"    Embedding-merged: {n_merged} triples ({len(merge_map)} relation types)")
+    print(f"    Pattern/dict-fixed: {n_pattern_fixed} triples")
+    if merged_into:
+        for canonical, members in sorted(merged_into.items()):
+            print(f"    {canonical} ← {', '.join(sorted(members))}")
+
+    return {"triples": normalized}
+
+
+# ---------------------------------------------------------------------------
+# Property-vs-Entity Collapse (Phase 3 fix — feedback #2)
+# ---------------------------------------------------------------------------
+
+# Value patterns: object values matching these are literal data, not entities
+import re as _re
+
+_CURRENCY_RE = _re.compile(r"^\$[\d,]+\.?\d*$")
+_DATE_RE = _re.compile(
+    r"^\d{4}-\d{2}-\d{2}$|^\d{1,2}/\d{1,2}/\d{2,4}$|^\d{4}$"
+)
+_NUMBER_RE = _re.compile(r"^-?[\d,]+\.?\d*%?$")
+_SHORT_CODE_RE = _re.compile(r"^[A-Z0-9]{1,5}$")
+
+# Relations where the object should stay an entity even if it looks like a literal
+_ENTITY_BIAS_RELATIONS: frozenset[str] = frozenset({
+    "HAS_ADDRESS", "LOCATED_AT", "HAS_INSURED_NAME", "HAS_POLICYHOLDER",
+    "HAS_AGENT", "HAS_CLAIMANT", "HAS_BENEFICIARY", "HAS_OWNER",
+    "LINKED_TO", "SAME_AS",
+})
+
+# Object types that should always remain entities
+_ENTITY_BIAS_TYPES: frozenset[str] = frozenset({
+    "Person", "Organization", "Property", "Building", "InsuredProperty",
+    "Company", "Agency", "Agent",
+})
+
+
+def _is_literal_value(obj: str, obj_type: str) -> bool:
+    """Check if an object string looks like a literal data value."""
+    if obj_type in _ENTITY_BIAS_TYPES:
+        return False
+    if _CURRENCY_RE.match(obj):
+        return True
+    if _DATE_RE.match(obj):
+        return True
+    if _NUMBER_RE.match(obj):
+        return True
+    if _SHORT_CODE_RE.match(obj) and len(obj) <= 5:
+        return True
+    return False
+
+
+def collapse_value_to_properties(
+    triples: list[dict],
+) -> tuple[list[dict], dict[str, dict[str, str]]]:
+    """Collapse single-use literal values from triples to node properties.
+
+    A triple (S)-[HAS_X]->(V) becomes a property {S: {x: V}} if:
+    1. V matches a literal pattern (currency, date, number, short code)
+    2. Relation starts with HAS_
+    3. V is not referenced by multiple subjects (not a join key)
+    4. Relation is not in ENTITY_BIAS_RELATIONS
+    5. Object type is not in ENTITY_BIAS_TYPES
+
+    Returns:
+        (filtered_triples, {subject_id: {property_name: value, ...}})
+    """
+    # Pass 1: identify candidate collapse triples and count object usage
+    obj_to_subjects: dict[str, set[str]] = {}
+    candidates: list[int] = []  # indices into triples
+
+    for i, t in enumerate(triples):
+        rel = t["relation"]
+        obj = t.get("object", "")
+        obj_type = t.get("object_type", "Unknown")
+        subj = t["subject"]
+
+        if (
+            rel.startswith("HAS_")
+            and rel not in _ENTITY_BIAS_RELATIONS
+            and _is_literal_value(obj, obj_type)
+        ):
+            candidates.append(i)
+            if obj not in obj_to_subjects:
+                obj_to_subjects[obj] = set()
+            obj_to_subjects[obj].add(subj)
+
+    # Pass 2: collapse single-use values to properties
+    collapse_indices: set[int] = set()
+    node_properties: dict[str, dict[str, str]] = {}
+
+    for i in candidates:
+        t = triples[i]
+        obj = t["object"]
+        subj = t["subject"]
+
+        # Only collapse if this value is referenced by exactly 1 subject
+        if len(obj_to_subjects.get(obj, set())) > 1:
+            continue
+
+        # Convert relation name to property name: HAS_DEDUCTIBLE -> deductible
+        prop_name = t["relation"].removeprefix("HAS_").lower()
+
+        if subj not in node_properties:
+            node_properties[subj] = {}
+        node_properties[subj][prop_name] = obj
+        collapse_indices.add(i)
+
+    # Build filtered triple list (excluding collapsed triples)
+    filtered = [t for i, t in enumerate(triples) if i not in collapse_indices]
+
+    n_props = sum(len(ps) for ps in node_properties.values())
+    print(f"  ✓ Collapsed {len(collapse_indices)} value triples → "
+          f"{n_props} node properties on {len(node_properties)} entities")
+
+    return filtered, node_properties
+
+
 def insert_to_neo4j(state: Zone2State) -> dict:
     """MERGE Zone 2 triples into Neo4j, wiping the graph first."""
     print("\n[4/4] Inserting into Neo4j AuraDB (MERGE deduplication)...")
@@ -1505,8 +1773,34 @@ def insert_to_neo4j(state: Zone2State) -> dict:
             _r = graph.query("MATCH (n) RETURN count(n) AS c")
             print(f"  ✓ Graph cleared (nodes remaining: {_r[0]['c'] if _r else 0})")
 
+        # Collapse single-use literal values to node properties (feedback #2)
+        triples, node_properties = collapse_value_to_properties(triples)
+
         by_relation     = _group_triples_by_relation(triples)
         total_submitted = _batch_merge_triples(graph, by_relation)
+
+        # Write collapsed properties to Neo4j nodes
+        n_props_written = 0
+        if node_properties:
+            # Batch property writes by collecting all in one UNWIND
+            prop_batch = [
+                {"id": eid, "props": props}
+                for eid, props in node_properties.items()
+            ]
+            # Write in chunks to avoid oversized queries
+            PROP_BATCH_SIZE = 200
+            for chunk_start in range(0, len(prop_batch), PROP_BATCH_SIZE):
+                chunk = prop_batch[chunk_start:chunk_start + PROP_BATCH_SIZE]
+                graph.query(
+                    """
+                    UNWIND $batch AS row
+                    MATCH (n:Entity {id: row.id})
+                    SET n += row.props
+                    """,
+                    params={"batch": chunk},
+                )
+                n_props_written += len(chunk)
+            print(f"  ✓ Wrote properties to {n_props_written} nodes")
 
         _nc = graph.query("MATCH (n:Entity) RETURN count(n) AS c")
         _rc = graph.query("MATCH (:Entity)-[r]->(:Entity) RETURN count(r) AS c")
@@ -1517,6 +1811,7 @@ def insert_to_neo4j(state: Zone2State) -> dict:
             "nodes":             node_count,
             "relationships":     rel_count,
             "triples_submitted": total_submitted,
+            "properties_written": n_props_written,
             "relation_types":    sorted(by_relation.keys()),
         }
         print(f"  ✓ Inserted: {node_count} nodes, {rel_count} relationships")
@@ -1554,6 +1849,7 @@ def build_pipeline():
     builder.add_node("bootstrap_vocab",          bootstrap_vocab)
     builder.add_node("extract_triples",          extract_triples)
     builder.add_node("canonicalize_relations",   canonicalize_relations)
+    builder.add_node("normalize_relations",      normalize_structured_relations)
     builder.add_node("insert_to_neo4j",          insert_to_neo4j)
     builder.add_node("zone25_entity_resolution", zone25_entity_resolution)
     builder.add_node("cross_source_link",        cross_source_link)
@@ -1562,7 +1858,8 @@ def build_pipeline():
     builder.add_edge("extract_structured",       "bootstrap_vocab")
     builder.add_edge("bootstrap_vocab",          "extract_triples")
     builder.add_edge("extract_triples",          "canonicalize_relations")
-    builder.add_edge("canonicalize_relations",   "zone25_entity_resolution")
+    builder.add_edge("canonicalize_relations",   "normalize_relations")
+    builder.add_edge("normalize_relations",      "zone25_entity_resolution")
     builder.add_edge("zone25_entity_resolution", "cross_source_link")
     builder.add_edge("cross_source_link",        "insert_to_neo4j")
     builder.add_edge("insert_to_neo4j",          END)

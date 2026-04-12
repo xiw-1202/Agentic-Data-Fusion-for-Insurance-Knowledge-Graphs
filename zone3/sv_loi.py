@@ -46,7 +46,7 @@ import time
 import os
 import sys
 import argparse
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from collections import defaultdict, Counter
 
 import numpy as np
@@ -485,6 +485,7 @@ def batch_type_entities(
     entities: list[dict],
     class_vocab: list[str],
     llm: ChatOllama,
+    results_dir: str | None = None,
 ) -> dict[str, str]:
     """Assign ontology class to each entity via batched LLM prompts.
 
@@ -492,9 +493,35 @@ def batch_type_entities(
     from their existing entity_type — no LLM calls needed. Only
     LLM-extracted entities go through the batched classification.
 
+    If a few_shot_corrections.json file exists in results_dir, up to 5
+    correction examples are prepended to each typing prompt (feedback #7).
+
     Returns:
         {entity_id: class_name}
     """
+    # Load few-shot corrections from previous eval runs (feedback loop)
+    corrections_text = ""
+    rdir = results_dir or config.RESULTS_DIR
+    corrections_path = os.path.join(rdir, "few_shot_corrections.json")
+    if os.path.exists(corrections_path):
+        try:
+            with open(corrections_path) as f:
+                corrections = json.load(f)
+            if corrections:
+                examples = corrections[:5]
+                lines = []
+                for ex in examples:
+                    lines.append(
+                        f"- {ex['entity']} -> {ex['correct_class']} "
+                        f"(NOT {ex['wrong_class']}: {ex.get('reason', 'based on relations')})"
+                    )
+                corrections_text = (
+                    "\nLEARNED CORRECTIONS from previous runs:\n"
+                    + "\n".join(lines) + "\n"
+                )
+                print(f"  Loaded {len(examples)} few-shot corrections from {corrections_path}")
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"  ⚠ Could not load corrections: {e}")
     # Separate entities into 3 groups:
     # 1. Structured (POL-/CLM-/REC-/PER-/PROP-) — pre-assign from entity_type
     # 2. Value entities (Numeric, Date, Text, etc.) — pre-assign as "Other"
@@ -571,7 +598,7 @@ For each entity, ask: "What IS this thing in the real world?"
 - A company or agency is an organization
 - A named coverage type is a type of coverage
 - A person's name refers to a person, not a text string
-
+{corrections_text}
 ENTITIES:
 {chr(10).join(entity_descriptions)}
 
@@ -2051,6 +2078,250 @@ Rules:
     return hierarchy
 
 
+def derive_taxonomy(
+    assignments: dict[str, str],
+    entities: list[dict],
+    llm: ChatOllama,
+) -> list[tuple[str, str]]:
+    """Derive IS-A taxonomy using defining relations + LLM validation.
+
+    Unlike derive_hierarchy (pure LLM guessing) or derive_interclass_edges
+    (association edges), this produces genuine IS-A relationships validated
+    by both structural evidence and LLM judgment.
+
+    Algorithm:
+    1. Compute defining relations per class (frequent + discriminative)
+    2. Find candidate IS-A pairs via relation-set subsumption
+    3. LLM validates candidates (reject-only, not invent)
+    4. Enforce DAG (remove cycles, max depth 3)
+    """
+    print("\n[Taxonomy] Deriving IS-A hierarchy from defining relations...", flush=True)
+
+    class_counts = Counter(v for v in assignments.values() if v != "Other")
+    class_names = sorted(class_counts.keys())
+    if len(class_names) < 2:
+        return []
+
+    # Step 1: Compute defining relations per class
+    # A "defining" relation is one that >= 30% of class members participate in
+    class_rel_counts: dict[str, Counter] = {c: Counter() for c in class_names}
+    for e in entities:
+        eid = e["id"]
+        cls = assignments.get(eid, "Other")
+        if cls == "Other" or cls not in class_rel_counts:
+            continue
+        for rel in e.get("out_rels", []):
+            class_rel_counts[cls][rel["rel"]] += 1
+        for rel in e.get("in_rels", []):
+            class_rel_counts[cls][f"~{rel['rel']}"] += 1  # ~REL = incoming
+
+    # Filter to defining relations (>= 30% of class members participate)
+    _GENERIC_RELS = {"HAS_VALUE", "HAS_NAME", "HAS_DATE", "HAS_TYPE", "HAS_ID",
+                     "IS_A", "~IS_A", "~HAS_VALUE", "~HAS_NAME", "~HAS_DATE"}
+    defining_rels: dict[str, set[str]] = {}
+    for cls in class_names:
+        n = class_counts[cls]
+        threshold = max(2, int(n * 0.3))
+        defining_rels[cls] = {
+            rel for rel, count in class_rel_counts[cls].items()
+            if count >= threshold and rel not in _GENERIC_RELS
+        }
+
+    # Step 2: Find candidate IS-A via relation-set subsumption
+    # If A's defining rels are a strict subset of B's (>= 80% inclusion), A may be subclass of B
+    candidates: list[tuple[str, str, float]] = []
+    for child in class_names:
+        child_rels = defining_rels.get(child, set())
+        if len(child_rels) < 2:
+            continue
+        for parent in class_names:
+            if child == parent:
+                continue
+            parent_rels = defining_rels.get(parent, set())
+            if len(parent_rels) < 2:
+                continue
+            # Child's rels should be subset of parent's
+            if len(child_rels) >= len(parent_rels):
+                continue  # Can't be a subclass if has more or equal rels
+            overlap = len(child_rels & parent_rels)
+            inclusion = overlap / len(child_rels) if child_rels else 0
+            if inclusion >= 0.80:
+                # Check negative constraint: conflicting rels should block
+                exclusive_child = child_rels - parent_rels
+                exclusive_parent = parent_rels - child_rels
+                # If child has unique defining rels that contradict parent's, skip
+                if len(exclusive_child) > len(child_rels) * 0.5:
+                    continue
+                candidates.append((child, parent, inclusion))
+
+    if not candidates:
+        print("  No IS-A candidates found from relation subsumption")
+        return []
+
+    # Sort by inclusion score (strongest first)
+    candidates.sort(key=lambda x: -x[2])
+    print(f"  Found {len(candidates)} candidate IS-A pairs")
+
+    # Step 3: LLM validation (reject only)
+    validated: list[tuple[str, str]] = []
+    if candidates:
+        # Format candidates for LLM
+        cand_lines = []
+        for child, parent, score in candidates[:15]:  # Cap at 15 for prompt size
+            child_members = [e["id"] for e in entities
+                            if assignments.get(e["id"]) == child][:5]
+            parent_members = [e["id"] for e in entities
+                             if assignments.get(e["id"]) == parent][:5]
+            cand_lines.append(
+                f"  {child} (e.g., {', '.join(child_members)}) -> "
+                f"{parent} (e.g., {', '.join(parent_members)})"
+            )
+
+        prompt = f"""Review these proposed IS-A (subclass) relationships between ontology classes.
+
+For each pair, answer YES if the child class is truly a subtype of the parent class,
+or NO if they are merely related but not in an IS-A relationship.
+
+PROPOSED RELATIONSHIPS (Child -> Parent):
+{chr(10).join(cand_lines)}
+
+For each pair, output exactly: ChildClass -> ParentClass: YES or NO
+Only answer YES if every instance of the child class IS-A instance of the parent class.
+"""
+        raw = _invoke_llm(llm, prompt)
+
+        line_re = re.compile(r'(\w+)\s*->\s*(\w+)\s*:\s*(YES|NO)', re.IGNORECASE | re.MULTILINE)
+        for m in line_re.finditer(raw):
+            child_lbl = _sanitize_label(m.group(1))
+            parent_lbl = _sanitize_label(m.group(2))
+            verdict = m.group(3).upper()
+            if verdict == "YES" and child_lbl in class_names and parent_lbl in class_names:
+                validated.append((child_lbl, parent_lbl))
+
+    # Step 4: DAG enforcement (remove cycles, enforce max depth 3)
+    MAX_TAXONOMY_DEPTH = 3
+
+    final_edges: list[tuple[str, str]] = []
+    # Track parent relationships for cycle and depth checks
+    parent_of: dict[str, str] = {}  # child -> parent (single-parent tree)
+
+    def _depth_of(node: str) -> int:
+        """Compute depth of node in current tree (0 = root)."""
+        d = 0
+        cur = node
+        visited: set[str] = set()
+        while cur in parent_of and cur not in visited:
+            visited.add(cur)
+            cur = parent_of[cur]
+            d += 1
+        return d
+
+    for child, parent in validated:
+        if child == parent:
+            continue
+        # Cycle check: walk up from parent — if we reach child, it's a cycle
+        cur = parent
+        is_cycle = False
+        visited: set[str] = set()
+        while cur in parent_of and cur not in visited:
+            visited.add(cur)
+            cur = parent_of[cur]
+            if cur == child:
+                is_cycle = True
+                break
+        if is_cycle:
+            continue
+        # Depth check: child's depth would be parent's depth + 1
+        if _depth_of(parent) + 1 > MAX_TAXONOMY_DEPTH:
+            continue
+        # Accept edge (first-come wins for single parent)
+        if child not in parent_of:
+            parent_of[child] = parent
+            final_edges.append((child, parent))
+
+    print(f"  ✓ {len(final_edges)} validated IS-A edges (from {len(candidates)} candidates)")
+    for child, parent in final_edges:
+        print(f"    {child} SUBCLASS_OF {parent}")
+
+    return final_edges
+
+
+def validate_backbone(
+    assignments: dict[str, str],
+    entities: list[dict],
+) -> dict[str, Any]:
+    """Check insurance value chain connectivity (domain-agnostic).
+
+    Reports what fraction of entities with certain roles are linked to
+    entities with other expected roles. Uses class names to infer roles.
+    """
+    print("\n[Backbone] Validating entity connectivity...", flush=True)
+
+    # Build entity-to-class lookup
+    class_members: dict[str, list[dict]] = defaultdict(list)
+    for e in entities:
+        cls = assignments.get(e["id"], "Other")
+        if cls != "Other":
+            class_members[cls].append(e)
+
+    # For each class, check what fraction of members have inter-class connections
+    class_connectivity: dict[str, dict] = {}
+    for cls, members in class_members.items():
+        connected = 0
+        neighbor_classes: Counter = Counter()
+        for e in members:
+            has_interclass = False
+            for rel in e.get("out_rels", []):
+                tcls = assignments.get(rel.get("target", ""), "Other")
+                if tcls != "Other" and tcls != cls:
+                    has_interclass = True
+                    neighbor_classes[tcls] += 1
+            for rel in e.get("in_rels", []):
+                scls = assignments.get(rel.get("source", ""), "Other")
+                if scls != "Other" and scls != cls:
+                    has_interclass = True
+                    neighbor_classes[scls] += 1
+            if has_interclass:
+                connected += 1
+
+        frac = connected / len(members) if members else 0
+        class_connectivity[cls] = {
+            "total": len(members),
+            "connected": connected,
+            "connectivity": round(frac, 3),
+            "top_neighbors": dict(neighbor_classes.most_common(3)),
+        }
+
+    # Overall stats
+    total_entities = sum(d["total"] for d in class_connectivity.values())
+    total_connected = sum(d["connected"] for d in class_connectivity.values())
+    overall_connectivity = round(total_connected / total_entities, 4) if total_entities else 0
+
+    # Disconnected classes (< 10% connectivity)
+    disconnected = [
+        cls for cls, d in class_connectivity.items()
+        if d["connectivity"] < 0.10
+    ]
+
+    result = {
+        "overall_connectivity": overall_connectivity,
+        "total_non_other_entities": total_entities,
+        "total_connected": total_connected,
+        "disconnected_classes": disconnected,
+        "per_class": class_connectivity,
+    }
+
+    print(f"  Overall connectivity: {overall_connectivity:.1%} "
+          f"({total_connected}/{total_entities} entities)")
+    if disconnected:
+        print(f"  ⚠ Disconnected classes (<10%): {disconnected}")
+    for cls, d in sorted(class_connectivity.items(), key=lambda x: x[1]["connectivity"]):
+        print(f"    {cls}: {d['connectivity']:.0%} connected ({d['connected']}/{d['total']}), "
+              f"neighbors: {d['top_neighbors']}")
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Phase 15: Write to Neo4j
 # ---------------------------------------------------------------------------
@@ -2170,6 +2441,114 @@ def _flush_print(msg: str) -> None:
     print(msg, flush=True)
 
 
+def _compute_intrinsic_quality(
+    assignments: dict[str, str],
+    entities: list[dict],
+    entity_map: dict[str, dict],
+    class_dist: Counter,
+) -> dict[str, Any]:
+    """Compute reference-free ontology quality metrics.
+
+    Metrics:
+    - connectivity: fraction of non-Other entities with >= 1 typed neighbor
+    - completeness: fraction of classes with >= 1 inter-class relationship
+    - balance: 1 - max(class_fraction), higher is more balanced
+    - other_fraction: fraction of entities classified as "Other"
+    - backbone_coverage: fraction of record entities linked to a concept entity
+    """
+    total = len(assignments)
+    if total == 0:
+        return {"connectivity": 0, "completeness": 0, "balance": 0,
+                "other_fraction": 1.0, "backbone_coverage": 0}
+
+    # Other fraction
+    other_count = sum(1 for c in assignments.values() if c == "Other")
+    other_frac = other_count / total
+
+    # Balance: 1 - largest class fraction (among non-Other)
+    non_other_total = total - other_count
+    if non_other_total > 0 and class_dist:
+        max_class_frac = class_dist.most_common(1)[0][1] / non_other_total
+        balance = round(1.0 - max_class_frac, 4)
+    else:
+        balance = 0.0
+
+    # Connectivity: fraction of non-Other entities with at least 1 neighbor
+    # that has a different non-Other class (inter-class link)
+    connected = 0
+    non_other_entities = [e for e in entities if assignments.get(e["id"]) not in (None, "Other")]
+    for e in non_other_entities:
+        eid = e["id"]
+        my_class = assignments[eid]
+        neighbors = set()
+        for rel in e.get("out_rels", []):
+            tid = rel.get("target", "")
+            tcls = assignments.get(tid)
+            if tcls and tcls != "Other" and tcls != my_class:
+                neighbors.add(tcls)
+        for rel in e.get("in_rels", []):
+            sid = rel.get("source", "")
+            scls = assignments.get(sid)
+            if scls and scls != "Other" and scls != my_class:
+                neighbors.add(scls)
+        if neighbors:
+            connected += 1
+
+    connectivity = round(connected / len(non_other_entities), 4) if non_other_entities else 0.0
+
+    # Completeness: fraction of non-Other classes with >= 1 inter-class edge
+    classes_with_interclass = set()
+    for e in entities:
+        eid = e["id"]
+        my_class = assignments.get(eid, "Other")
+        if my_class == "Other":
+            continue
+        for rel in e.get("out_rels", []):
+            tid = rel.get("target", "")
+            tcls = assignments.get(tid, "Other")
+            if tcls != "Other" and tcls != my_class:
+                classes_with_interclass.add(my_class)
+                classes_with_interclass.add(tcls)
+                break
+
+    n_classes = len(class_dist)
+    completeness = round(len(classes_with_interclass) / n_classes, 4) if n_classes > 0 else 0.0
+
+    # Backbone coverage: fraction of record entities (POL-, CLM-) linked to
+    # a concept entity (non-record, non-Other)
+    from zone3.graph_cache import STRUCTURED_PREFIXES
+    record_entities = [e for e in entities if e["id"].startswith(STRUCTURED_PREFIXES)]
+    records_linked = 0
+    for e in record_entities:
+        for rel in e.get("out_rels", []):
+            tid = rel.get("target", "")
+            if not tid.startswith(STRUCTURED_PREFIXES):
+                tcls = assignments.get(tid, "Other")
+                if tcls != "Other":
+                    records_linked += 1
+                    break
+        else:
+            for rel in e.get("in_rels", []):
+                sid = rel.get("source", "")
+                if not sid.startswith(STRUCTURED_PREFIXES):
+                    scls = assignments.get(sid, "Other")
+                    if scls != "Other":
+                        records_linked += 1
+                        break
+
+    backbone = round(records_linked / len(record_entities), 4) if record_entities else 0.0
+
+    return {
+        "connectivity": connectivity,
+        "completeness": completeness,
+        "balance": balance,
+        "other_fraction": round(other_frac, 4),
+        "backbone_coverage": backbone,
+        "record_entities_total": len(record_entities),
+        "record_entities_linked": records_linked,
+    }
+
+
 def run_sv_loi(
     model: str = config.OLLAMA_MODEL,
     suffix: str = "zone3_svloi",
@@ -2240,7 +2619,7 @@ def run_sv_loi(
     )
 
     # Phase 3: Batch LLM entity typing
-    assignments = batch_type_entities(entities, class_vocab, llm)
+    assignments = batch_type_entities(entities, class_vocab, llm, results_dir=rdir)
 
     # Phase 4: Rebalance mega-classes (split any class > 30% of entities)
     assignments, class_vocab = rebalance_mega_classes(
@@ -2413,24 +2792,47 @@ def run_sv_loi(
     # Phase 13: LLM class validation (property-value classes into parent classes)
     assignments = merge_leaf_classes(assignments, entities, llm=llm)
 
-    # Phase 14: Data-driven inter-class edge derivation
-    # Instead of LLM-guessing IS-A relationships (which are mostly wrong),
-    # derive association edges from actual entity-level connections.
-    # This matches how Riskine defines inter-class links ($ref = HAS-A/REFERENCES).
-    _flush_print("\n[Phase 14] Data-driven inter-class edge derivation...")
-    data_edges = derive_interclass_edges(assignments, entities)
+    # Phase 14a: IS-A taxonomy from defining relation subsumption + LLM validation
+    taxonomy_edges = derive_taxonomy(assignments, entities, llm)
+    # Add taxonomy edges to hierarchy (these are true SUBCLASS_OF)
     existing_edges = set(hierarchy)
+    for edge in taxonomy_edges:
+        if edge not in existing_edges:
+            hierarchy.append(edge)
+            existing_edges.add(edge)
+
+    # Phase 14b: Data-driven inter-class association edges
+    # These are NOT IS-A — they represent entity-level connections aggregated
+    # to class level (matching Riskine's $ref = HAS-A/REFERENCES semantics).
+    _flush_print("\n[Phase 14b] Data-driven inter-class association edges...")
+    data_edges = derive_interclass_edges(assignments, entities)
     for edge in data_edges:
         if edge not in existing_edges:
             hierarchy.append(edge)
             existing_edges.add(edge)
     _flush_print(f"  Total edges: {len(hierarchy)} "
-                 f"({len(hierarchy) - len(data_edges)} from 5-way + {len(data_edges)} from data)")
+                 f"({len(taxonomy_edges)} IS-A + {len(data_edges)} association "
+                 f"+ {len(hierarchy) - len(taxonomy_edges) - len(data_edges)} from 5-way)")
 
-    # Final provenance: record final class for each entity
+    # Phase 14c: Backbone validation (connectivity report)
+    backbone_report = validate_backbone(assignments, entities)
+
+    # Final provenance: record final class + confidence for each entity
     for eid, cls in assignments.items():
         if eid in provenance:
             provenance[eid]["final_type"] = cls
+            # Confidence scoring based on decision path
+            p = provenance[eid]
+            if cls == "Other":
+                p["confidence"] = 0.3
+            elif p.get("arbitrated"):
+                p["confidence"] = 0.5
+            elif p.get("flagged"):
+                p["confidence"] = 0.7
+            elif p.get("consolidated_from"):
+                p["confidence"] = 0.8
+            else:
+                p["confidence"] = 1.0
 
     # Phase 15: Write to Neo4j
     neo4j_stats = write_ontology(assignments, hierarchy)
@@ -2451,6 +2853,15 @@ def run_sv_loi(
     print(f"  Distribution:")
     for cls, cnt in final_dist.most_common():
         print(f"    {cls}: {cnt}")
+
+    # Compute metrics BEFORE building summary dict (they're referenced in it)
+    low_conf = {
+        eid: p for eid, p in provenance.items()
+        if p.get("confidence", 1.0) < 0.5
+    }
+    quality_metrics = _compute_intrinsic_quality(
+        assignments, entities, entity_map_all, final_dist,
+    )
 
     # Save summary
     summary = {
@@ -2481,13 +2892,39 @@ def run_sv_loi(
                 1 for eid, p in provenance.items()
                 if p.get("final_type") != p.get("llm_type")
             ),
+            "low_confidence_count": len(low_conf),
+            "confidence_distribution": {
+                "high_1.0": sum(1 for p in provenance.values() if p.get("confidence", 0) == 1.0),
+                "good_0.8": sum(1 for p in provenance.values() if p.get("confidence", 0) == 0.8),
+                "medium_0.7": sum(1 for p in provenance.values() if p.get("confidence", 0) == 0.7),
+                "low_0.5": sum(1 for p in provenance.values() if p.get("confidence", 0) == 0.5),
+                "very_low_0.3": sum(1 for p in provenance.values() if p.get("confidence", 0) == 0.3),
+            },
         },
+        "intrinsic_quality": quality_metrics,
+        "backbone": {
+            "overall_connectivity": backbone_report.get("overall_connectivity", 0),
+            "disconnected_classes": backbone_report.get("disconnected_classes", []),
+        },
+        "taxonomy_edges": len(taxonomy_edges),
     }
     # Save full provenance log separately (large — for error taxonomy analysis)
     prov_path = os.path.join(rdir, f"svloi_provenance_{suffix}.json")
     with open(prov_path, "w") as f:
         json.dump(provenance, f, indent=2, default=str)
     _flush_print(f"  ✓ Decision provenance saved → {prov_path}")
+
+    # Save low-confidence entities for user review (feedback #6)
+    if low_conf:
+        lc_path = os.path.join(rdir, f"zone3_low_confidence_entities_{suffix}.json")
+        with open(lc_path, "w") as f:
+            json.dump(low_conf, f, indent=2, default=str)
+        _flush_print(f"  ✓ {len(low_conf)} low-confidence entities saved → {lc_path}")
+
+    # Print intrinsic quality metrics
+    _flush_print(f"  Intrinsic quality:")
+    for k, v in quality_metrics.items():
+        _flush_print(f"    {k}: {v}")
     out_path = os.path.join(rdir, f"zone3_svloi_summary_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2, default=str)

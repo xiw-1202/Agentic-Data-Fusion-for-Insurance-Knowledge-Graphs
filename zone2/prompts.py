@@ -90,6 +90,13 @@ Rules:
 - Include confidence: 0.0–1.0
 - Include subject_type and object_type: assign one entity type from the list above to each (use "Unknown" if none fit)
 - Return [] only if the passage contains no factual insurance content
+- PROPERTY vs RELATIONSHIP: Distinguish between attributes and relationships.
+  - ATTRIBUTE values (dollar amounts, dates, percentages, codes, counts, durations)
+    should use object_type matching their data type: "Currency", "Date", "Numeric", "Percentage", "Categorical"
+  - RELATIONSHIP objects (other real-world entities: buildings, people, coverages, perils)
+    should use domain entity types from the list above
+  - Example ATTRIBUTE: {{"subject": "Coverage A", "relation": "HAS_COVERAGE_LIMIT", "object": "$250,000", "object_type": "Currency"}}
+  - Example RELATIONSHIP: {{"subject": "Coverage A", "relation": "COVERS", "object": "Building", "object_type": "Structure"}}
 - SEMANTIC ACCURACY (high priority — omit uncertain triples rather than guess wrong):
   - An organization that ADMINISTERS a program vs one that PROVIDES coverage
   - An exclusion from coverage vs a cause of damage (direction matters!)

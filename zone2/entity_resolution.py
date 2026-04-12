@@ -30,6 +30,18 @@ SIMILARITY_THRESHOLD = 0.90
 STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
 
 
+_EMBED_MODEL = None
+
+
+def _get_embed_model():
+    """Lazy-load and cache the sentence-transformers model."""
+    global _EMBED_MODEL
+    if _EMBED_MODEL is None:
+        from sentence_transformers import SentenceTransformer
+        _EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    return _EMBED_MODEL
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -77,8 +89,8 @@ def resolve_entities_in_memory(
         (deduplicated_triples, stats_dict)
     """
     try:
-        from sentence_transformers import SentenceTransformer
-    except ImportError:
+        _get_embed_model()  # ensure library is available
+    except (ImportError, Exception):
         print("  ⚠ sentence_transformers not available; skipping entity resolution")
         return triples, {"error": "sentence_transformers not installed", "merged": 0}
 
@@ -122,7 +134,7 @@ def resolve_entities_in_memory(
     print(f"  Embedding {len(candidate_ids)} node IDs with all-MiniLM-L6-v2... "
           f"({n_excluded} structured nodes excluded)")
 
-    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    model = _get_embed_model()
     embs = model.encode(candidate_ids, normalize_embeddings=True, show_progress_bar=False)
 
     # Vectorized pairwise similarity (replaces O(n²) Python loop).

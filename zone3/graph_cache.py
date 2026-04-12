@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 # Entity types that represent data values, not domain concepts.
-# Used by SV-LOI to filter entity samples for class discovery.
+# Used as FALLBACK floor — the dynamic classifier adds to this set.
 VALUE_ENTITY_TYPES = frozenset({
     "Numeric", "Date", "Text", "Categorical",
     "RecordType", "IdentityType",
@@ -35,6 +35,141 @@ VALUE_ENTITY_TYPES = frozenset({
 
 # Structured entity prefixes — records from CSV ingestion.
 STRUCTURED_PREFIXES = ("POL-", "CLM-", "REC-", "PER-", "PROP-")
+
+# Keywords in type names that strongly indicate value types
+_VALUE_TYPE_KEYWORDS = frozenset({
+    "amount", "date", "numeric", "currency", "code", "score",
+    "percentage", "number", "count", "rate", "duration", "period",
+    "text", "categorical", "boolean", "flag", "status", "field",
+    "value", "id", "identifier", "index", "timestamp",
+})
+
+# Keywords that protect a type from being classified as value
+_CONCEPT_TYPE_KEYWORDS = frozenset({
+    "policy", "claim", "person", "organization", "company",
+    "property", "building", "coverage", "product", "risk",
+    "peril", "hazard", "damage", "exclusion", "structure",
+    "agent", "insured", "beneficiary", "location", "address",
+})
+
+import re as _re
+_LITERAL_PATTERNS = [
+    _re.compile(r"^\$[\d,]+\.?\d*$"),      # Currency
+    _re.compile(r"^\d{4}-\d{2}-\d{2}$"),    # ISO date
+    _re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$"),  # US date
+    _re.compile(r"^-?[\d,]+\.?\d*%?$"),      # Number/percentage
+    _re.compile(r"^[A-Z0-9]{1,5}$"),         # Short code
+]
+
+# Dynamically computed set — filled by classify_entity_types()
+_dynamic_value_types: frozenset[str] = frozenset()
+_entity_role_map: dict[str, str] = {}
+
+
+def classify_entity_types(
+    entities: dict[str, dict],
+    out_rels: dict[str, list],
+    in_rels: dict[str, list],
+) -> tuple[frozenset[str], dict[str, str]]:
+    """Data-driven classification of entity types into roles.
+
+    Returns:
+        (value_types, role_map) where:
+        - value_types: frozenset of entity type names classified as values
+        - role_map: {entity_type: role} where role is one of:
+            "anchor" (high connectivity), "concept" (moderate),
+            "descriptor" (low, mostly incoming), "value" (literal patterns),
+            "record" (structured prefix)
+    """
+    global _dynamic_value_types, _entity_role_map
+
+    # Group entities by type
+    type_groups: dict[str, list[str]] = defaultdict(list)
+    for eid, edata in entities.items():
+        etype = edata.get("entity_type", "Unknown")
+        type_groups[etype].append(eid)
+
+    value_types: set[str] = set(VALUE_ENTITY_TYPES)  # start with hardcoded floor
+    role_map: dict[str, str] = {}
+
+    for etype, members in type_groups.items():
+        if etype in VALUE_ENTITY_TYPES:
+            role_map[etype] = "value"
+            continue
+
+        # Compute per-type statistics
+        n = len(members)
+        etype_lower = etype.lower().replace("_", "")
+
+        # Name pattern score: fraction of members matching literal patterns
+        literal_count = 0
+        for eid in members:
+            for pat in _LITERAL_PATTERNS:
+                if pat.match(eid):
+                    literal_count += 1
+                    break
+
+        name_pattern_score = literal_count / n if n > 0 else 0
+
+        # Relation diversity: distinct relation types across all members
+        rel_types: set[str] = set()
+        total_out_degree = 0
+        for eid in members:
+            for rel in out_rels.get(eid, []):
+                rel_types.add(rel["rel"])
+                total_out_degree += 1
+            for rel in in_rels.get(eid, []):
+                rel_types.add(rel["rel"])
+
+        relation_diversity = len(rel_types)
+        avg_out_degree = total_out_degree / n if n > 0 else 0
+
+        # Keyword matching
+        has_value_keyword = any(kw in etype_lower for kw in _VALUE_TYPE_KEYWORDS)
+        has_concept_keyword = any(kw in etype_lower for kw in _CONCEPT_TYPE_KEYWORDS)
+
+        # Classification logic (precision-first to avoid collapsing real entities)
+        if has_concept_keyword:
+            # Protected concept type — never classify as value
+            if avg_out_degree >= 3 and relation_diversity >= 5:
+                role_map[etype] = "anchor"
+            else:
+                role_map[etype] = "concept"
+        elif name_pattern_score > 0.6:
+            # Majority of members look like literal values
+            value_types.add(etype)
+            role_map[etype] = "value"
+        elif has_value_keyword and relation_diversity < 4:
+            # Type name suggests value AND low relation diversity
+            value_types.add(etype)
+            role_map[etype] = "value"
+        elif relation_diversity < 3 and avg_out_degree < 1.0 and name_pattern_score > 0.3:
+            # Low connectivity + some literal patterns
+            value_types.add(etype)
+            role_map[etype] = "value"
+        elif avg_out_degree < 0.5 and relation_diversity < 3:
+            # Very low connectivity — descriptor at best
+            role_map[etype] = "descriptor"
+        elif avg_out_degree >= 3 and relation_diversity >= 5:
+            role_map[etype] = "anchor"
+        else:
+            role_map[etype] = "concept"
+
+    result_types = frozenset(value_types)
+    _dynamic_value_types = result_types
+    _entity_role_map = role_map
+
+    # Log classification
+    role_counts: dict[str, int] = defaultdict(int)
+    for r in role_map.values():
+        role_counts[r] += 1
+    print(f"  Entity type classification: {dict(role_counts)}")
+    n_dynamic = len(result_types) - len(VALUE_ENTITY_TYPES)
+    if n_dynamic > 0:
+        new_values = result_types - VALUE_ENTITY_TYPES
+        print(f"    +{n_dynamic} dynamic value types: {sorted(new_values)[:10]}{'...' if n_dynamic > 10 else ''}")
+
+    return result_types, role_map
 
 CACHE_FILENAME = "zone3_graph_cache.json"
 
@@ -126,6 +261,11 @@ def export_graph_cache(triples: list[dict] | None = None,
 
     graph = _build_entity_graph(triples)
 
+    # Run data-driven entity type classification
+    value_types, role_map = classify_entity_types(
+        graph["entities"], graph["out_rels"], graph["in_rels"],
+    )
+
     # Serialize to cache
     cache = {
         "entity_count": len(graph["entities"]),
@@ -133,6 +273,8 @@ def export_graph_cache(triples: list[dict] | None = None,
         "entities": graph["entities"],
         "out_rels": graph["out_rels"],
         "in_rels": graph["in_rels"],
+        "value_entity_types": sorted(value_types),
+        "entity_role_map": role_map,
     }
 
     rdir = results_dir or config.RESULTS_DIR
@@ -148,10 +290,24 @@ def export_graph_cache(triples: list[dict] | None = None,
 
 def _load_raw_cache(results_dir: str | None = None) -> dict:
     """Load raw cache dict, building from zone2_run_summary.json if needed."""
+    global _dynamic_value_types, _entity_role_map
+
     path = _cache_path(results_dir)
     if os.path.exists(path):
         with open(path) as f:
-            return json.load(f)
+            cache = json.load(f)
+        # Restore dynamic value types from cache if present
+        if "value_entity_types" in cache:
+            _dynamic_value_types = frozenset(cache["value_entity_types"])
+            _entity_role_map = cache.get("entity_role_map", {})
+        elif not _dynamic_value_types:
+            # Cache was built before classify_entity_types existed — compute now
+            vt, rm = classify_entity_types(
+                cache["entities"], cache.get("out_rels", {}), cache.get("in_rels", {}),
+            )
+            _dynamic_value_types = vt
+            _entity_role_map = rm
+        return cache
 
     # Fallback: build from zone2_run_summary.json
     print("  [cache] No graph cache found, building from zone2_run_summary.json...")
@@ -262,7 +418,12 @@ def load_cached_entities(
 
 
 def is_concept_entity(entity: dict) -> bool:
-    """Return True if entity is a domain concept (not a value or record)."""
+    """Return True if entity is a domain concept (not a value or record).
+
+    Uses the dynamically computed _dynamic_value_types set if available
+    (populated by classify_entity_types during cache export), falling back
+    to the hardcoded VALUE_ENTITY_TYPES floor.
+    """
     eid = entity["id"]
     etype = entity.get("entity_type", "Unknown")
 
@@ -270,14 +431,15 @@ def is_concept_entity(entity: dict) -> bool:
     if eid.startswith(STRUCTURED_PREFIXES):
         return False
 
-    # Value types (Numeric, Date, Text, etc.) are not concepts
-    if etype in VALUE_ENTITY_TYPES:
+    # Use dynamic value types if available, otherwise hardcoded floor
+    active_value_types = _dynamic_value_types if _dynamic_value_types else VALUE_ENTITY_TYPES
+    if etype in active_value_types:
         return False
 
     # Name-pattern filters: dollar amounts, bare numbers, zip codes
     if eid.startswith("$"):
         return False
-    stripped = eid.lstrip("-").replace(".", "", 1)
+    stripped = eid.lstrip("-").replace(".", "", 1).replace(",", "")
     if stripped.isdigit():
         return False
 
