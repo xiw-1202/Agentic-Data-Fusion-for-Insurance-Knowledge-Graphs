@@ -1745,6 +1745,20 @@ def collapse_value_to_properties(
         "HAS_COUNTRY", "HAS_COUNTY",
     })
 
+    # Measure relations — numeric values users need to sort/aggregate/compare.
+    # These stay as entity nodes so Cypher can ORDER BY / avg() / max() on them.
+    # Uses suffix matching to avoid false positives (COUNT matching ACCOUNT/COUNTY).
+    _MEASURE_SUFFIXES: tuple[str, ...] = (
+        "_TIME", "_SCORE", "_AMOUNT", "_COST", "_DISTANCE",
+        "_PREMIUM", "_PAYMENT", "_FEE", "_PRICE", "_LIMIT",
+        "_DEDUCTIBLE", "_NPS", "_CSAT", "_CES", "_LTR",
+        "_RATE", "_COUNT",
+    )
+    # Exact measure relation names that don't match suffixes
+    _MEASURE_EXACT: frozenset[str] = frozenset({
+        "HAS_NPS", "HAS_CONVO_TIME",
+    })
+
     collapse_indices: set[int] = set()
     node_properties: dict[str, dict[str, str]] = {}
 
@@ -1756,6 +1770,10 @@ def collapse_value_to_properties(
 
         # Never collapse shared dimension values
         if rel in _PRESERVE_RELATIONS:
+            continue
+
+        # Never collapse measure values (numeric fields users sort/aggregate)
+        if rel in _MEASURE_EXACT or any(rel.upper().endswith(s) for s in _MEASURE_SUFFIXES):
             continue
 
         n_subjects = len(obj_to_subjects.get(obj, set()))
