@@ -1671,6 +1671,10 @@ def _is_literal_value(obj: str, obj_type: str) -> bool:
     """Check if an object string looks like a literal data value."""
     if obj_type in _ENTITY_BIAS_TYPES:
         return False
+    # Explicit value object types from Zone 2 extraction
+    if obj_type in ("Currency", "Date", "Numeric", "Percentage",
+                    "Categorical", "Text", "TimePeriod", "FinancialAmount"):
+        return True
     if _CURRENCY_RE.match(obj):
         return True
     if _DATE_RE.match(obj):
@@ -1678,6 +1682,13 @@ def _is_literal_value(obj: str, obj_type: str) -> bool:
     if _NUMBER_RE.match(obj):
         return True
     if _SHORT_CODE_RE.match(obj) and len(obj) <= 5:
+        return True
+    # Short categorical values (Yes/No/N/A/True/False/Unknown/etc.)
+    if len(obj) <= 15 and obj.lower() in {
+        "yes", "no", "n/a", "na", "true", "false", "unknown", "none",
+        "null", "other", "pending", "active", "inactive", "closed",
+        "open", "approved", "denied", "completed",
+    }:
         return True
     return False
 
@@ -1717,7 +1728,23 @@ def collapse_value_to_properties(
                 obj_to_subjects[obj] = set()
             obj_to_subjects[obj].add(subj)
 
-    # Pass 2: collapse single-use values to properties
+    # Pass 2: collapse values to properties
+    # Single-use values always collapse (unless on preserve list).
+    # Multi-use values (≤3 subjects) collapse ONLY if they are NOT
+    # query-anchor dimensions (zip codes, flood zones, status codes, etc.).
+    MAX_MULTI_USE = 3
+
+    # Relations whose values serve as shared dimensions / join keys — NEVER collapse
+    _PRESERVE_RELATIONS: frozenset[str] = frozenset({
+        "HAS_ZIP_CODE", "HAS_ZIP", "HAS_STATE", "HAS_CITY",
+        "HAS_FLOOD_ZONE", "HAS_ZONE", "HAS_RATED_FLOOD_ZONE",
+        "HAS_OCCUPANCY_TYPE", "HAS_STATUS", "HAS_CLAIM_STATUS",
+        "HAS_CAUSE_OF_DAMAGE", "HAS_CAUSE", "HAS_PERIL",
+        "HAS_COVERAGE_TYPE", "HAS_COVERAGE_CODE",
+        "HAS_PROPERTY_STATE", "HAS_REPORTED_CITY", "HAS_REPORTED_ZIP_CODE",
+        "HAS_COUNTRY", "HAS_COUNTY",
+    })
+
     collapse_indices: set[int] = set()
     node_properties: dict[str, dict[str, str]] = {}
 
@@ -1725,9 +1752,17 @@ def collapse_value_to_properties(
         t = triples[i]
         obj = t["object"]
         subj = t["subject"]
+        rel = t["relation"]
 
-        # Only collapse if this value is referenced by exactly 1 subject
-        if len(obj_to_subjects.get(obj, set())) > 1:
+        # Never collapse shared dimension values
+        if rel in _PRESERVE_RELATIONS:
+            continue
+
+        n_subjects = len(obj_to_subjects.get(obj, set()))
+        if n_subjects > MAX_MULTI_USE:
+            continue
+        # Multi-use values only collapse if short and generic
+        if n_subjects > 1 and len(obj) > 15:
             continue
 
         # Convert relation name to property name: HAS_DEDUCTIBLE -> deductible

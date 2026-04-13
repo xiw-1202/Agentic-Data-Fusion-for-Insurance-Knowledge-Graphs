@@ -1090,25 +1090,42 @@ def propagate_to_records(
     type_to_class: dict[str, str] = {}
     valid_classes = [c for c in class_vocab if c != "Other"]
 
-    # Exclude record-type names from valid target classes — they are schema
-    # types, not ontology classes. Without this, the LLM may map
-    # "PolicyRecord" → "PolicyRecord" (tautological).
-    record_type_names = {_sanitize_label(et).lower() for et in type_records}
+    # Build target classes: exclude ONLY record-suffixed names (e.g., "PolicyRecord",
+    # "ClaimRecord") but keep classes whose names match base record types
+    # (e.g., keep "Person" even though "Person" is also a record type,
+    # because Person IS a valid ontology class).
+    record_suffixed_names = set()
+    for et in type_records:
+        sanitized = _sanitize_label(et).lower()
+        if sanitized.endswith("record"):
+            record_suffixed_names.add(sanitized)
     target_classes = [c for c in valid_classes
-                      if c.lower() not in record_type_names]
+                      if c.lower() not in record_suffixed_names]
 
     if llm and target_classes:
         for etype, rel_counts in type_relations.items():
             top_rels = [r for r, _ in rel_counts.most_common(12)]
             rels_str = ", ".join(top_rels)
 
-            # Check if record type name matches a class (strong prior)
+            # Check if record type name directly matches a class (strong prior)
+            # This handles: Person→Person, Property→Property, Record→Other
             name_match = None
             etype_base = etype.replace("Record", "")  # ClaimRecord → Claim
             for c in target_classes:
-                if c.lower() == etype_base.lower() or c.lower() == etype.lower():
+                if c.lower() == etype.lower():
+                    # Exact match: "Person" record type → "Person" class
                     name_match = c
                     break
+                if c.lower() == etype_base.lower() and etype_base:
+                    # Base match: "ClaimRecord" → "Claim" class
+                    name_match = c
+                    break
+
+            # If exact name match exists, skip LLM — use it directly
+            if name_match and etype.lower() == name_match.lower():
+                type_to_class[etype] = name_match
+                print(f"  Direct: {etype} → {name_match} (exact name match)", flush=True)
+                continue
 
             prompt = (
                 "Schema mapping task: assign a database record type to an ontology class.\n\n"
@@ -2252,52 +2269,102 @@ def validate_backbone(
 ) -> dict[str, Any]:
     """Check insurance value chain connectivity (domain-agnostic).
 
-    Reports what fraction of entities with certain roles are linked to
-    entities with other expected roles. Uses class names to infer roles.
+    Uses both direct connections (1-hop) and indirect connections through
+    value/Other entities (2-hop) to measure how well the ontology classes
+    are interconnected. Records often connect to concepts only through
+    shared value nodes, so 2-hop connectivity is essential.
     """
     print("\n[Backbone] Validating entity connectivity...", flush=True)
 
-    # Build entity-to-class lookup
+    # Build entity-to-class lookup and neighbor index
+    eid_to_class: dict[str, str] = {}
+    eid_to_entity: dict[str, dict] = {}
+    for e in entities:
+        eid = e["id"]
+        eid_to_class[eid] = assignments.get(eid, "Other")
+        eid_to_entity[eid] = e
+
     class_members: dict[str, list[dict]] = defaultdict(list)
     for e in entities:
-        cls = assignments.get(e["id"], "Other")
+        cls = eid_to_class.get(e["id"], "Other")
         if cls != "Other":
             class_members[cls].append(e)
 
-    # For each class, check what fraction of members have inter-class connections
+    # For each class, check connectivity (1-hop direct + 2-hop through Other)
     class_connectivity: dict[str, dict] = {}
     for cls, members in class_members.items():
-        connected = 0
+        connected_direct = 0
+        connected_2hop = 0
         neighbor_classes: Counter = Counter()
+
         for e in members:
-            has_interclass = False
+            has_direct = False
+            has_2hop = False
+
+            # 1-hop: direct connections to other non-Other entities
             for rel in e.get("out_rels", []):
-                tcls = assignments.get(rel.get("target", ""), "Other")
+                tcls = eid_to_class.get(rel.get("target", ""), "Other")
                 if tcls != "Other" and tcls != cls:
-                    has_interclass = True
+                    has_direct = True
                     neighbor_classes[tcls] += 1
             for rel in e.get("in_rels", []):
-                scls = assignments.get(rel.get("source", ""), "Other")
+                scls = eid_to_class.get(rel.get("source", ""), "Other")
                 if scls != "Other" and scls != cls:
-                    has_interclass = True
+                    has_direct = True
                     neighbor_classes[scls] += 1
-            if has_interclass:
-                connected += 1
 
-        frac = connected / len(members) if members else 0
+            if has_direct:
+                connected_direct += 1
+                continue
+
+            # 2-hop: check if connected to a non-Other entity through an Other node
+            # Check both directions at each hop (undirected projection)
+            def _neighbors_of(ent: dict) -> list[str]:
+                """All neighbor eids regardless of edge direction."""
+                nbrs = []
+                for r in ent.get("out_rels", []):
+                    nbrs.append(r.get("target", ""))
+                for r in ent.get("in_rels", []):
+                    nbrs.append(r.get("source", ""))
+                return nbrs
+
+            for mid_eid in _neighbors_of(e):
+                if eid_to_class.get(mid_eid) != "Other":
+                    continue
+                mid_entity = eid_to_entity.get(mid_eid)
+                if not mid_entity:
+                    continue
+                for far_eid in _neighbors_of(mid_entity):
+                    if far_eid == e["id"]:
+                        continue
+                    far_cls = eid_to_class.get(far_eid, "Other")
+                    if far_cls != "Other" and far_cls != cls:
+                        has_2hop = True
+                        neighbor_classes[far_cls] += 1
+                        break
+                if has_2hop:
+                    break
+
+            if has_2hop:
+                connected_2hop += 1
+
+        total = len(members)
+        total_connected = connected_direct + connected_2hop
+        frac = total_connected / total if total else 0
         class_connectivity[cls] = {
-            "total": len(members),
-            "connected": connected,
+            "total": total,
+            "connected_direct": connected_direct,
+            "connected_2hop": connected_2hop,
+            "connected_total": total_connected,
             "connectivity": round(frac, 3),
             "top_neighbors": dict(neighbor_classes.most_common(3)),
         }
 
     # Overall stats
     total_entities = sum(d["total"] for d in class_connectivity.values())
-    total_connected = sum(d["connected"] for d in class_connectivity.values())
+    total_connected = sum(d["connected_total"] for d in class_connectivity.values())
     overall_connectivity = round(total_connected / total_entities, 4) if total_entities else 0
 
-    # Disconnected classes (< 10% connectivity)
     disconnected = [
         cls for cls, d in class_connectivity.items()
         if d["connectivity"] < 0.10
@@ -2316,7 +2383,10 @@ def validate_backbone(
     if disconnected:
         print(f"  ⚠ Disconnected classes (<10%): {disconnected}")
     for cls, d in sorted(class_connectivity.items(), key=lambda x: x[1]["connectivity"]):
-        print(f"    {cls}: {d['connectivity']:.0%} connected ({d['connected']}/{d['total']}), "
+        direct = d["connected_direct"]
+        hop2 = d["connected_2hop"]
+        print(f"    {cls}: {d['connectivity']:.0%} connected "
+              f"({direct} direct + {hop2} 2-hop / {d['total']}), "
               f"neighbors: {d['top_neighbors']}")
 
     return result
@@ -2402,6 +2472,30 @@ def write_ontology(
             except Exception as e:
                 print(f"  Warning: labeling batch for {safe}: {e}")
 
+    # Create INSTANCE_OF edges: entity → OntologyClass
+    # This bridges record entities (POL-xxx) and concept entities ("Renters Insurance")
+    # through their shared class node, enabling cross-subgraph query traversal.
+    instance_of_created = 0
+    for cls in class_names:
+        safe = _sanitize_label(cls)
+        members = [eid for eid, c in assignments.items() if c == cls]
+        if not members:
+            continue
+        for batch_start in range(0, len(members), 200):
+            batch = members[batch_start:batch_start + 200]
+            try:
+                graph.query(
+                    "MATCH (n:Entity), (c:OntologyClass {name: $cls}) "
+                    "WHERE n.id IN $ids "
+                    "MERGE (n)-[:INSTANCE_OF]->(c)",
+                    params={"ids": batch, "cls": safe},
+                )
+                instance_of_created += len(batch)
+            except Exception as e:
+                print(f"  Warning: INSTANCE_OF batch for {safe}: {e}")
+
+    print(f"  ✓ INSTANCE_OF edges:    {instance_of_created}")
+
     # Create SUBCLASS_OF edges
     subclass_created = 0
     for child, parent in hierarchy:
@@ -2420,6 +2514,7 @@ def write_ontology(
     stats = {
         "entities_labeled": entities_labeled,
         "ontology_classes": len(class_names),
+        "instance_of_edges": instance_of_created,
         "subclass_of_edges": subclass_created,
         "class_names": class_names,
         "class_distribution": dict(class_counts),
@@ -2428,6 +2523,7 @@ def write_ontology(
 
     print(f"  ✓ Entities labeled:     {entities_labeled}")
     print(f"  ✓ OntologyClass nodes:  {len(class_names)}")
+    print(f"  ✓ INSTANCE_OF edges:    {instance_of_created}")
     print(f"  ✓ SUBCLASS_OF edges:    {subclass_created}")
     return stats
 
@@ -2514,27 +2610,54 @@ def _compute_intrinsic_quality(
     n_classes = len(class_dist)
     completeness = round(len(classes_with_interclass) / n_classes, 4) if n_classes > 0 else 0.0
 
-    # Backbone coverage: fraction of record entities (POL-, CLM-) linked to
-    # a concept entity (non-record, non-Other)
+    # Backbone coverage: fraction of record entities (POL-, CLM-) connected
+    # to a concept entity (non-record, non-Other), directly or via 2-hop
     from zone3.graph_cache import STRUCTURED_PREFIXES
     record_entities = [e for e in entities if e["id"].startswith(STRUCTURED_PREFIXES)]
     records_linked = 0
     for e in record_entities:
+        linked = False
+        # Direct check
         for rel in e.get("out_rels", []):
             tid = rel.get("target", "")
             if not tid.startswith(STRUCTURED_PREFIXES):
                 tcls = assignments.get(tid, "Other")
                 if tcls != "Other":
-                    records_linked += 1
+                    linked = True
                     break
-        else:
+        if not linked:
             for rel in e.get("in_rels", []):
                 sid = rel.get("source", "")
                 if not sid.startswith(STRUCTURED_PREFIXES):
                     scls = assignments.get(sid, "Other")
                     if scls != "Other":
-                        records_linked += 1
+                        linked = True
                         break
+        # 2-hop: record → Other value → concept (undirected at each hop)
+        if not linked:
+            # Collect all neighbors (both directions)
+            e_neighbors = set()
+            for rel in e.get("out_rels", []):
+                e_neighbors.add(rel.get("target", ""))
+            for rel in e.get("in_rels", []):
+                e_neighbors.add(rel.get("source", ""))
+            for mid in e_neighbors:
+                if assignments.get(mid) != "Other":
+                    continue
+                mid_e = entity_map.get(mid, {})
+                mid_neighbors = set()
+                for rel2 in mid_e.get("out_rels", []):
+                    mid_neighbors.add(rel2.get("target", ""))
+                for rel2 in mid_e.get("in_rels", []):
+                    mid_neighbors.add(rel2.get("source", ""))
+                for far in mid_neighbors:
+                    if far != e["id"] and assignments.get(far, "Other") != "Other":
+                        linked = True
+                        break
+                if linked:
+                    break
+        if linked:
+            records_linked += 1
 
     backbone = round(records_linked / len(record_entities), 4) if record_entities else 0.0
 
