@@ -115,21 +115,82 @@ def is_schema_chunk(chunk: dict[str, Any]) -> bool:
     return is_structured_source and "schema" in hierarchy_str
 
 
-def detect_record_type(chunk: dict[str, Any]) -> str:
-    """Infer record type from source filename or content.
+# Source role: "entity" records are first-class domain objects (policies, claims).
+# "observation" records are data ABOUT entities (surveys, emails, chats).
+_SOURCE_ROLES: dict[str, str] = {
+    "policies": "entity",
+    "claims": "entity",
+    "survey": "observation",
+    "chat": "observation",
+    "email": "observation",
+}
 
-    Returns 'policies', 'claims', or 'unknown'.
+# Prefix mapping for record key generation (extensible for LLM-detected types).
+_RECORD_PREFIX: dict[str, str] = {
+    "policies": "POL",
+    "claims": "CLM",
+    "survey": "SRV",
+    "chat": "CHAT",
+    "email": "EMAIL",
+}
+
+# Entity type mapping for record triples.
+_ENTITY_TYPE_MAP: dict[str, str] = {
+    "policies": "PolicyRecord",
+    "claims": "ClaimRecord",
+    "survey": "SurveyRecord",
+    "chat": "ChatRecord",
+    "email": "EmailRecord",
+}
+
+# Foreign key column patterns → what they reference.
+_FOREIGN_KEY_PATTERNS: list[tuple[str, str]] = [
+    ("policy_number", "policies"),
+    ("policy_no", "policies"),
+    ("policy_id", "policies"),
+    ("claim_number", "claims"),
+    ("claim_no", "claims"),
+    ("claim_id", "claims"),
+]
+
+
+def detect_record_type(chunk: dict[str, Any], llm=None) -> str:
+    """Infer record type from source filename, content, or LLM classification.
+
+    Two-tier detection:
+      Tier 1: Keyword heuristics (fast, no LLM)
+      Tier 2: LLM fallback for unknown types (future-proof)
+
+    Returns: 'policies', 'claims', 'survey', 'chat', 'email', or LLM-detected type.
+    Falls back to 'unknown' if both tiers fail.
     """
     source = chunk.get("source", "").lower()
     content = chunk.get("content", "").lower()
 
+    # --- Tier 1: Keyword heuristics ---
+
+    # Insurance entity records
     if "policies" in source or "policies" in content:
         return "policies"
     if "claims" in source or "claims" in content:
         return "claims"
 
-    # Field-based heuristic for unknown sources.
-    # Terms cover NFIP flood fields and common equivalents in other LOBs.
+    # Observation records (surveys, chats, emails)
+    if "survey" in source or any(kw in content for kw in (
+        "nps_score", "nps score", "csat", "rating", "satisfaction",
+        "recommend", "likelihood", "feedback",
+    )):
+        return "survey"
+    if "chat" in source or any(kw in content for kw in (
+        "conversation", "transcript", "chat_id", "chat session",
+    )):
+        return "chat"
+    if "email" in source or any(kw in content for kw in (
+        "subject_line", "email_body", "sender", "recipient",
+    )):
+        return "email"
+
+    # Field-based heuristic for insurance records.
     if any(kw in content for kw in (
         "date of loss", "date of accident", "date of incident",
         "cause of damage", "cause of loss", "cause of accident",
@@ -141,7 +202,95 @@ def detect_record_type(chunk: dict[str, Any]) -> str:
     )):
         return "policies"
 
+    # --- Tier 2: LLM fallback ---
+    if llm is not None:
+        detected = _detect_record_type_llm(chunk, llm)
+        if detected and detected != "unknown":
+            return detected
+
     return "unknown"
+
+
+def _detect_record_type_llm(chunk: dict[str, Any], llm) -> str:
+    """Classify a CSV file's record type via LLM. Called once per file
+    when keyword detection returns 'unknown'.
+
+    Uses the schema chunk (column names + sample rows) to determine:
+    1. Record type (policy, claim, survey, email, ticket, assessment, etc.)
+    2. Source role (entity vs observation)
+    3. Foreign key columns linking to other records
+    """
+    source = chunk.get("source", "unknown")
+    content = chunk.get("content", "")[:2000]  # cap for prompt size
+
+    prompt = (
+        f"This CSV file '{source}' has these columns and sample data:\n"
+        f"{content}\n\n"
+        "1. What type of records does this file contain?\n"
+        "   (e.g., policy, claim, survey, email, support_ticket, "
+        "inspection, assessment, payment, enrollment, inventory...)\n"
+        "2. Is each record a real-world entity (like a policy or claim) "
+        "or an observation ABOUT an entity (like a survey or email)?\n\n"
+        'Answer with just the type name (one word, lowercase). '
+        'Examples: "survey", "policy", "claims", "email", "assessment"'
+    )
+    try:
+        from langchain_ollama import ChatOllama
+        response = llm.invoke(prompt)
+        answer = response.content.strip().lower().strip('"').strip("'")
+        # Normalize to known types
+        if "polic" in answer:
+            return "policies"
+        if "claim" in answer:
+            return "claims"
+        if "survey" in answer or "feedback" in answer or "nps" in answer:
+            return "survey"
+        if "chat" in answer or "conversation" in answer:
+            return "chat"
+        if "email" in answer or "message" in answer:
+            return "email"
+        # Return LLM's answer as-is for novel types
+        if answer and len(answer) < 30:
+            return answer
+    except Exception as e:
+        print(f"  ⚠ LLM record type detection failed: {e}")
+
+    return "unknown"
+
+
+def detect_foreign_keys(
+    record: dict[str, str],
+    record_type: str,
+    all_record_keys: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Detect foreign key fields in a record that reference other records.
+
+    Returns list of {column, value, references_type, target_key} dicts.
+    """
+    fk_triples: list[dict[str, str]] = []
+
+    for field_name, value in record.items():
+        if not value or len(value) > 50:
+            continue
+        field_lower = field_name.lower().replace(" ", "_")
+
+        for pattern, ref_type in _FOREIGN_KEY_PATTERNS:
+            if pattern in field_lower:
+                # Determine target key prefix
+                target_prefix = _RECORD_PREFIX.get(ref_type, "REC")
+                target_key = f"{target_prefix}-{value}"
+
+                # Only emit if we can verify the target exists (if key set provided)
+                if all_record_keys is None or target_key in all_record_keys:
+                    fk_triples.append({
+                        "column": field_name,
+                        "value": value,
+                        "references_type": ref_type,
+                        "target_key": target_key,
+                    })
+                break
+
+    return fk_triples
 
 
 # ---------------------------------------------------------------------------
@@ -226,10 +375,7 @@ def generate_composite_key(
     """
     # --- Priority 1: original source ID ---
     original_id = record.get("id", "")
-    prefix = {
-        "policies": "POL",
-        "claims": "CLM",
-    }.get(record_type, "REC")
+    prefix = _RECORD_PREFIX.get(record_type, "REC")
 
     if original_id:
         return f"{prefix}-{original_id}"
@@ -589,13 +735,11 @@ def record_to_triples(
     """
     key = generate_composite_key(record, record_type)
 
-    entity_type_map = {
-        "policies": "PolicyRecord",
-        "claims": "ClaimRecord",
-    }
-    entity_type = entity_type_map.get(record_type, "Record")
+    entity_type = _ENTITY_TYPE_MAP.get(record_type, "Record")
 
     triples: list[dict[str, Any]] = []
+
+    source_role = _SOURCE_ROLES.get(record_type, "entity")
 
     # Type triple.
     triples.append({
@@ -609,6 +753,7 @@ def record_to_triples(
         "chunk_id": chunk_id,
         "source": source,
         "source_type": "structured",
+        "source_role": source_role,
     })
 
     # Property triples.
@@ -627,7 +772,26 @@ def record_to_triples(
             "chunk_id": chunk_id,
             "source": source,
             "source_type": "structured",
+            "source_role": source_role,
         })
+
+    # Foreign key ABOUT edges (observation → entity linkage).
+    if source_role == "observation":
+        fk_hits = detect_foreign_keys(record, record_type)
+        for fk in fk_hits:
+            triples.append({
+                "subject": key,
+                "subject_type": entity_type,
+                "relation": "ABOUT",
+                "object": fk["target_key"],
+                "object_type": _ENTITY_TYPE_MAP.get(fk["references_type"], "Record"),
+                "span": f"{fk['column']}: {fk['value']}",
+                "confidence": 1.0,
+                "chunk_id": chunk_id,
+                "source": source,
+                "source_type": "structured",
+                "source_role": source_role,
+            })
 
     return triples
 
