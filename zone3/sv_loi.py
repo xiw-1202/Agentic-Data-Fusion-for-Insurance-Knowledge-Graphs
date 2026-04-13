@@ -41,6 +41,7 @@ Pre-requisite: Zone 2 must have run first (Neo4j populated with :Entity nodes).
 from __future__ import annotations
 
 import json
+import random
 import re
 import time
 import os
@@ -266,7 +267,6 @@ def discover_class_vocabulary(
     print("\n[Phase 2] Class vocabulary discovery (two-stage)", flush=True)
 
     # Collect entity name samples (ungrouped — raw names)
-    import random
     random.seed(42)
     all_names = [e["id"] for e in entities]
     name_sample = random.sample(all_names, min(80, len(all_names)))
@@ -683,7 +683,6 @@ def rescue_other_entities(
     for cls, cnt in dist.most_common():
         members = [eid for eid, c in assignments.items() if c == cls]
         # Sample up to 8 member names
-        import random
         random.seed(42)
         sample = random.sample(members, min(8, len(members)))
         # Get typical relations for this class
@@ -862,7 +861,7 @@ def type_value_entities(
     else:
         print(f"  ✓ No value entities met the {confidence_threshold:.0%} threshold — all stay as Other", flush=True)
 
-    return updated
+    return updated, rel_to_class
 
 
 def rebalance_mega_classes(
@@ -923,7 +922,6 @@ def rebalance_mega_classes(
         # Get members with context
         members = [eid for eid, c in updated.items() if c == mega_cls]
         # Sample for the LLM
-        import random
         random.seed(42)
         sample = random.sample(members, min(40, len(members)))
         sample_descs = []
@@ -1934,8 +1932,11 @@ def merge_leaf_classes(
 
     # Step 3: Heuristic fallback for undecided classes
     # Uses structural criterion: leaf% > 70% AND distinct_rels < 4
+    # Respects PROTECTED_CLASS_NAMES (never merge protected classes via heuristic)
     for cls in all_classes:
         if cls in merge_map:
+            continue
+        if cls.lower() in PROTECTED_CLASS_NAMES:
             continue
         p = class_profiles[cls]
         if (p["count"] < 50
@@ -2261,6 +2262,315 @@ Only answer YES if every instance of the child class IS-A instance of the parent
         print(f"    {child} SUBCLASS_OF {parent}")
 
     return final_edges
+
+
+def derive_taxonomy_llm_pairwise(
+    assignments: dict[str, str],
+    entities: list[dict],
+    llm: ChatOllama,
+) -> list[tuple[str, str]]:
+    """IS-A taxonomy via LLM pairwise judgment.
+
+    For each ordered pair (A, B), ask: "Is A a subtype of B?"
+    Batch 10 pairs per prompt for efficiency.
+    Enforce DAG + max depth 3.
+
+    Unlike derive_taxonomy() (relation-set subsumption) which only finds
+    IS-A when child relations are a strict subset of parent's, this method
+    can discover IS-A relationships even when classes have overlapping or
+    distinct relation profiles — it relies on semantic judgment.
+
+    Returns:
+        List of (child, parent) edges representing SUBCLASS_OF.
+    """
+    print("\n[Taxonomy-LLM] Deriving IS-A hierarchy via pairwise LLM judgment...", flush=True)
+
+    class_counts = Counter(v for v in assignments.values() if v != "Other")
+    class_names = sorted(class_counts.keys())
+    if len(class_names) < 2:
+        return []
+
+    entity_map = {e["id"]: e for e in entities}
+
+    # Build class summaries for the prompt
+    class_summaries: dict[str, str] = {}
+    for cls in class_names:
+        members = [eid for eid, c in assignments.items() if c == cls]
+        # Prefer concept members for meaningful names
+        concept_members = [
+            eid for eid in members
+            if is_concept_entity(entity_map.get(eid, {"id": eid, "entity_type": "Unknown"}))
+        ]
+        sample_pool = concept_members if concept_members else members
+        sample = sample_pool[:6]
+        class_summaries[cls] = f"{cls} ({class_counts[cls]} members, e.g. {', '.join(sample)})"
+
+    # Generate all ordered pairs: (A, B) means "Is A a subtype of B?"
+    pairs: list[tuple[str, str]] = []
+    for i, a in enumerate(class_names):
+        for j, b in enumerate(class_names):
+            if i != j:
+                pairs.append((a, b))
+
+    print(f"  Evaluating {len(pairs)} ordered pairs in batches of 10...", flush=True)
+
+    # Batch pairs into groups of 10
+    PAIRS_PER_BATCH = 10
+    raw_yes_pairs: list[tuple[str, str]] = []
+
+    for batch_start in range(0, len(pairs), PAIRS_PER_BATCH):
+        batch = pairs[batch_start:batch_start + PAIRS_PER_BATCH]
+
+        pair_lines = []
+        for idx, (a, b) in enumerate(batch, 1):
+            pair_lines.append(f"{idx}. Is \"{a}\" a subtype of \"{b}\"?")
+            pair_lines.append(f"   {a}: {class_summaries[a]}")
+            pair_lines.append(f"   {b}: {class_summaries[b]}")
+
+        prompt = f"""For each pair below, answer YES if the first class is a genuine subtype \
+(IS-A) of the second class. Answer NO otherwise.
+
+A is a subtype of B means: every instance of A is also an instance of B.
+Example: "Flood" IS-A "Peril" (every flood is a peril).
+Counter-example: "Coverage" is NOT a subtype of "Policy" (coverage is part of a policy, not a kind of policy).
+
+{chr(10).join(pair_lines)}
+
+Output one line per pair: number. YES or NO
+"""
+        raw = _invoke_llm(llm, prompt)
+
+        # Parse "1. YES" or "1. NO" lines
+        line_re = re.compile(r'(\d+)\.\s*(YES|NO)', re.IGNORECASE)
+        for m in line_re.finditer(raw):
+            idx = int(m.group(1)) - 1
+            verdict = m.group(2).upper()
+            if 0 <= idx < len(batch) and verdict == "YES":
+                raw_yes_pairs.append(batch[idx])
+
+        batch_num = batch_start // PAIRS_PER_BATCH + 1
+        total_batches = (len(pairs) + PAIRS_PER_BATCH - 1) // PAIRS_PER_BATCH
+        if batch_num % 5 == 0 or batch_num == total_batches:
+            print(f"    Batch {batch_num}/{total_batches}: {len(raw_yes_pairs)} YES so far", flush=True)
+
+    if not raw_yes_pairs:
+        print("  No IS-A pairs found via LLM pairwise judgment")
+        return []
+
+    print(f"  {len(raw_yes_pairs)} raw YES pairs, enforcing DAG + max depth 3...", flush=True)
+
+    # DAG enforcement: single-parent tree, max depth 3, no cycles
+    # Sort by child class size (smaller first) so more specific classes
+    # get their parent assigned first — avoids alphabetical bias.
+    MAX_TAXONOMY_DEPTH = 3
+    final_edges: list[tuple[str, str]] = []
+    parent_of: dict[str, str] = {}  # child -> parent
+
+    raw_yes_pairs.sort(key=lambda pair: (class_counts.get(pair[0], 0), pair[0]))
+
+    def _depth_of(node: str) -> int:
+        d = 0
+        cur = node
+        visited: set[str] = set()
+        while cur in parent_of and cur not in visited:
+            visited.add(cur)
+            cur = parent_of[cur]
+            d += 1
+        return d
+
+    for child, parent in raw_yes_pairs:
+        if child == parent:
+            continue
+        # Cycle check
+        cur = parent
+        is_cycle = False
+        visited: set[str] = set()
+        while cur in parent_of and cur not in visited:
+            visited.add(cur)
+            cur = parent_of[cur]
+            if cur == child:
+                is_cycle = True
+                break
+        if is_cycle:
+            continue
+        # Depth check
+        if _depth_of(parent) + 1 > MAX_TAXONOMY_DEPTH:
+            continue
+        # First-come wins for single parent
+        if child not in parent_of:
+            parent_of[child] = parent
+            final_edges.append((child, parent))
+
+    print(f"  ✓ {len(final_edges)} validated IS-A edges (from {len(raw_yes_pairs)} candidates)")
+    for child, parent in final_edges:
+        print(f"    {child} SUBCLASS_OF {parent}")
+
+    return final_edges
+
+
+def decompose_records(
+    assignments: dict[str, str],
+    entities: list[dict],
+    rel_to_class: dict[str, tuple[str, float]] | None = None,
+) -> dict[str, dict[str, dict]]:
+    """Decompose record entities into domain-specific sub-nodes.
+
+    Uses the relation-range mapping (from value typing) to determine which
+    fields of a record entity belong to which concept class. Creates a
+    decomposition plan that Stage 7 can use to write sub-nodes.
+
+    For each record entity (POL-xxx, CLM-xxx):
+      - Look up its outgoing HAS_* relations
+      - Group relations by the class their targets belong to
+      - Create sub-node plan: {record_id: {class_name: {fields: {rel: value}}}}
+
+    Args:
+        assignments: entity → class mapping (after full typing)
+        entities: all entities with relation data
+        rel_to_class: relation→(class, confidence) from value typing (optional)
+
+    Returns:
+        {record_eid: {class_label: {"fields": {rel: target_eid}, "class": class_name}}}
+        Empty dict if no decomposition is applicable.
+    """
+    print("\n[Decompose] Record decomposition via relation-range mapping...", flush=True)
+
+    entity_map = {e["id"]: e for e in entities}
+    decomposition: dict[str, dict[str, dict]] = {}
+    records_processed = 0
+    sub_nodes_planned = 0
+
+    for e in entities:
+        eid = e["id"]
+        lane = get_entity_lane(e)
+        if lane != "record":
+            continue
+
+        # Group outgoing relations by target's class
+        class_fields: dict[str, dict[str, str]] = defaultdict(dict)
+
+        for rel in e.get("out_rels", []):
+            rel_type = rel.get("rel", "")
+            target_eid = rel.get("target", "")
+            target_cls = assignments.get(target_eid, "Other")
+
+            if target_cls == "Other":
+                # Try relation-range mapping as fallback
+                if rel_to_class and rel_type in rel_to_class:
+                    target_cls = rel_to_class[rel_type][0]
+                else:
+                    continue
+
+            # Skip self-class (record's own class)
+            record_cls = assignments.get(eid, "Other")
+            if target_cls == record_cls:
+                continue
+
+            class_fields[target_cls][rel_type] = target_eid
+
+        # Only decompose if fields map to 2+ distinct classes
+        if len(class_fields) >= 2:
+            sub_plan: dict[str, dict] = {}
+            seen_labels: set[str] = set()
+            for cls, fields in class_fields.items():
+                # Create a lowercase label for the sub-node
+                label = cls.lower()
+                # Guard against label collisions (e.g., "Coverage" vs "COVERAGE")
+                if label in seen_labels:
+                    label = f"{label}_{len(seen_labels)}"
+                seen_labels.add(label)
+                sub_plan[label] = {
+                    "fields": dict(fields),
+                    "class": cls,
+                }
+            decomposition[eid] = sub_plan
+            sub_nodes_planned += len(sub_plan)
+            records_processed += 1
+
+    total_records = sum(1 for e in entities if get_entity_lane(e) == "record")
+    skipped = total_records - records_processed
+    print(f"  ✓ {records_processed} records decomposed into {sub_nodes_planned} sub-nodes "
+          f"({skipped} skipped: <2 distinct target classes)")
+    if decomposition:
+        # Show a sample
+        sample_eid = next(iter(decomposition))
+        sample = decomposition[sample_eid]
+        print(f"  Example: {sample_eid} → {list(sample.keys())}")
+
+    return decomposition
+
+
+def write_record_decomposition(
+    decomposition: dict[str, dict[str, dict]],
+) -> int:
+    """Write decomposed record sub-nodes to Neo4j.
+
+    For each record entity with a decomposition plan:
+      1. Create sub-node: {record_id}:{class_label} as Entity
+      2. Link sub-node → OntologyClass via INSTANCE_OF
+      3. Link hub record → sub-node via HAS_COMPONENT
+
+    Returns:
+        Number of sub-nodes created.
+    """
+    if not decomposition:
+        return 0
+
+    print(f"\n[Decompose-Write] Writing {sum(len(v) for v in decomposition.values())} "
+          f"sub-nodes to Neo4j...", flush=True)
+
+    try:
+        graph = get_neo4j_graph()
+        graph.query("RETURN 1 AS ok")
+    except Exception as e:
+        print(f"  ⚠ Neo4j unavailable ({e}), skipping decomposition write.")
+        return 0
+
+    created = 0
+    for record_eid, sub_plan in decomposition.items():
+        for label, info in sub_plan.items():
+            sub_id = f"{record_eid}:{label}"
+            cls = info["class"]
+            safe_cls = _sanitize_label(cls)
+
+            try:
+                # Create sub-node entity
+                graph.query(
+                    "MERGE (n:Entity {id: $id}) "
+                    "SET n.entity_type = $cls, n.ontology_class = $cls, "
+                    "n.decomposed_from = $parent",
+                    params={"id": sub_id, "cls": safe_cls, "parent": record_eid},
+                )
+
+                # Link to ontology class
+                graph.query(
+                    "MATCH (n:Entity {id: $id}), (c:OntologyClass {name: $cls}) "
+                    "MERGE (n)-[:INSTANCE_OF]->(c)",
+                    params={"id": sub_id, "cls": safe_cls},
+                )
+
+                # Link hub record → sub-node
+                graph.query(
+                    "MATCH (hub:Entity {id: $hub}), (sub:Entity {id: $sub}) "
+                    "MERGE (hub)-[:HAS_COMPONENT]->(sub)",
+                    params={"hub": record_eid, "sub": sub_id},
+                )
+
+                # Copy relevant field relations to the sub-node
+                for rel_type, target_eid in info["fields"].items():
+                    safe_rel = _sanitize_label(rel_type)
+                    graph.query(
+                        "MATCH (sub:Entity {id: $sub}), (tgt:Entity {id: $tgt}) "
+                        f"MERGE (sub)-[:`{safe_rel}`]->(tgt)",
+                        params={"sub": sub_id, "tgt": target_eid},
+                    )
+
+                created += 1
+            except Exception as e:
+                print(f"  ⚠ Sub-node {sub_id}: {e}")
+
+    print(f"  ✓ Created {created} sub-nodes with HAS_COMPONENT + INSTANCE_OF edges")
+    return created
 
 
 def validate_backbone(
@@ -2683,17 +2993,24 @@ def run_sv_loi(
     seed: int = 42,
     results_dir: str | None = None,
 ) -> dict:
-    """Run the full SV-LOI pipeline.
+    """Run the full SV-LOI pipeline (7 stages).
+
+    Stage 1: Load + Prepare     (load cache, record evidence, structural sigs)
+    Stage 2: Discover Classes   (domain detection, class vocabulary proposal)
+    Stage 3: Classify Entities  (batch typing, rebalance, rescue)
+    Stage 4: Verify + Propagate (concept verify, record propagation, value typing, full verify)
+    Stage 5: Consolidate        (5-way class relations, LLM validation, structural merge)
+    Stage 6: Build Structure    (LLM pairwise taxonomy, subsumption, associations, decomposition)
+    Stage 7: Write + Report     (confidence scoring, quality metrics, Neo4j write)
 
     Ablation flags:
-        skip_verify:              Skip Phase 2 structural consensus verification
-        skip_arbitrate:           Skip Phase 3 disagreement arbitration
-        skip_consolidate:         Skip Phase 4 LLM-guided class consolidation
-        skip_record_propagation:  Skip Phase 8 (use Zone 2 entity_type for records)
+        skip_verify:              Skip structural consensus verification
+        skip_arbitrate:           Skip disagreement arbitration
+        skip_consolidate:         Skip LLM-guided class consolidation
+        skip_record_propagation:  Skip record propagation (use Zone 2 entity_type)
         use_old_rebalance:        Use old rebalance (total entities, 25% threshold)
         seed:                     Random seed for reproducibility
     """
-    import random
     random.seed(seed)
     np.random.seed(seed)
 
@@ -2714,14 +3031,20 @@ def run_sv_loi(
     ablation_str = f" [ABLATION: {', '.join(ablation_flags)}]" if ablation_flags else ""
 
     _flush_print("=" * 70)
-    _flush_print("CS584 Capstone — Zone 3: SV-LOI")
+    _flush_print("CS584 Capstone — Zone 3: SV-LOI (7-Stage Pipeline)")
     _flush_print(f"Structurally-Verified LLM Ontology Induction{ablation_str}")
     _flush_print(f"Model: {model} | Suffix: {suffix} | Seed: {seed}")
     _flush_print("=" * 70)
 
     start = time.time()
 
-    # Phase 0: Load entities from cache (zero Neo4j round-trips)
+    # ===================================================================
+    # Stage 1: Load + Prepare
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 1: Load + Prepare")
+    _flush_print("─" * 50)
+
     entities = load_cached_entities(fmt="sv_loi", results_dir=rdir)
     if not entities:
         return {"error": "no entities"}
@@ -2729,50 +3052,69 @@ def run_sv_loi(
     llm = get_llm(model)
     entity_map_all = {e["id"]: e for e in entities}
 
-    # Phase 2: Discover class vocabulary (concept entities only)
-    concept_entities = get_concept_entities(entities)
-    # Phase 1: Analyze record relation signatures for class discovery evidence
+    # Record evidence analysis (informs class discovery)
     record_evidence = analyze_record_evidence(entities)
     if record_evidence:
-        _flush_print(f"\n[Phase 1] Record evidence:\n{record_evidence}")
+        _flush_print(f"\n  Record evidence:\n{record_evidence}")
+
+    # Concept entities for class discovery
+    concept_entities = get_concept_entities(entities)
+
+    # Structural signatures (used in verify + consolidate stages)
+    features, entity_ids, feature_names = build_structural_signatures(entities)
+
+    _flush_print(f"  ✓ Loaded {len(entities)} entities "
+                 f"({len(concept_entities)} concepts), "
+                 f"{len(feature_names)} features")
+
+    # ===================================================================
+    # Stage 2: Discover Classes
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 2: Discover Classes")
+    _flush_print("─" * 50)
 
     class_vocab, detected_domain = discover_class_vocabulary(
         concept_entities, llm, record_evidence=record_evidence,
         all_entities=entities,
     )
 
-    # Phase 3: Batch LLM entity typing
+    # ===================================================================
+    # Stage 3: Classify Entities (batch typing + rebalance + rescue)
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 3: Classify Entities")
+    _flush_print("─" * 50)
+
+    # Pass 1: LLM batch typing
     assignments = batch_type_entities(entities, class_vocab, llm, results_dir=rdir)
 
-    # Phase 4: Rebalance mega-classes (split any class > 30% of entities)
+    # Pass 2: Rebalance mega-classes + rescue Other (combined post-pass)
     assignments, class_vocab = rebalance_mega_classes(
         assignments, entities, class_vocab, llm,
         use_old_rebalance=use_old_rebalance,
     )
-
-    # Phase 5: Rescue "Other" entities with targeted re-typing
     assignments = rescue_other_entities(assignments, entities, llm)
 
-    # NOTE: Phase 9 (value typing) moved AFTER Phase 8 (record propagation)
-    # so value entities can see record neighbor classes, not just concept neighbors.
+    # ===================================================================
+    # Stage 4: Verify + Propagate
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 4: Verify + Propagate")
+    _flush_print("─" * 50)
 
     # --- Decision provenance tracking ---
     provenance: dict[str, dict] = {}
     for eid, cls in assignments.items():
         provenance[eid] = {"llm_type": cls, "flagged": False, "arbitrated": False}
 
-    # === CONCEPT-FIRST VERIFICATION (Change 5) ===
-    # Verify concepts with clean centroids BEFORE propagating to records.
-    # This prevents record assignments from polluting structural signals.
-
-    features, entity_ids, feature_names = build_structural_signatures(entities)
     total_flagged = 0
 
+    # Sub-pass A: Concept-only verification (clean centroids, no record pollution)
     if skip_verify:
-        _flush_print("\n--- [ABLATION] Skipping structural verification ---")
+        _flush_print("\n  [ABLATION] Skipping structural verification")
     else:
-        # Phase 6: Concept-only structural verification
-        _flush_print("\n[Phase 6] Concept-only structural verification")
+        _flush_print("\n  Sub-pass A: Concept-only structural verification")
         concept_only_assignments = {
             eid: cls for eid, cls in assignments.items()
             if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
@@ -2801,10 +3143,11 @@ def run_sv_loi(
         elif flagged and skip_arbitrate:
             _flush_print(f"  [ABLATION] Skipping arbitration — {len(flagged)} flagged")
 
-    # Phase 8: Schema mapping — propagate verified concept types to records
+    # Sub-pass B: Record propagation + value typing
     if skip_record_propagation:
-        _flush_print("\n--- [ABLATION] Skipping record propagation (using Zone 2 types) ---")
+        _flush_print("\n  [ABLATION] Skipping record propagation (using Zone 2 types)")
     else:
+        _flush_print("\n  Sub-pass B: Record propagation + value typing")
         concept_assignments_verified = {
             eid: cls for eid, cls in assignments.items()
             if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
@@ -2815,8 +3158,7 @@ def run_sv_loi(
         )
         for eid, cls in record_assignments.items():
             assignments[eid] = cls
-        # Apply redirects: fix any entity (concept or value) that was typed
-        # with a record-type class name (e.g., "PolicyRecord" → "Product")
+        # Apply redirects: fix entities typed with record-type class names
         if redirects:
             redirected = 0
             for eid in list(assignments.keys()):
@@ -2824,7 +3166,6 @@ def run_sv_loi(
                 if old_cls in redirects:
                     assignments[eid] = redirects[old_cls]
                     redirected += 1
-            # Clean class_vocab: remove record-type names, ensure targets exist
             for old_cls, new_cls in redirects.items():
                 if old_cls in class_vocab:
                     class_vocab.remove(old_cls)
@@ -2833,13 +3174,12 @@ def run_sv_loi(
             _flush_print(f"  Redirected {redirected} entities, "
                          f"cleaned vocab: removed {list(redirects.keys())}")
 
-    # Phase 9: Value typing (AFTER record propagation
-    # so value entities can see record neighbor classes for majority voting)
-    assignments = type_value_entities(assignments, entities, class_vocab)
+    # Value typing AFTER record propagation (needs record neighbor classes)
+    assignments, rel_to_class = type_value_entities(assignments, entities, class_vocab)
 
-    # Phase 10: Full structural verification (all entities, clean centroids)
+    # Sub-pass C: Full verification (all entities now typed)
     if not skip_verify:
-        _flush_print("\n[Phase 10] Full structural verification")
+        _flush_print("\n  Sub-pass C: Full structural verification")
         class_stats, flagged = structural_consensus_check(assignments, features, entity_ids)
         total_flagged += len(flagged)
 
@@ -2858,32 +3198,36 @@ def run_sv_loi(
                         provenance[eid]["arbitrated"] = True
                         provenance[eid]["pre_arb_class"] = pre_arb[eid]
 
-    # --- Two-lane: concept entities drive consolidation ---
+    # ===================================================================
+    # Stage 5: Consolidate Classes (5-way inference + LLM validation + structural merge)
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 5: Consolidate Classes")
+    _flush_print("─" * 50)
+
+    # Two-lane: concept entities drive consolidation
     concept_assignments = {
         eid: cls for eid, cls in assignments.items()
         if get_entity_lane(entity_map_all.get(eid, {"id": eid, "entity_type": "Unknown"})) == "concept"
     }
-    _flush_print(f"\n  Two-lane: {len(concept_assignments)} concepts drive consolidation")
+    _flush_print(f"  {len(concept_assignments)} concepts drive consolidation")
 
-    # Phase 11: 5-way class consolidation + hierarchy (Changes C+D+E)
     pre_consolidate = dict(assignments)
     if skip_consolidate:
-        _flush_print("\n--- [ABLATION] Skipping class relation inference ---")
+        _flush_print("\n  [ABLATION] Skipping class relation inference")
         hierarchy = derive_hierarchy(assignments, llm)
     else:
-        # Run relation inference on concept entities only
+        # 5-way class relation inference (concept entities only)
         concept_assignments, hierarchy = infer_class_relations(
             concept_assignments, entities, llm,
         )
-        # Propagate concept consolidation decisions to ALL entities
-        # Build mapping: old_class → new_class (only unambiguous 1-to-1 remaps)
+        # Propagate concept consolidation to ALL entities
         remap_candidates: dict[str, set[str]] = defaultdict(set)
         for eid, new_cls in concept_assignments.items():
             old_cls = pre_consolidate.get(eid, "Other")
             if old_cls != new_cls and old_cls != "Other":
                 remap_candidates[old_cls].add(new_cls)
 
-        # Only propagate unambiguous remaps (one old class → one new class)
         class_remap = {
             old: next(iter(news))
             for old, news in remap_candidates.items()
@@ -2899,7 +3243,6 @@ def run_sv_loi(
                 old = assignments[eid]
                 if old in class_remap:
                     assignments[eid] = class_remap[old]
-        # Also apply concept assignments directly
         for eid, cls in concept_assignments.items():
             assignments[eid] = cls
 
@@ -2909,42 +3252,72 @@ def run_sv_loi(
             if eid in provenance:
                 provenance[eid]["consolidated_from"] = pre_consolidate[eid]
 
-    # Phase 12: Merge small classes structurally
-    assignments = merge_small_classes(assignments, features, entity_ids)
-
-    # Phase 13: LLM class validation (property-value classes into parent classes)
+    # LLM class validation BEFORE structural merge (reordered from old pipeline)
+    # This prevents merge_small_classes from merging classes that LLM would keep
     assignments = merge_leaf_classes(assignments, entities, llm=llm)
 
-    # Phase 14a: IS-A taxonomy from defining relation subsumption + LLM validation
-    taxonomy_edges = derive_taxonomy(assignments, entities, llm)
-    # Add taxonomy edges to hierarchy (these are true SUBCLASS_OF)
+    # Structural merge of small classes AFTER LLM validation
+    assignments = merge_small_classes(assignments, features, entity_ids)
+
+    # ===================================================================
+    # Stage 6: Build Ontology Structure (taxonomy + associations + decomposition)
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 6: Build Ontology Structure")
+    _flush_print("─" * 50)
+
+    # Snapshot 5-way edge count before Stage 6 appends
+    n_5way_edges = len(hierarchy)
+
+    # IS-A taxonomy via LLM pairwise judgment (NEW — primary signal)
+    taxonomy_llm_edges = derive_taxonomy_llm_pairwise(assignments, entities, llm)
+
+    # Concept-only subsumption as structural validation (secondary signal)
+    taxonomy_subsumption_edges = derive_taxonomy(assignments, entities, llm)
+
+    # Merge: LLM edges + structurally-confirmed edges
     existing_edges = set(hierarchy)
-    for edge in taxonomy_edges:
+    for edge in taxonomy_llm_edges:
+        if edge not in existing_edges:
+            hierarchy.append(edge)
+            existing_edges.add(edge)
+    for edge in taxonomy_subsumption_edges:
         if edge not in existing_edges:
             hierarchy.append(edge)
             existing_edges.add(edge)
 
-    # Phase 14b: Data-driven inter-class association edges
-    # These are NOT IS-A — they represent entity-level connections aggregated
-    # to class level (matching Riskine's $ref = HAS-A/REFERENCES semantics).
-    _flush_print("\n[Phase 14b] Data-driven inter-class association edges...")
+    # Association edges from entity connections
+    _flush_print("\n  Association edges from entity connections...")
     data_edges = derive_interclass_edges(assignments, entities)
     for edge in data_edges:
         if edge not in existing_edges:
             hierarchy.append(edge)
             existing_edges.add(edge)
-    _flush_print(f"  Total edges: {len(hierarchy)} "
-                 f"({len(taxonomy_edges)} IS-A + {len(data_edges)} association "
-                 f"+ {len(hierarchy) - len(taxonomy_edges) - len(data_edges)} from 5-way)")
 
-    # Phase 14c: Backbone validation (connectivity report)
+    n_llm_tax = len(taxonomy_llm_edges)
+    n_sub_tax = len(taxonomy_subsumption_edges)
+    n_assoc = len(data_edges)
+    _flush_print(f"  Total edges: {len(hierarchy)} "
+                 f"({n_llm_tax} LLM-pairwise IS-A + {n_sub_tax} subsumption IS-A "
+                 f"+ {n_assoc} association + {n_5way_edges} from 5-way)")
+
+    # Record decomposition (Q5 bridge fix)
+    decomposition = decompose_records(assignments, entities, rel_to_class=rel_to_class)
+
+    # Backbone validation
     backbone_report = validate_backbone(assignments, entities)
 
-    # Final provenance: record final class + confidence for each entity
+    # ===================================================================
+    # Stage 7: Write + Report
+    # ===================================================================
+    _flush_print("\n" + "─" * 50)
+    _flush_print("STAGE 7: Write + Report")
+    _flush_print("─" * 50)
+
+    # Confidence scoring
     for eid, cls in assignments.items():
         if eid in provenance:
             provenance[eid]["final_type"] = cls
-            # Confidence scoring based on decision path
             p = provenance[eid]
             if cls == "Other":
                 p["confidence"] = 0.3
@@ -2957,34 +3330,40 @@ def run_sv_loi(
             else:
                 p["confidence"] = 1.0
 
-    # Phase 15: Write to Neo4j
+    # Intrinsic quality metrics
+    final_dist = Counter(v for v in assignments.values() if v != "Other")
+    quality_metrics = _compute_intrinsic_quality(
+        assignments, entities, entity_map_all, final_dist,
+    )
+
+    # Write to Neo4j
     neo4j_stats = write_ontology(assignments, hierarchy)
+
+    # Write decomposed record sub-nodes
+    decomp_count = 0
+    if decomposition:
+        decomp_count = write_record_decomposition(decomposition)
 
     elapsed = time.time() - start
 
-    # Final distribution
-    final_dist = Counter(v for v in assignments.values() if v != "Other")
-
     # Summary
-    print(f"\n{'=' * 70}")
-    print(f"SV-LOI pipeline complete in {elapsed:.1f}s")
-    print(f"  Method:            SV-LOI (Structurally-Verified LLM Ontology Induction)")
-    print(f"  Entities:          {len(entities)}")
-    print(f"  Classes:           {len(final_dist)}")
-    print(f"  SUBCLASS_OF:       {len(hierarchy)}")
-    print(f"  Flagged/Arbitrated:{total_flagged}")
-    print(f"  Distribution:")
+    _flush_print(f"\n{'=' * 70}")
+    _flush_print(f"SV-LOI pipeline complete in {elapsed:.1f}s")
+    _flush_print(f"  Method:            SV-LOI (Structurally-Verified LLM Ontology Induction)")
+    _flush_print(f"  Entities:          {len(entities)}")
+    _flush_print(f"  Classes:           {len(final_dist)}")
+    _flush_print(f"  SUBCLASS_OF:       {len(hierarchy)}")
+    _flush_print(f"  Flagged/Arbitrated:{total_flagged}")
+    _flush_print(f"  Decomposed:        {decomp_count} sub-nodes")
+    _flush_print(f"  Distribution:")
     for cls, cnt in final_dist.most_common():
-        print(f"    {cls}: {cnt}")
+        _flush_print(f"    {cls}: {cnt}")
 
-    # Compute metrics BEFORE building summary dict (they're referenced in it)
+    # Low-confidence entities
     low_conf = {
         eid: p for eid, p in provenance.items()
         if p.get("confidence", 1.0) < 0.5
     }
-    quality_metrics = _compute_intrinsic_quality(
-        assignments, entities, entity_map_all, final_dist,
-    )
 
     # Save summary
     summary = {
@@ -3001,6 +3380,7 @@ def run_sv_loi(
         "flagged_count": total_flagged,
         "hierarchy": [{"child": c, "parent": p} for c, p in hierarchy],
         "neo4j_stats": neo4j_stats,
+        "decomposition_count": decomp_count,
         "ablation": {
             "skip_verify": skip_verify,
             "skip_arbitrate": skip_arbitrate,
@@ -3029,15 +3409,20 @@ def run_sv_loi(
             "overall_connectivity": backbone_report.get("overall_connectivity", 0),
             "disconnected_classes": backbone_report.get("disconnected_classes", []),
         },
-        "taxonomy_edges": len(taxonomy_edges),
+        "taxonomy_edges": len(taxonomy_llm_edges) + len(taxonomy_subsumption_edges),
+        "taxonomy_edges_detail": {
+            "llm_pairwise": len(taxonomy_llm_edges),
+            "subsumption": len(taxonomy_subsumption_edges),
+        },
     }
-    # Save full provenance log separately (large — for error taxonomy analysis)
+
+    # Save provenance
     prov_path = os.path.join(rdir, f"svloi_provenance_{suffix}.json")
     with open(prov_path, "w") as f:
         json.dump(provenance, f, indent=2, default=str)
     _flush_print(f"  ✓ Decision provenance saved → {prov_path}")
 
-    # Save low-confidence entities for user review (feedback #6)
+    # Save low-confidence entities
     if low_conf:
         lc_path = os.path.join(rdir, f"zone3_low_confidence_entities_{suffix}.json")
         with open(lc_path, "w") as f:
@@ -3048,12 +3433,13 @@ def run_sv_loi(
     _flush_print(f"  Intrinsic quality:")
     for k, v in quality_metrics.items():
         _flush_print(f"    {k}: {v}")
+
     out_path = os.path.join(rdir, f"zone3_svloi_summary_{suffix}.json")
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2, default=str)
-    print(f"\n✓ Summary saved to {out_path}")
-    print(f"\nNext steps:")
-    print(f"  python3 baseline/eval.py --suffix {suffix} --riskine --model {model}")
+    _flush_print(f"\n✓ Summary saved to {out_path}")
+    _flush_print(f"\nNext steps:")
+    _flush_print(f"  python3 baseline/eval.py --suffix {suffix} --riskine --model {model}")
 
     return summary
 
