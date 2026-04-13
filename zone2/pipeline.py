@@ -1728,36 +1728,61 @@ def collapse_value_to_properties(
                 obj_to_subjects[obj] = set()
             obj_to_subjects[obj].add(subj)
 
-    # Pass 2: collapse values to properties
-    # Single-use values always collapse (unless on preserve list).
-    # Multi-use values (≤3 subjects) collapse ONLY if they are NOT
-    # query-anchor dimensions (zip codes, flood zones, status codes, etc.).
+    # Pass 2: Data-driven relation classification
+    # For each candidate relation, compute statistics to decide collapse vs preserve:
+    #   - MEASURE: high cardinality + mostly numeric → keep as entity (sortable/aggregable)
+    #   - DIMENSION: low cardinality + shared across subjects → keep as entity (join key)
+    #   - PROPERTY: single-use literal → collapse to node property
     MAX_MULTI_USE = 3
+    MEASURE_CARDINALITY_THRESHOLD = 0.5  # if >50% of values are unique → measure
+    DIMENSION_REUSE_THRESHOLD = 2        # if avg subjects per value >= 2 → dimension
 
-    # Relations whose values serve as shared dimensions / join keys — NEVER collapse
-    _PRESERVE_RELATIONS: frozenset[str] = frozenset({
-        "HAS_ZIP_CODE", "HAS_ZIP", "HAS_STATE", "HAS_CITY",
-        "HAS_FLOOD_ZONE", "HAS_ZONE", "HAS_RATED_FLOOD_ZONE",
-        "HAS_OCCUPANCY_TYPE", "HAS_STATUS", "HAS_CLAIM_STATUS",
-        "HAS_CAUSE_OF_DAMAGE", "HAS_CAUSE", "HAS_PERIL",
-        "HAS_COVERAGE_TYPE", "HAS_COVERAGE_CODE",
-        "HAS_PROPERTY_STATE", "HAS_REPORTED_CITY", "HAS_REPORTED_ZIP_CODE",
-        "HAS_COUNTRY", "HAS_COUNTY",
-    })
+    # Compute per-relation statistics from candidates
+    import re as _collapse_re
+    _NUMERIC_PAT = _collapse_re.compile(r'^-?[\d,]+\.?\d*%?$')
 
-    # Measure relations — numeric values users need to sort/aggregate/compare.
-    # These stay as entity nodes so Cypher can ORDER BY / avg() / max() on them.
-    # Uses suffix matching to avoid false positives (COUNT matching ACCOUNT/COUNTY).
-    _MEASURE_SUFFIXES: tuple[str, ...] = (
-        "_TIME", "_SCORE", "_AMOUNT", "_COST", "_DISTANCE",
-        "_PREMIUM", "_PAYMENT", "_FEE", "_PRICE", "_LIMIT",
-        "_DEDUCTIBLE", "_NPS", "_CSAT", "_CES", "_LTR",
-        "_RATE", "_COUNT",
-    )
-    # Exact measure relation names that don't match suffixes
-    _MEASURE_EXACT: frozenset[str] = frozenset({
-        "HAS_NPS", "HAS_CONVO_TIME",
-    })
+    rel_stats: dict[str, dict] = {}
+    for i in candidates:
+        t = triples[i]
+        rel = t["relation"]
+        obj = t["object"]
+        if rel not in rel_stats:
+            rel_stats[rel] = {"values": set(), "numeric_count": 0, "total": 0}
+        rel_stats[rel]["values"].add(obj)
+        rel_stats[rel]["total"] += 1
+        if _NUMERIC_PAT.match(obj.replace("$", "").replace(",", "")):
+            rel_stats[rel]["numeric_count"] += 1
+
+    # Classify each relation
+    measure_rels: set[str] = set()     # high-cardinality numeric → preserve
+    dimension_rels: set[str] = set()   # low-cardinality, high-reuse → preserve
+
+    for rel, stats in rel_stats.items():
+        n_values = len(stats["values"])
+        n_total = stats["total"]
+        numeric_frac = stats["numeric_count"] / n_total if n_total > 0 else 0
+        cardinality = n_values / n_total if n_total > 0 else 0  # 1.0 = all unique
+        avg_reuse = n_total / n_values if n_values > 0 else 0
+
+        if numeric_frac > 0.8 and cardinality > MEASURE_CARDINALITY_THRESHOLD:
+            # Mostly numeric + high cardinality = measure column (scores, amounts, times)
+            measure_rels.add(rel)
+        elif avg_reuse >= DIMENSION_REUSE_THRESHOLD and n_values >= 2:
+            # Same value shared across multiple subjects = dimension / join key
+            dimension_rels.add(rel)
+
+    if measure_rels:
+        print(f"    Measure relations (preserved): {len(measure_rels)}")
+        for r in sorted(measure_rels)[:10]:
+            s = rel_stats[r]
+            print(f"      {r}: {s['total']} triples, {len(s['values'])} distinct, "
+                  f"{s['numeric_count']}/{s['total']} numeric")
+    if dimension_rels:
+        print(f"    Dimension relations (preserved): {len(dimension_rels)}")
+        for r in sorted(dimension_rels)[:10]:
+            s = rel_stats[r]
+            print(f"      {r}: {s['total']} triples, {len(s['values'])} distinct, "
+                  f"reuse={s['total']/len(s['values']):.1f}x")
 
     collapse_indices: set[int] = set()
     node_properties: dict[str, dict[str, str]] = {}
@@ -1768,12 +1793,12 @@ def collapse_value_to_properties(
         subj = t["subject"]
         rel = t["relation"]
 
-        # Never collapse shared dimension values
-        if rel in _PRESERVE_RELATIONS:
+        # Never collapse measure values (data-driven: high-cardinality numerics)
+        if rel in measure_rels:
             continue
 
-        # Never collapse measure values (numeric fields users sort/aggregate)
-        if rel in _MEASURE_EXACT or any(rel.upper().endswith(s) for s in _MEASURE_SUFFIXES):
+        # Never collapse dimension values (data-driven: high-reuse join keys)
+        if rel in dimension_rels:
             continue
 
         n_subjects = len(obj_to_subjects.get(obj, set()))
