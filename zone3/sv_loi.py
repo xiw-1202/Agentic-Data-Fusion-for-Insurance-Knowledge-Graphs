@@ -74,7 +74,7 @@ from zone3.graph_cache import (
 
 BATCH_SIZE = 15          # entities per LLM typing prompt (smaller = more context per entity)
 MAX_MEMBERS_IN_PROMPT = 15
-MIN_CLASS_SIZE = 10      # classes with fewer members get merged into nearest
+MIN_CLASS_SIZE = 10      # fallback floor — actual threshold is max(this, 1% of entities)
 DEVIATION_THRESHOLD = 2.0  # σ threshold for structural flagging
 MAX_ARBITRATION_BATCH = 10  # entities per arbitration prompt
 MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
@@ -901,10 +901,13 @@ def rebalance_mega_classes(
 
     updated_vocab = list(class_vocab)
 
-    MIN_CONCEPT_ABSOLUTE = 50  # skip rebalance if class has <50 concept members
+    # Adaptive floor: don't rebalance trivially small classes.
+    # max(50, 5% of denominator) scales from small to large datasets.
+    total_in_dist = sum(dist.values())
+    min_concept_absolute = max(50, int(total_in_dist * 0.05))
     mega_classes = [
         (cls, cnt) for cls, cnt in dist.items()
-        if cnt > threshold and cnt >= MIN_CONCEPT_ABSOLUTE and cls != "Other"
+        if cnt > threshold and cnt >= min_concept_absolute and cls != "Other"
     ]
 
     if not mega_classes:
@@ -1662,16 +1665,25 @@ def merge_small_classes(
     features: np.ndarray,
     entity_ids: list[str],
     min_size: int = MIN_CLASS_SIZE,
+    min_frac: float = 0.01,
 ) -> dict[str, str]:
-    """Merge classes with fewer than min_size members into the nearest class."""
-    print(f"\n[Phase 12] Merging small classes (min_size={min_size})...")
+    """Merge classes with fewer than adaptive threshold members into nearest.
+
+    Threshold = max(min_size, min_frac * total_entities). This scales:
+    - 2,600 entities → max(10, 26) = 26
+    - 100,000 entities → max(10, 1000) = 1000
+    """
+    total = len(assignments)
+    adaptive_min = max(min_size, int(total * min_frac))
+    print(f"\n  Merging small classes (adaptive min={adaptive_min}, "
+          f"from floor={min_size}, {min_frac:.0%} of {total})...")
 
     eid_to_idx = {eid: i for i, eid in enumerate(entity_ids)}
 
     # Count class sizes
     class_counts = Counter(assignments.values())
     small_classes = [c for c, n in class_counts.items()
-                     if n < min_size and c != "Other" and c.lower() not in PROTECTED_CLASS_NAMES]
+                     if n < adaptive_min and c != "Other" and c.lower() not in PROTECTED_CLASS_NAMES]
 
     if not small_classes:
         print("  ✓ No small classes to merge")
@@ -1986,6 +1998,7 @@ def derive_interclass_edges(
     assignments: dict[str, str],
     entities: list[dict],
     min_edge_count: int = 3,
+    min_edge_frac: float = 0.005,
 ) -> list[tuple[str, str]]:
     """Derive inter-class edges from actual entity-level connections (data-driven).
 
@@ -1998,17 +2011,25 @@ def derive_interclass_edges(
     reference ontologies like Riskine define inter-class relationships
     (via $ref links = association/composition, NOT is-a).
 
+    Threshold is adaptive: max(min_edge_count, 0.5% of non-Other entities).
+    - 2,600 entities → max(3, 13) = 13
+    - 100,000 entities → max(3, 500) = 500
+
     Args:
         assignments: entity → class mapping
         entities: all entities with relation data
-        min_edge_count: minimum entity-level connections to create a class edge (default: 3)
+        min_edge_count: absolute floor for edge evidence (default: 3)
+        min_edge_frac: fraction of non-Other entities as adaptive threshold (default: 0.5%)
 
     Returns:
         List of (source_class, target_class) edges (stored as SUBCLASS_OF in Neo4j
         for compatibility with evaluation metrics, but semantically these are
         inter-class associations).
     """
-    print(f"\n[Phase 14] Deriving inter-class edges from entity connections...", flush=True)
+    non_other = sum(1 for c in assignments.values() if c != "Other")
+    adaptive_min = max(min_edge_count, int(non_other * min_edge_frac))
+    print(f"\n  Deriving inter-class edges (adaptive min={adaptive_min}, "
+          f"from floor={min_edge_count}, {min_edge_frac:.1%} of {non_other})...", flush=True)
 
     # Count entity-level connections between classes
     class_connections: Counter = Counter()  # (src_class, tgt_class) → count
@@ -2031,7 +2052,7 @@ def derive_interclass_edges(
     seen: set[tuple[str, str]] = set()
 
     for (src, tgt), count in class_connections.most_common():
-        if count < min_edge_count:
+        if count < adaptive_min:
             continue
         # Avoid circular edges: if (A,B) and (B,A) both exist, keep the stronger one
         if (tgt, src) in seen:
@@ -2041,7 +2062,7 @@ def derive_interclass_edges(
             edges.append(edge)
             seen.add(edge)
 
-    print(f"  ✓ {len(edges)} inter-class edges (min {min_edge_count} entity connections)", flush=True)
+    print(f"  ✓ {len(edges)} inter-class edges (min {adaptive_min} entity connections)", flush=True)
     for src, tgt in edges[:20]:
         count = class_connections[(src, tgt)]
         print(f"    {src} → {tgt} ({count} connections)", flush=True)
