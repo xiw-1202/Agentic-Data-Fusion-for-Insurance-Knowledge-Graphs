@@ -1753,13 +1753,14 @@ def collapse_value_to_properties(
         obj = t["object"]
         if rel not in rel_stats:
             rel_stats[rel] = {"values": set(), "numeric_count": 0, "total": 0,
-                              "digit_lengths": []}
+                              "long_digit_count": 0}
         rel_stats[rel]["values"].add(obj)
         rel_stats[rel]["total"] += 1
         cleaned = obj.replace("$", "").replace(",", "").replace(".", "").replace("-", "")
         if _NUMERIC_PAT.match(obj.replace("$", "").replace(",", "")):
             rel_stats[rel]["numeric_count"] += 1
-            rel_stats[rel]["digit_lengths"].append(len(cleaned))
+            if len(cleaned) > ID_DIGIT_THRESHOLD:
+                rel_stats[rel]["long_digit_count"] += 1
 
     # Classify each relation
     measure_rels: set[str] = set()     # high-cardinality numeric → preserve
@@ -1772,17 +1773,17 @@ def collapse_value_to_properties(
         cardinality = n_values / n_total if n_total > 0 else 0  # 1.0 = all unique
         avg_reuse = n_total / n_values if n_values > 0 else 0
 
-        # Median digit length: IDs/serials have long numbers (>8 digits),
-        # measures have short numbers (scores 1-10, hours 0-99999, amounts).
-        digit_lens = stats.get("digit_lengths", [])
-        median_digits = sorted(digit_lens)[len(digit_lens)//2] if digit_lens else 0
+        # Long-digit fraction: if >50% of numeric values have >8 digits,
+        # this relation holds IDs/serials, not measures. O(1) per relation.
+        n_numeric = stats["numeric_count"]
+        long_frac = stats["long_digit_count"] / n_numeric if n_numeric > 0 else 0
 
         if (numeric_frac > 0.8
                 and MEASURE_CARDINALITY_MIN < cardinality <= MEASURE_CARDINALITY_MAX
-                and median_digits <= ID_DIGIT_THRESHOLD):
-            # Mostly numeric + high (but not near-100%) cardinality + short numbers
+                and long_frac < 0.5):
+            # Mostly numeric + high (but not near-100%) cardinality + mostly short numbers
             # = measure column (scores, amounts, times).
-            # Near-100% cardinality or long numbers = ID/serial → collapse.
+            # Near-100% cardinality or mostly long numbers = ID/serial → collapse.
             measure_rels.add(rel)
         elif avg_reuse >= DIMENSION_REUSE_THRESHOLD and n_values >= 2:
             # Same value shared across multiple subjects = dimension / join key
