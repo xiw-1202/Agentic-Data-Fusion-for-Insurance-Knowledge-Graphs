@@ -384,31 +384,56 @@ def export_graph_cache(triples: list[dict] | None = None,
 
 
 def _load_raw_cache(results_dir: str | None = None) -> dict:
-    """Load raw cache dict, building from zone2_run_summary.json if needed."""
+    """Load raw cache dict, building from zone2_run_summary.json if needed.
+
+    Staleness check: if zone2_run_summary.json is newer than the cache,
+    or if the cache lacks normalization_version (built by old code),
+    rebuild the cache to pick up property collapse and header expansions.
+    """
     global _dynamic_value_types, _entity_role_map
 
     path = _cache_path(results_dir)
-    if os.path.exists(path):
-        with open(path) as f:
-            cache = json.load(f)
-        # Restore dynamic value types from cache if present
-        if "value_entity_types" in cache:
-            _dynamic_value_types = frozenset(cache["value_entity_types"])
-            _entity_role_map = cache.get("entity_role_map", {})
-        elif not _dynamic_value_types:
-            # Cache was built before classify_entity_types existed — compute now
-            vt, rm = classify_entity_types(
-                cache["entities"], cache.get("out_rels", {}), cache.get("in_rels", {}),
-            )
-            _dynamic_value_types = vt
-            _entity_role_map = rm
-        return cache
+    summary_path = _summary_path(results_dir)
 
-    # Fallback: build from zone2_run_summary.json
-    print("  [cache] No graph cache found, building from zone2_run_summary.json...")
-    export_graph_cache(results_dir=results_dir)
+    needs_rebuild = False
+    if not os.path.exists(path):
+        needs_rebuild = True
+        print("  [cache] No graph cache found, building from zone2_run_summary.json...")
+    elif os.path.exists(summary_path):
+        cache_mtime = os.path.getmtime(path)
+        summary_mtime = os.path.getmtime(summary_path)
+        if summary_mtime > cache_mtime:
+            needs_rebuild = True
+            print("  [cache] zone2_run_summary.json is newer than cache — rebuilding...")
+        else:
+            # Also rebuild if cache was built by old code (missing normalization_version)
+            with open(path) as f:
+                peek = json.load(f)
+            if not peek.get("normalization_version"):
+                needs_rebuild = True
+                print("  [cache] Cache missing normalization_version — rebuilding with property collapse...")
+            else:
+                # Cache is fresh and has correct version
+                if "value_entity_types" in peek:
+                    _dynamic_value_types = frozenset(peek["value_entity_types"])
+                    _entity_role_map = peek.get("entity_role_map", {})
+                elif not _dynamic_value_types:
+                    vt, rm = classify_entity_types(
+                        peek["entities"], peek.get("out_rels", {}), peek.get("in_rels", {}),
+                    )
+                    _dynamic_value_types = vt
+                    _entity_role_map = rm
+                return peek
+
+    if needs_rebuild:
+        export_graph_cache(results_dir=results_dir)
+
     with open(path) as f:
-        return json.load(f)
+        cache = json.load(f)
+    if "value_entity_types" in cache:
+        _dynamic_value_types = frozenset(cache["value_entity_types"])
+        _entity_role_map = cache.get("entity_role_map", {})
+    return cache
 
 
 # ---------------------------------------------------------------------------
