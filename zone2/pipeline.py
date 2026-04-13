@@ -1734,12 +1734,17 @@ def collapse_value_to_properties(
     #   - DIMENSION: low cardinality + shared across subjects → keep as entity (join key)
     #   - PROPERTY: single-use literal → collapse to node property
     MAX_MULTI_USE = 3
-    MEASURE_CARDINALITY_THRESHOLD = 0.5  # if >50% of values are unique → measure
-    DIMENSION_REUSE_THRESHOLD = 2        # if avg subjects per value >= 2 → dimension
+    MEASURE_CARDINALITY_MIN = 0.5   # if >50% unique → candidate measure
+    MEASURE_CARDINALITY_MAX = 0.95  # if >95% unique → likely an ID, not a measure
+    DIMENSION_REUSE_THRESHOLD = 2   # if avg subjects per value >= 2 → dimension
 
     # Compute per-relation statistics from candidates
     import re as _collapse_re
     _NUMERIC_PAT = _collapse_re.compile(r'^-?[\d,]+\.?\d*%?$')
+
+    # ID threshold: numeric values with median digit count > 8 are likely
+    # identifiers (claim numbers, response IDs, serial numbers), not measures.
+    ID_DIGIT_THRESHOLD = 8
 
     rel_stats: dict[str, dict] = {}
     for i in candidates:
@@ -1747,11 +1752,14 @@ def collapse_value_to_properties(
         rel = t["relation"]
         obj = t["object"]
         if rel not in rel_stats:
-            rel_stats[rel] = {"values": set(), "numeric_count": 0, "total": 0}
+            rel_stats[rel] = {"values": set(), "numeric_count": 0, "total": 0,
+                              "digit_lengths": []}
         rel_stats[rel]["values"].add(obj)
         rel_stats[rel]["total"] += 1
+        cleaned = obj.replace("$", "").replace(",", "").replace(".", "").replace("-", "")
         if _NUMERIC_PAT.match(obj.replace("$", "").replace(",", "")):
             rel_stats[rel]["numeric_count"] += 1
+            rel_stats[rel]["digit_lengths"].append(len(cleaned))
 
     # Classify each relation
     measure_rels: set[str] = set()     # high-cardinality numeric → preserve
@@ -1764,8 +1772,17 @@ def collapse_value_to_properties(
         cardinality = n_values / n_total if n_total > 0 else 0  # 1.0 = all unique
         avg_reuse = n_total / n_values if n_values > 0 else 0
 
-        if numeric_frac > 0.8 and cardinality > MEASURE_CARDINALITY_THRESHOLD:
-            # Mostly numeric + high cardinality = measure column (scores, amounts, times)
+        # Median digit length: IDs/serials have long numbers (>8 digits),
+        # measures have short numbers (scores 1-10, hours 0-99999, amounts).
+        digit_lens = stats.get("digit_lengths", [])
+        median_digits = sorted(digit_lens)[len(digit_lens)//2] if digit_lens else 0
+
+        if (numeric_frac > 0.8
+                and MEASURE_CARDINALITY_MIN < cardinality <= MEASURE_CARDINALITY_MAX
+                and median_digits <= ID_DIGIT_THRESHOLD):
+            # Mostly numeric + high (but not near-100%) cardinality + short numbers
+            # = measure column (scores, amounts, times).
+            # Near-100% cardinality or long numbers = ID/serial → collapse.
             measure_rels.add(rel)
         elif avg_reuse >= DIMENSION_REUSE_THRESHOLD and n_values >= 2:
             # Same value shared across multiple subjects = dimension / join key
