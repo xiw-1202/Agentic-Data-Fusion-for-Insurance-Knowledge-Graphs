@@ -357,7 +357,7 @@ def export_graph_cache(triples: list[dict] | None = None,
     cache = {
         "entity_count": len(graph["entities"]),
         "triple_count": len(triples),
-        "normalization_version": 2,
+        "normalization_version": 3,  # v3: data-driven measure/dimension/ID collapse
         "built_from_raw_summary": True,
         "collapse_manifest": {
             "triples_collapsed": sum(len(v) for v in node_properties.values()),
@@ -406,12 +406,14 @@ def _load_raw_cache(results_dir: str | None = None) -> dict:
             needs_rebuild = True
             print("  [cache] zone2_run_summary.json is newer than cache — rebuilding...")
         else:
-            # Also rebuild if cache was built by old code (missing normalization_version)
+            # Also rebuild if cache version doesn't match current code
+            CURRENT_VERSION = 3  # must match export_graph_cache()
             with open(path) as f:
                 peek = json.load(f)
-            if not peek.get("normalization_version"):
+            cache_version = peek.get("normalization_version", 0)
+            if cache_version < CURRENT_VERSION:
                 needs_rebuild = True
-                print("  [cache] Cache missing normalization_version — rebuilding with property collapse...")
+                print(f"  [cache] Cache version {cache_version} < {CURRENT_VERSION} — rebuilding...")
             else:
                 # Cache is fresh and has correct version
                 if "value_entity_types" in peek:
