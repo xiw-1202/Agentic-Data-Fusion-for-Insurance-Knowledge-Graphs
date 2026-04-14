@@ -2475,6 +2475,14 @@ def decompose_records(
         for rel in e.get("out_rels", []):
             rel_type = rel.get("rel", "")
             target_eid = rel.get("target", "")
+
+            # Only decompose HAS_* relations — these are property fields
+            # from CSV columns. Structural relations (BELONGS_TO, IS_A,
+            # ABOUT, INSTANCE_OF, COVERS, etc.) are real entity-to-entity
+            # links that should stay on the hub record, not be decomposed.
+            if not rel_type.startswith("HAS_"):
+                continue
+
             target_cls = assignments.get(target_eid, "Other")
 
             if target_cls == "Other":
