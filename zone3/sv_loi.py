@@ -3332,22 +3332,79 @@ def run_sv_loi(
     # Concept-only subsumption as structural validation (secondary signal)
     taxonomy_subsumption_edges = derive_taxonomy(assignments, entities, llm)
 
-    # Merge IS-A edges into hierarchy (true SUBCLASS_OF)
-    existing_isa = set(hierarchy)
-    for edge in taxonomy_llm_edges:
-        if edge not in existing_isa:
-            hierarchy.append(edge)
-            existing_isa.add(edge)
-    for edge in taxonomy_subsumption_edges:
-        if edge not in existing_isa:
-            hierarchy.append(edge)
-            existing_isa.add(edge)
+    # Collect all candidate IS-A edges from all sources
+    all_candidate_isa: list[tuple[str, str]] = list(hierarchy)  # 5-way edges
+    all_candidate_isa.extend(taxonomy_llm_edges)
+    all_candidate_isa.extend(taxonomy_subsumption_edges)
+
+    # Global DAG enforcement across ALL sources:
+    # 1. Filter out edges referencing unknown classes
+    # 2. Remove cycles (keep first edge, reject contradicting edge)
+    # 3. Enforce max depth 3
+    final_classes = set(c for c in assignments.values() if c != "Other")
+    MAX_DEPTH = 3
+
+    # Filter unknown classes
+    valid_edges = [(c, p) for c, p in all_candidate_isa
+                   if c in final_classes and p in final_classes and c != p]
+    n_unknown = len(all_candidate_isa) - len(valid_edges)
+    if n_unknown > 0:
+        _flush_print(f"  Filtered {n_unknown} edges referencing unknown classes")
+
+    # Deduplicate
+    seen: set[tuple[str, str]] = set()
+    deduped: list[tuple[str, str]] = []
+    for edge in valid_edges:
+        if edge not in seen:
+            deduped.append(edge)
+            seen.add(edge)
+
+    # DAG enforcement: no cycles, max depth, single parent per child
+    parent_of: dict[str, str] = {}
+
+    def _depth(node: str) -> int:
+        d, cur, visited = 0, node, set()
+        while cur in parent_of and cur not in visited:
+            visited.add(cur)
+            cur = parent_of[cur]
+            d += 1
+        return d
+
+    hierarchy = []
+    rejected_cycles = []
+    for child, parent in deduped:
+        # Cycle check: walk up from parent — if we reach child, it's a cycle
+        cur, is_cycle, visited = parent, False, set()
+        while cur in parent_of and cur not in visited:
+            visited.add(cur)
+            cur = parent_of[cur]
+            if cur == child:
+                is_cycle = True
+                break
+        if is_cycle:
+            rejected_cycles.append((child, parent))
+            continue
+        # Depth check
+        if _depth(parent) + 1 > MAX_DEPTH:
+            continue
+        # Single parent (first-come wins)
+        if child not in parent_of:
+            parent_of[child] = parent
+            hierarchy.append((child, parent))
+
+    if rejected_cycles:
+        _flush_print(f"  Rejected {len(rejected_cycles)} cyclic edges:")
+        for c, p in rejected_cycles:
+            _flush_print(f"    {c} → {p} (would create cycle)")
 
     # Association edges — SEPARATE from IS-A (these are HAS-A / REFERENCES)
     _flush_print("\n  Association edges from entity connections...")
     data_edges = derive_interclass_edges(assignments, entities)
+    existing_isa = set(hierarchy)
     # Deduplicate: remove any association that duplicates an IS-A edge
-    associations = [e for e in data_edges if e not in existing_isa]
+    associations = [e for e in data_edges
+                    if e not in existing_isa
+                    and e[0] in final_classes and e[1] in final_classes]
 
     n_llm_tax = len(taxonomy_llm_edges)
     n_sub_tax = len(taxonomy_subsumption_edges)
