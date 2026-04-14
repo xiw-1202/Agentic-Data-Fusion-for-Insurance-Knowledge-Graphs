@@ -2732,6 +2732,7 @@ def validate_backbone(
 def write_ontology(
     assignments: dict[str, str],
     hierarchy: list[tuple[str, str]],
+    associations: list[tuple[str, str]] | None = None,
 ) -> dict:
     """Write ontology layer to Neo4j."""
     print("\n[Phase 15] Writing ontology to Neo4j...")
@@ -2844,11 +2845,27 @@ def write_ontology(
         except Exception as e:
             print(f"  Warning: SUBCLASS_OF {child} → {parent}: {e}")
 
+    # Create ASSOCIATED_WITH edges (inter-class associations, NOT IS-A)
+    assoc_created = 0
+    for src, tgt in (associations or []):
+        src_safe = _sanitize_label(src)
+        tgt_safe = _sanitize_label(tgt)
+        try:
+            graph.query(
+                "MATCH (a:OntologyClass {name: $src}), (b:OntologyClass {name: $tgt}) "
+                "MERGE (a)-[:ASSOCIATED_WITH]->(b)",
+                params={"src": src_safe, "tgt": tgt_safe},
+            )
+            assoc_created += 1
+        except Exception as e:
+            print(f"  Warning: ASSOCIATED_WITH {src} → {tgt}: {e}")
+
     stats = {
         "entities_labeled": entities_labeled,
         "ontology_classes": len(class_names),
         "instance_of_edges": instance_of_created,
         "subclass_of_edges": subclass_created,
+        "associated_with_edges": assoc_created,
         "class_names": class_names,
         "class_distribution": dict(class_counts),
         "method": "SV-LOI",
@@ -2858,6 +2875,7 @@ def write_ontology(
     print(f"  ✓ OntologyClass nodes:  {len(class_names)}")
     print(f"  ✓ INSTANCE_OF edges:    {instance_of_created}")
     print(f"  ✓ SUBCLASS_OF edges:    {subclass_created}")
+    print(f"  ✓ ASSOCIATED_WITH edges:{assoc_created}")
     return stats
 
 
@@ -3289,40 +3307,38 @@ def run_sv_loi(
     _flush_print("STAGE 6: Build Ontology Structure")
     _flush_print("─" * 50)
 
-    # Snapshot 5-way edge count before Stage 6 appends
+    # Snapshot 5-way IS-A edges from Stage 5
     n_5way_edges = len(hierarchy)
 
-    # IS-A taxonomy via LLM pairwise judgment (NEW — primary signal)
+    # IS-A taxonomy via LLM pairwise judgment (primary signal)
     taxonomy_llm_edges = derive_taxonomy_llm_pairwise(assignments, entities, llm)
 
     # Concept-only subsumption as structural validation (secondary signal)
     taxonomy_subsumption_edges = derive_taxonomy(assignments, entities, llm)
 
-    # Merge: LLM edges + structurally-confirmed edges
-    existing_edges = set(hierarchy)
+    # Merge IS-A edges into hierarchy (true SUBCLASS_OF)
+    existing_isa = set(hierarchy)
     for edge in taxonomy_llm_edges:
-        if edge not in existing_edges:
+        if edge not in existing_isa:
             hierarchy.append(edge)
-            existing_edges.add(edge)
+            existing_isa.add(edge)
     for edge in taxonomy_subsumption_edges:
-        if edge not in existing_edges:
+        if edge not in existing_isa:
             hierarchy.append(edge)
-            existing_edges.add(edge)
+            existing_isa.add(edge)
 
-    # Association edges from entity connections
+    # Association edges — SEPARATE from IS-A (these are HAS-A / REFERENCES)
     _flush_print("\n  Association edges from entity connections...")
     data_edges = derive_interclass_edges(assignments, entities)
-    for edge in data_edges:
-        if edge not in existing_edges:
-            hierarchy.append(edge)
-            existing_edges.add(edge)
+    # Deduplicate: remove any association that duplicates an IS-A edge
+    associations = [e for e in data_edges if e not in existing_isa]
 
     n_llm_tax = len(taxonomy_llm_edges)
     n_sub_tax = len(taxonomy_subsumption_edges)
-    n_assoc = len(data_edges)
-    _flush_print(f"  Total edges: {len(hierarchy)} "
-                 f"({n_llm_tax} LLM-pairwise IS-A + {n_sub_tax} subsumption IS-A "
-                 f"+ {n_assoc} association + {n_5way_edges} from 5-way)")
+    n_assoc = len(associations)
+    _flush_print(f"  IS-A edges: {len(hierarchy)} "
+                 f"({n_llm_tax} LLM-pairwise + {n_sub_tax} subsumption + {n_5way_edges} from 5-way)")
+    _flush_print(f"  Association edges: {n_assoc} (ASSOCIATED_WITH, not SUBCLASS_OF)")
 
     # Record decomposition (Q5 bridge fix)
     decomposition = decompose_records(assignments, entities, rel_to_class=rel_to_class)
@@ -3360,7 +3376,7 @@ def run_sv_loi(
     )
 
     # Write to Neo4j
-    neo4j_stats = write_ontology(assignments, hierarchy)
+    neo4j_stats = write_ontology(assignments, hierarchy, associations=associations)
 
     # Write decomposed record sub-nodes
     decomp_count = 0
@@ -3375,7 +3391,8 @@ def run_sv_loi(
     _flush_print(f"  Method:            SV-LOI (Structurally-Verified LLM Ontology Induction)")
     _flush_print(f"  Entities:          {len(entities)}")
     _flush_print(f"  Classes:           {len(final_dist)}")
-    _flush_print(f"  SUBCLASS_OF:       {len(hierarchy)}")
+    _flush_print(f"  SUBCLASS_OF:       {len(hierarchy)} (IS-A)")
+    _flush_print(f"  ASSOCIATED_WITH:   {len(associations)} (HAS-A)")
     _flush_print(f"  Flagged/Arbitrated:{total_flagged}")
     _flush_print(f"  Decomposed:        {decomp_count} sub-nodes")
     _flush_print(f"  Distribution:")
@@ -3401,7 +3418,8 @@ def run_sv_loi(
         "classes_final": sorted(final_dist.keys()),
         "class_distribution": dict(final_dist),
         "flagged_count": total_flagged,
-        "hierarchy": [{"child": c, "parent": p} for c, p in hierarchy],
+        "hierarchy": [{"child": c, "parent": p, "type": "SUBCLASS_OF"} for c, p in hierarchy],
+        "associations": [{"source": s, "target": t, "type": "ASSOCIATED_WITH"} for s, t in associations],
         "neo4j_stats": neo4j_stats,
         "decomposition_count": decomp_count,
         "ablation": {
