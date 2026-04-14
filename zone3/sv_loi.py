@@ -135,6 +135,14 @@ def _sanitize_label(name: str) -> str:
     return cleaned
 
 
+def _sanitize_rel_type(name: str) -> str:
+    """Make a relation type name safe for Neo4j. Preserves underscores."""
+    cleaned = re.sub(r'[^A-Za-z0-9_]', '', name.strip())
+    if not cleaned:
+        return "UNKNOWN_REL"
+    return cleaned
+
+
 def _parse_json_safely(text: str) -> Union[dict, list]:
     """Try to parse JSON from LLM output with fallbacks."""
     text = text.strip()
@@ -2589,7 +2597,7 @@ def write_record_decomposition(
 
                 # Copy relevant field relations to the sub-node
                 for rel_type, target_eid in info["fields"].items():
-                    safe_rel = _sanitize_label(rel_type)
+                    safe_rel = _sanitize_rel_type(rel_type)
                     graph.query(
                         "MATCH (sub:Entity {id: $sub}), (tgt:Entity {id: $tgt}) "
                         f"MERGE (sub)-[:`{safe_rel}`]->(tgt)",
