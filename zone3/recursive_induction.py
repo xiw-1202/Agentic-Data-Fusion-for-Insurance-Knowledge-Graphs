@@ -186,16 +186,18 @@ def load_chunk_source_map(data_dir: str | None = None) -> dict[str, str]:
 
 
 def _derive_lob_from_source(filename: str) -> str:
-    """Derive a short LOB label from source filename."""
-    fn = filename.lower()
-    if "renter" in fn or "geico" in fn:
-        return "renters"
-    elif "tmobile" in fn or "mobile" in fn:
-        return "mobile"
-    elif "auto" in fn or "vehicle" in fn or "service" in fn:
-        return "auto"
-    else:
-        return "unknown"
+    """Derive a short LOB label from source filename.
+
+    Uses the filename stem as a proxy — no hardcoded domain keywords.
+    Groups files by common prefix (e.g., all geico_renters_* files → same LOB).
+    """
+    fn = os.path.basename(filename).lower()
+    # Remove common prefixes/suffixes
+    fn = fn.replace("synthetic_data_sample_", "").replace("_sample", "")
+    fn = fn.rsplit(".", 1)[0]  # drop extension
+    # Take first meaningful word as LOB proxy
+    parts = re.split(r'[_\-\s]+', fn)
+    return parts[0] if parts else "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -310,9 +312,20 @@ def build_entity_signatures(
         source_mat = source_mat / np.maximum(norms, 1e-9)
 
     # --- Combine with weights ---
-    _flush("  Combining signatures (name=0.45, rel=0.30, type=0.15, source=0.10)...")
+    # For MACRO clustering (Stage B): use name + relation + source (NOT type).
+    # Entity_type is reserved for Stage C splitting — including it in Stage B
+    # would pre-separate types into different macro-classes, leaving nothing
+    # for the entity_type split signal to discover.
+    _flush("  Combining signatures...")
+    _flush("    macro:    name=0.50, rel=0.35, source=0.15 (no type — reserved for Stage C)")
+    _flush("    combined: name=0.45, rel=0.30, type=0.15, source=0.10")
     signatures = {}
     for i, e in enumerate(concept_ents):
+        macro_sig = np.concatenate([
+            0.50 * name_embs[i],
+            0.35 * rel_svd[i],
+            0.15 * source_mat[i],
+        ])
         combined = np.concatenate([
             0.45 * name_embs[i],
             0.30 * rel_svd[i],
@@ -324,7 +337,8 @@ def build_entity_signatures(
             "rel_profile": rel_svd[i],
             "type_vec": type_mat[i],
             "source_vec": source_mat[i],
-            "combined": combined,
+            "macro_sig": macro_sig,    # for Stage B (no type — avoid pre-separation)
+            "combined": combined,       # for Stage C local splits
             "entity_type": e.get("entity_type", "Unknown"),
             "source_file": entity_sources.get(e["id"], ""),
             "lob": entity_lobs.get(e["id"], ""),
@@ -424,7 +438,9 @@ def discover_macro_classes(
         _flush("  ERROR: No concept entities with signatures")
         return []
 
-    sig_matrix = np.array([signatures[eid]["combined"] for eid in eids])
+    # Use macro_sig (no entity_type) so types aren't pre-separated —
+    # entity_type signal is reserved for Stage C recursive splitting
+    sig_matrix = np.array([signatures[eid]["macro_sig"] for eid in eids])
 
     # Try k = 3..6, pick best silhouette
     best_k, best_sil, best_labels = 3, -1.0, None
@@ -1034,12 +1050,22 @@ def run_recursive_induction(
     # Record propagation (reuse from sv_loi)
     _flush("\n[Propagation] Mapping records and values to taxonomy classes...")
     try:
-        # Build features for propagation
-        from zone3.sv_loi import build_structural_signatures
-        features, entity_ids_feat, feature_names = build_structural_signatures(entities)
-        assignments = propagate_to_records(assignments, entities, llm=llm)
+        entity_map_full = {e["id"]: e for e in entities}
+        class_vocab = sorted(taxonomy.nodes.keys())
+
+        # propagate_to_records returns (record_assignments_dict, redirects_dict)
+        # — a SEPARATE dict for records, not merged into assignments
+        record_assignments, _redirects = propagate_to_records(
+            assignments, entities, entity_map_full, class_vocab, llm=llm,
+        )
+        for eid, cls in record_assignments.items():
+            assignments[eid] = cls
+
+        # Value entity typing — returns (updated_assignments, rel_to_class_map)
+        from zone3.sv_loi import type_value_entities as _type_values
+        assignments, _rel_to_class = _type_values(assignments, entities, class_vocab)
     except Exception as exc:
-        _flush(f"  ⚠ Record propagation failed: {exc}")
+        _flush(f"  ⚠ Record/value propagation failed: {exc}")
 
     # Inter-class associations
     _flush("\n[Associations] Deriving inter-class edges...")
