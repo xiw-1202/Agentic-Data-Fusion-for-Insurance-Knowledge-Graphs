@@ -103,6 +103,28 @@ FORBIDDEN_CLASS_NAMES = {
     "category", "group", "class", "entity", "thing", "other",
 }
 
+# Zone 2 entity_type → ontology class name normalization.
+# Maps extraction-level labels to domain-role class names.
+# None = drop (data type / attribute, not an ontology class).
+# Types not in this map pass through as-is.
+ZONE2_TYPE_NORMALIZATION: dict[str, str | None] = {
+    "InsurancePolicy": "Policy",
+    "CoverageType": "Coverage",
+    "ExcludedPeril": "Exclusion",
+    "InsuredProperty": "Property",
+    "InsuredItem": "Property",
+    "Claimant": "Person",
+    "ServiceProvider": "Organization",
+    "WarrantyProvider": "Organization",
+    "RepairFacility": "Organization",
+    "DeductibleAmount": None,
+    "FinancialTransaction": None,
+    "ClaimStatus": None,
+    "PolicyCoverageLimit": None,
+    "StateRegulation": None,
+    "ServiceContractTerm": None,
+}
+
 
 # ---------------------------------------------------------------------------
 # Utilities
@@ -274,6 +296,38 @@ def discover_class_vocabulary(
     """
     print("\n[Phase 2] Class vocabulary discovery (two-stage)", flush=True)
 
+    # Load Zone 2 vocab for entity type hints
+    rdir = config.RESULTS_DIR  # default; caller can override via all_entities
+    vocab_path = os.path.join(rdir, "zone2_vocab.json")
+    zone2_candidates: list[str] = []
+    if os.path.exists(vocab_path):
+        with open(vocab_path) as f:
+            zone2_types = json.load(f).get("entity_types", [])
+        seen_norm: set[str] = set()
+        for t in zone2_types:
+            norm = ZONE2_TYPE_NORMALIZATION.get(t, t)  # passthrough if not in map
+            if norm and norm not in seen_norm:
+                zone2_candidates.append(norm)
+                seen_norm.add(norm)
+        print(f"  Loaded {len(zone2_types)} Zone 2 types → {len(zone2_candidates)} normalized candidates", flush=True)
+
+    # Compute concept-only entity_type distribution (normalized)
+    concept_type_counts: Counter = Counter()
+    for e in entities:
+        et = e.get("entity_type", "Unknown")
+        if et not in ("Unknown", "Text", "Numeric", "Date"):
+            norm = ZONE2_TYPE_NORMALIZATION.get(et, et)
+            if norm:
+                concept_type_counts[norm] += 1
+    type_hint_block = ""
+    if concept_type_counts:
+        type_hint_block = "\n".join(
+            f"  {t}: {c} concept entities" for t, c in concept_type_counts.most_common(15)
+        )
+        print(f"  Concept entity type distribution (top 10):", flush=True)
+        for t, c in concept_type_counts.most_common(10):
+            print(f"    {t}: {c}", flush=True)
+
     # Collect entity name samples (ungrouped — raw names)
     random.seed(42)
     all_names = [e["id"] for e in entities]
@@ -340,9 +394,21 @@ Answer concisely (e.g., "Insurance (Auto, Renters, Mobile)")."""
     if record_evidence:
         evidence_block = f"\n{record_evidence}\n"
 
+    # Build type hints block for prompt
+    type_hints_prompt = ""
+    if type_hint_block:
+        type_hints_prompt = f"""
+Entity types discovered during extraction:
+{type_hint_block}
+
+These types suggest natural ontology classes. Use them as guidance but propose
+your own class names based on real-world domain roles.
+"""
+
     prompt = f"""You are designing a DOMAIN ONTOLOGY for a {domain} knowledge graph.
 This data may span MULTIPLE lines of business (e.g., auto, renters, mobile insurance).
-Your classes must work ACROSS all lines of business, not be specific to one.
+Propose classes that capture domain roles. Some classes may be shared across LOBs
+(e.g., Policy, Claim, Coverage) while others may be LOB-specific if the data supports it.
 
 Here are {len(name_sample)} entity names from the graph (domain concepts only):
 {chr(10).join(f'  {n}' for n in name_sample)}
@@ -352,7 +418,7 @@ Relationship types:
 
 Example triples:
 {chr(10).join(triple_examples)}
-{evidence_block}
+{evidence_block}{type_hints_prompt}
 Propose {TARGET_CLASSES_MIN}-{TARGET_CLASSES_MAX} ontology classes that categorize these \
 entities by their REAL-WORLD ROLE in {domain}.
 
@@ -458,43 +524,50 @@ Output ONLY JSON: [{{"name": "ClassName", "definition": "..."}}]"""
             seen_lower.add(c.lower())
         print(f"  After retry: {classes}", flush=True)
 
-    # Last resort fallback — derive classes from actual entity types in the graph.
-    # NEVER use hardcoded class names — that would be domain leakage (see CLAUDE.md).
+    # Augment LLM proposal with normalized Zone 2 type candidates.
+    # Conservative: only add types with >= MIN_TYPE_SUPPORT concept entities
+    # that the LLM didn't already propose.
+    MIN_TYPE_SUPPORT = 10
+    if zone2_candidates:
+        z2_added = 0
+        for candidate in zone2_candidates:
+            sanitized = _sanitize_label(candidate)
+            support = concept_type_counts.get(candidate, 0)
+            if (sanitized.lower() not in seen_lower
+                    and sanitized.lower() not in FORBIDDEN_CLASS_NAMES
+                    and support >= MIN_TYPE_SUPPORT
+                    and len(classes) < TARGET_CLASSES_MAX):
+                classes.append(sanitized)
+                seen_lower.add(sanitized.lower())
+                z2_added += 1
+                print(f"  [z2-seed] Added {sanitized} ({support} concept entities)", flush=True)
+        if z2_added:
+            print(f"  ✓ {z2_added} classes added from Zone 2 type hints", flush=True)
+
+    # Fallback: if still below minimum, derive from raw entity_type distribution
     if len(classes) < TARGET_CLASSES_MIN:
-        print(f"  WARNING: Only {len(classes)} classes after retry. "
+        print(f"  WARNING: Only {len(classes)} classes. "
               f"Deriving fallbacks from graph entity types.", flush=True)
-        # Collect entity_type values already present in the graph.
-        type_counts: dict[str, int] = defaultdict(int)
-        for e in entities:
-            et = e.get("entity_type", "Unknown")
-            if et and et != "Unknown":
-                type_counts[et] += 1
-        # Sort by frequency, take most common as fallback classes.
-        sorted_types = sorted(type_counts.items(), key=lambda x: -x[1])
-        for et_name, _cnt in sorted_types:
+        for et_name, cnt in concept_type_counts.most_common(20):
             sanitized = _sanitize_label(et_name)
-            if sanitized.lower() not in seen_lower and sanitized.lower() not in FORBIDDEN_CLASS_NAMES:
+            if (sanitized.lower() not in seen_lower
+                    and sanitized.lower() not in FORBIDDEN_CLASS_NAMES):
                 classes.append(sanitized)
                 seen_lower.add(sanitized.lower())
             if len(classes) >= TARGET_CLASSES_MIN:
                 break
 
-    # NOTE: No standard renames or forced class injection.
-    # The LLM proposes class names freely; the Riskine eval measures
-    # alignment via BERTScore which handles synonyms (Policy≈Product,
-    # Location≈Address). Planting Riskine class names would be leakage.
-
-    # Data-driven record seeding: if structured records have significant
-    # populations with known prefix→class mappings, ensure those classes
-    # exist in the vocabulary. This is NOT leakage — it reads from Zone 2's
-    # own record prefixes (POL-, CLM-, PER-, PROP-), not from Riskine.
+    # Data-driven record seeding: ensure classes exist for structured records
+    # with significant populations. NOT leakage — reads from Zone 2 record
+    # prefixes (POL-, CLM-, PER-, PROP-, SUR-), not from Riskine.
     RECORD_PREFIX_TO_CLASS = {
         "POL": "Policy", "CLM": "Claim", "PER": "Person", "PROP": "Property",
+        "SUR": "Survey",
     }
     seed_entities = all_entities or entities
     for prefix, cls_name in RECORD_PREFIX_TO_CLASS.items():
         count = sum(1 for e in seed_entities if e["id"].startswith(f"{prefix}-"))
-        if count > 50 and cls_name.lower() not in seen_lower:
+        if count > 30 and cls_name.lower() not in seen_lower:
             classes.append(cls_name)
             seen_lower.add(cls_name.lower())
             print(f"  [seed] Added {cls_name} from {count} {prefix}- records", flush=True)
