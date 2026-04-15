@@ -307,8 +307,8 @@ def discover_class_vocabulary(
                                        min(200, len(all_entities or entities)))
     for e in sample_for_sources:
         for r in e.get("out_rels", [])[:1]:
-            cid = r.get("chunk_id", "")
-            if cid:
+            cid = str(r.get("chunk_id", ""))
+            if cid and cid != "None":
                 source_files.add(cid.split("::")[0] if "::" in cid else cid.rsplit("_chunk_", 1)[0])
     source_hint = ""
     if source_files:
