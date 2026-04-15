@@ -417,8 +417,327 @@ Rules:
 
 
 # ---------------------------------------------------------------------------
-# Stage B: Discover Macro-Classes
+# Stage B: Fingerprint-Based Ontology Discovery
 # ---------------------------------------------------------------------------
+
+def build_data_fingerprint(
+    data_dir: str | None = None,
+    max_tokens: int = 4000,
+) -> str:
+    """Build a compact data fingerprint from zone1 chunks for LLM ontology design.
+
+    Extracts schema headers + 1 sample record per source file.
+    This mimics what a human expert would do: skim the data structure,
+    not read every row.
+
+    Returns a text fingerprint suitable for an LLM prompt (~3-4K tokens).
+    """
+    _flush("\n[Stage B] Building data fingerprint from source files...")
+
+    # Load zone1 chunks
+    chunk_path = None
+    candidates = []
+    if data_dir:
+        candidates.append(os.path.join(data_dir, "processed", "zone1_chunks.json"))
+    for d in ["data/Emory_Spring2026", "data/flood"]:
+        candidates.append(os.path.join(d, "processed", "zone1_chunks.json"))
+    for p in candidates:
+        if os.path.exists(p):
+            chunk_path = p
+            break
+
+    if not chunk_path:
+        _flush("  ⚠ No zone1_chunks.json found — cannot build fingerprint")
+        return ""
+
+    with open(chunk_path) as f:
+        chunks = json.load(f)
+
+    # Group by source file
+    by_source: dict[str, list[dict]] = defaultdict(list)
+    for c in chunks:
+        src = c.get("source", "unknown")
+        fname = os.path.basename(src) if "/" in src else src
+        by_source[fname].append(c)
+
+    _flush(f"  Found {len(by_source)} source files, {len(chunks)} total chunks")
+
+    # Build fingerprint: schema + 1 sample per source
+    sections: list[str] = []
+    for fname, src_chunks in sorted(by_source.items()):
+        # First chunk usually has DATASET SCHEMA header
+        schema_chunk = src_chunks[0]["content"]
+
+        # For CSVs: first chunk = schema, second = first record
+        # For PDFs: first chunk = beginning of document
+        is_csv = fname.endswith(".csv")
+
+        if is_csv:
+            # Extract schema header (first ~600 chars usually has all field groups)
+            schema_lines = schema_chunk.split("\n")
+            # Keep schema section (DATASET SCHEMA: ... up to first RECORD or data)
+            schema_text = []
+            for line in schema_lines:
+                if line.strip().startswith("RECORD") or line.strip().startswith("DATASET:"):
+                    break
+                schema_text.append(line)
+            schema_section = "\n".join(schema_text).strip()
+
+            # Get 1 sample record from second chunk
+            sample_section = ""
+            if len(src_chunks) > 1:
+                sample_content = src_chunks[1]["content"]
+                # Take first record only (up to ~300 chars)
+                record_lines = []
+                in_record = False
+                for line in sample_content.split("\n"):
+                    if "RECORD" in line:
+                        if in_record:
+                            break  # stop at second record
+                        in_record = True
+                    if in_record:
+                        record_lines.append(line)
+                sample_section = "\n".join(record_lines[:15]).strip()
+
+            sections.append(f"SOURCE: {fname}\n{schema_section}")
+            if sample_section:
+                sections.append(f"SAMPLE RECORD:\n{sample_section}")
+        else:
+            # PDF: take section headers / first 400 chars
+            pdf_preview = schema_chunk[:500].strip()
+            sections.append(f"SOURCE: {fname} (PDF document)\n{pdf_preview}")
+
+    fingerprint = "\n\n".join(sections)
+
+    # Truncate if too long
+    if len(fingerprint) > max_tokens * 4:  # rough chars-to-tokens ratio
+        fingerprint = fingerprint[:max_tokens * 4]
+        fingerprint += "\n\n[... truncated for token budget ...]"
+
+    _flush(f"  ✓ Fingerprint: {len(fingerprint)} chars from {len(by_source)} sources")
+    return fingerprint
+
+
+def propose_ontology_from_fingerprint(
+    fingerprint: str,
+    zone2_types: list[str],
+    llm: ChatOllama,
+) -> list[dict]:
+    """Call 1: LLM proposes ontology classes from data fingerprint.
+
+    Returns list of {"name": str, "description": str, "source_evidence": str}
+    """
+    _flush("\n  Call 1: LLM proposing ontology classes from data fingerprint...")
+
+    # Include Zone 2 types as additional evidence
+    type_hint = ""
+    if zone2_types:
+        type_hint = f"""
+Additionally, entity extraction (Zone 2) discovered these entity types:
+  {', '.join(zone2_types)}
+Use these as supplementary evidence — they show what the extraction model found.
+"""
+
+    prompt = f"""You are an ontology engineer. Examine this data fingerprint and propose ontology classes.
+
+DATA FINGERPRINT (source file schemas + sample records):
+{fingerprint}
+{type_hint}
+Based on the schemas, field names, and sample values above, propose 8-15 ontology classes
+that capture the real-world concepts in this data.
+
+For each class, provide:
+- name: PascalCase class name (e.g., Policy, Coverage, Claim, Organization)
+- description: what entities belong in this class (1 sentence)
+- source_evidence: which source file(s) contain this concept
+
+RULES:
+1. Classes = real-world domain roles, NOT data types (no "Amount", "Date", "Text")
+2. Look at column/field names to understand what concepts exist
+3. If multiple source files share a concept (e.g., all have "claim number"), that's one class
+4. If a source file has unique concepts (e.g., only mobile has "device tier"), note that
+5. Consider both SHARED concepts (across all files) and SOURCE-SPECIFIC concepts
+
+Output ONLY JSON array:
+[{{"name": "ClassName", "description": "...", "source_evidence": "..."}}]"""
+
+    raw = _counted_llm(llm, prompt)
+    parsed = _parse_json_safely(raw)
+
+    classes: list[dict] = []
+    if isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, dict) and "name" in item:
+                item["name"] = _sanitize_label(item["name"])
+                classes.append(item)
+
+    # Fallback: regex extraction
+    if not classes:
+        line_re = re.compile(r'"name"\s*:\s*"([A-Z][A-Za-z]+)"')
+        for m in line_re.finditer(raw):
+            classes.append({"name": _sanitize_label(m.group(1)), "description": "", "source_evidence": ""})
+
+    _flush(f"  ✓ LLM proposed {len(classes)} classes:")
+    for c in classes:
+        _flush(f"    {c['name']}: {c.get('description', '')[:60]}")
+
+    return classes
+
+
+def organize_into_hierarchy(
+    proposed_classes: list[dict],
+    llm: ChatOllama,
+) -> list[tuple[str, str]]:
+    """Call 2: LLM organizes proposed classes into IS-A hierarchy.
+
+    Returns list of (child, parent) tuples.
+    """
+    _flush("\n  Call 2: LLM organizing classes into hierarchy...")
+
+    if len(proposed_classes) < 3:
+        return []
+
+    class_desc = "\n".join(
+        f"  {c['name']}: {c.get('description', 'no description')}"
+        for c in proposed_classes
+    )
+
+    prompt = f"""Given these ontology classes:
+
+{class_desc}
+
+Organize them into a HIERARCHY using IS-A (subclass) relationships.
+
+Rules:
+1. Only propose IS-A where one class is truly a SUBTYPE of another
+   (every instance of the child IS-A instance of the parent)
+2. Not every class needs a parent — top-level classes are fine
+3. Target 2-4 levels of depth
+4. A class can only have ONE parent
+
+Output ONLY a JSON array of edges:
+[{{"child": "ChildClass", "parent": "ParentClass"}}]
+
+If no IS-A relationships exist, output an empty array: []"""
+
+    raw = _counted_llm(llm, prompt)
+    parsed = _parse_json_safely(raw)
+
+    edges: list[tuple[str, str]] = []
+    valid_names = {c["name"] for c in proposed_classes}
+
+    if isinstance(parsed, list):
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            child = _sanitize_label(item.get("child", ""))
+            parent = _sanitize_label(item.get("parent", ""))
+            if child in valid_names and parent in valid_names and child != parent:
+                edges.append((child, parent))
+
+    _flush(f"  ✓ LLM proposed {len(edges)} IS-A edges:")
+    for child, parent in edges:
+        _flush(f"    {child} SUBCLASS_OF {parent}")
+
+    return edges
+
+
+def discover_macro_classes_from_fingerprint(
+    concept_entities: list[dict],
+    signatures: dict[str, dict],
+    fingerprint: str,
+    zone2_types: list[str],
+    llm: ChatOllama,
+) -> tuple[list[TaxonomyNode], list[tuple[str, str]]]:
+    """Stage B: Discover macro-classes from data fingerprint + organize into hierarchy.
+
+    2 LLM calls total (vs. 4-8 for clustering-based approach).
+    Returns (root_nodes, initial_hierarchy_edges).
+    """
+    _flush("\n[Stage B] Fingerprint-based ontology discovery (2 LLM calls)...")
+
+    # Call 1: Propose classes
+    proposed = propose_ontology_from_fingerprint(fingerprint, zone2_types, llm)
+    if not proposed:
+        _flush("  ERROR: LLM proposed no classes")
+        return [], []
+
+    # Call 2: Organize into hierarchy
+    hierarchy_edges = organize_into_hierarchy(proposed, llm)
+
+    # Build TaxonomyNode roots from proposed classes
+    # Find root classes (no parent in hierarchy)
+    children = {child for child, _ in hierarchy_edges}
+    class_names = {c["name"] for c in proposed}
+
+    # Assign concept entities to proposed classes via nearest-name matching
+    from sentence_transformers import SentenceTransformer
+    st_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    class_name_embs = st_model.encode(
+        [c["name"] + ": " + c.get("description", "") for c in proposed],
+        normalize_embeddings=True, show_progress_bar=False,
+    )
+    class_lookup = {c["name"]: i for i, c in enumerate(proposed)}
+
+    # Assign each concept entity to the best-matching class
+    entity_assignments: dict[str, str] = {}
+    entity_eids = [e["id"] for e in concept_entities if e["id"] in signatures]
+    if entity_eids:
+        entity_name_embs = np.array([signatures[eid]["name_emb"] for eid in entity_eids])
+        # Cosine similarity: (n_entities, n_classes)
+        sim_matrix = entity_name_embs @ class_name_embs.T
+        best_class_idx = sim_matrix.argmax(axis=1)
+
+        for i, eid in enumerate(entity_eids):
+            cls_idx = best_class_idx[i]
+            cls_name = proposed[cls_idx]["name"]
+            entity_assignments[eid] = cls_name
+
+    # Build root nodes
+    roots: list[TaxonomyNode] = []
+    class_to_eids: dict[str, list[str]] = defaultdict(list)
+    for eid, cls in entity_assignments.items():
+        class_to_eids[cls].append(eid)
+
+    # Determine depth from hierarchy
+    parent_map = {child: parent for child, parent in hierarchy_edges}
+
+    def _depth_of(name: str) -> int:
+        d = 0
+        cur = name
+        visited = set()
+        while cur in parent_map and cur not in visited:
+            visited.add(cur)
+            cur = parent_map[cur]
+            d += 1
+        return d
+
+    for c in proposed:
+        name = c["name"]
+        eids = class_to_eids.get(name, [])
+        node = TaxonomyNode(
+            name=name,
+            entity_ids=eids,
+            depth=_depth_of(name),
+            parent=parent_map.get(name),
+            split_method="fingerprint",
+            metrics={
+                "size": len(eids),
+                "description": c.get("description", ""),
+                "source_evidence": c.get("source_evidence", ""),
+            },
+        )
+        roots.append(node)
+
+    _flush(f"\n  ✓ {len(roots)} classes discovered, {len(hierarchy_edges)} IS-A edges")
+    _flush(f"  ✓ {len(entity_assignments)} concept entities assigned")
+    for node in sorted(roots, key=lambda n: -len(n.entity_ids)):
+        parent_str = f" (→ {node.parent})" if node.parent else " (root)"
+        _flush(f"    {node.name}: {len(node.entity_ids)} entities{parent_str}")
+
+    return roots, hierarchy_edges
+
 
 def discover_macro_classes(
     concept_entities: list[dict],
@@ -1030,8 +1349,28 @@ def run_recursive_induction(
         meaningful_types = [t for t, c in type_counts.items() if c >= 3]
         norm_map = learn_type_normalization(meaningful_types, dict(type_counts), llm)
 
-    # --- Stage B: Macro-classes ---
-    macro_roots = discover_macro_classes(concept_entities, signatures, llm, seed)
+    # --- Stage B: Discover classes from data fingerprint ---
+    # Build fingerprint from raw zone1 chunks (mimics human reading the data)
+    fingerprint = build_data_fingerprint(data_dir)
+
+    # Load Zone 2 types as supplementary evidence
+    vocab_path = os.path.join(rdir, "zone2_vocab.json")
+    zone2_types: list[str] = []
+    if os.path.exists(vocab_path):
+        with open(vocab_path) as f:
+            zone2_types = json.load(f).get("entity_types", [])
+
+    if fingerprint:
+        # Fingerprint-based: LLM reads data structure → proposes ontology (2 calls)
+        macro_roots, initial_hierarchy = discover_macro_classes_from_fingerprint(
+            concept_entities, signatures, fingerprint, zone2_types, llm,
+        )
+    else:
+        # Fallback: clustering-based (if no zone1 chunks available)
+        _flush("  ⚠ No fingerprint — falling back to clustering-based Stage B")
+        macro_roots = discover_macro_classes(concept_entities, signatures, llm, seed)
+        initial_hierarchy = []
+
     if not macro_roots:
         _flush("  ERROR: No macro-classes discovered")
         return {"error": "no macro-classes"}
@@ -1040,6 +1379,15 @@ def run_recursive_induction(
     taxonomy = induce_recursive_taxonomy(
         macro_roots, signatures, entity_map, norm_map, llm, seed,
     )
+
+    # Add initial hierarchy edges from Stage B (fingerprint-derived IS-A)
+    for child, parent in initial_hierarchy:
+        if child in taxonomy.nodes and parent in taxonomy.nodes:
+            if taxonomy.nodes[child].parent is None:
+                taxonomy.nodes[child].parent = parent
+                taxonomy.nodes[child].depth = taxonomy.nodes[parent].depth + 1
+                if child not in taxonomy.nodes[parent].children:
+                    taxonomy.nodes[parent].children.append(child)
 
     # --- Stage D: Sibling merge ---
     taxonomy = merge_local_siblings(taxonomy, signatures, llm)
