@@ -301,14 +301,28 @@ def discover_class_vocabulary(
             break
 
     # ---- Stage 1: Detect domain ----
+    # Collect source chunk_ids to show the LLM the breadth of data sources
+    source_files: set[str] = set()
+    for e in (all_entities or entities):
+        for r in e.get("out_rels", [])[:1]:
+            cid = r.get("chunk_id", "")
+            if cid:
+                # Extract filename from chunk_id (e.g., "synthetic_data_sample_geico..." → source)
+                source_files.add(cid.split("::")[0] if "::" in cid else cid.rsplit("_chunk_", 1)[0])
+    source_hint = ""
+    if source_files:
+        source_hint = f"\n\nData sources (filenames): {', '.join(sorted(source_files)[:10])}"
+
     print("  Stage 1: Detecting domain...", flush=True)
     domain_prompt = f"""Look at these entity names from a knowledge graph:
 {', '.join(name_sample[:40])}
 
 And these relationship types:
-{', '.join(r for r, _ in top_rels[:15])}
+{', '.join(r for r, _ in top_rels[:15])}{source_hint}
 
-What industry/domain is this knowledge graph about? Answer in 1-3 words."""
+This knowledge graph may cover MULTIPLE lines of business or sub-domains.
+What industry/domain(s) is this knowledge graph about?
+Answer concisely (e.g., "Insurance (Auto, Renters, Mobile)")."""
 
     domain_raw = _invoke_llm(llm, domain_prompt)
     domain = domain_raw.strip().strip('"').strip("'").strip(".")
@@ -323,6 +337,8 @@ What industry/domain is this knowledge graph about? Answer in 1-3 words."""
         evidence_block = f"\n{record_evidence}\n"
 
     prompt = f"""You are designing a DOMAIN ONTOLOGY for a {domain} knowledge graph.
+This data may span MULTIPLE lines of business (e.g., auto, renters, mobile insurance).
+Your classes must work ACROSS all lines of business, not be specific to one.
 
 Here are {len(name_sample)} entity names from the graph (domain concepts only):
 {chr(10).join(f'  {n}' for n in name_sample)}
