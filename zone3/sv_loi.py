@@ -301,19 +301,22 @@ def discover_class_vocabulary(
             break
 
     # ---- Stage 1: Detect domain ----
-    # Collect source chunk_ids to show the LLM the breadth of data sources
+    # Collect source chunk_ids from a small sample to show data breadth
     source_files: set[str] = set()
-    for e in (all_entities or entities):
+    sample_for_sources = random.sample(all_entities or entities,
+                                       min(200, len(all_entities or entities)))
+    for e in sample_for_sources:
         for r in e.get("out_rels", [])[:1]:
             cid = r.get("chunk_id", "")
             if cid:
-                # Extract filename from chunk_id (e.g., "synthetic_data_sample_geico..." → source)
                 source_files.add(cid.split("::")[0] if "::" in cid else cid.rsplit("_chunk_", 1)[0])
     source_hint = ""
     if source_files:
         source_hint = f"\n\nData sources (filenames): {', '.join(sorted(source_files)[:10])}"
 
     print("  Stage 1: Detecting domain...", flush=True)
+    if source_hint:
+        print(f"  Source files found: {sorted(source_files)[:10]}", flush=True)
     domain_prompt = f"""Look at these entity names from a knowledge graph:
 {', '.join(name_sample[:40])}
 
@@ -324,6 +327,7 @@ This knowledge graph may cover MULTIPLE lines of business or sub-domains.
 What industry/domain(s) is this knowledge graph about?
 Answer concisely (e.g., "Insurance (Auto, Renters, Mobile)")."""
 
+    print("  Calling LLM for domain detection...", flush=True)
     domain_raw = _invoke_llm(llm, domain_prompt)
     domain = domain_raw.strip().strip('"').strip("'").strip(".")
     print(f"  Detected domain: {domain}", flush=True)
