@@ -221,7 +221,10 @@ def extract_fingerprints(data_dir: str) -> list[FileFingerprint]:
     """
     fingerprints: list[FileFingerprint] = []
 
-    for root, _dirs, files in os.walk(data_dir):
+    # Skip processed/results subdirectories — those contain pipeline output, not raw data
+    skip_dirs = {"processed", "results", "__pycache__", ".git"}
+    for root, dirs, files in os.walk(data_dir):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
         for fname in sorted(files):
             fpath = os.path.join(root, fname)
             ext = Path(fname).suffix.lower().lstrip(".")
