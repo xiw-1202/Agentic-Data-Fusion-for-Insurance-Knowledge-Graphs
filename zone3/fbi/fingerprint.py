@@ -279,7 +279,7 @@ def build_header_expansion_prompt(
     header_list = "\n".join(f"- {h}" for h in batch)
 
     return (
-        "You are a data-dictionary expert for insurance datasets.\n"
+        "You are a data-dictionary expert for business datasets.\n"
         "Expand each abbreviated column header into its full human-readable name.\n"
         "Output EXACTLY one line per header in the format:\n"
         "ABBREVIATION -> Full Name\n\n"
@@ -297,12 +297,13 @@ def build_filename_parse_prompt(filenames: list[str]) -> str:
     file_list = "\n".join(f"- {f}" for f in filenames)
 
     return (
-        "You are a data engineer analyzing insurance data files.\n"
+        "You are a data engineer analyzing data files.\n"
         "For each filename below, extract semantic tokens that describe\n"
         "the file's domain content. Remove file extensions, split on\n"
         "underscores/hyphens/camelCase, and normalize to lowercase.\n"
         "Ignore generic tokens like 'sample', 'data', 'raw', 'v1', 'v2'.\n\n"
-        "Return a JSON object mapping each filename to a list of tokens.\n\n"
+        "Return a JSON object mapping each filename (with extension) to a list of tokens.\n"
+        "Use the EXACT filename (including extension) as the JSON key.\n\n"
         f"Filenames:\n{file_list}"
     )
 
@@ -388,8 +389,21 @@ def parse_filename_tokens(
         parsed = {}
 
     for fp in fingerprints:
-        tokens = parsed.get(fp.basename, [])
+        # Try exact match first
+        tokens = parsed.get(fp.basename, None)
+        if tokens is None:
+            # Try without extension
+            base_no_ext = os.path.splitext(fp.basename)[0]
+            tokens = parsed.get(base_no_ext, None)
+        if tokens is None:
+            # Try fuzzy: find any key that is a substring of basename or vice versa
+            base_no_ext = os.path.splitext(fp.basename)[0]
+            for key, val in parsed.items():
+                if (key in fp.basename or fp.basename in key
+                        or base_no_ext in key or key in base_no_ext):
+                    tokens = val
+                    break
         if isinstance(tokens, list):
-            fp.filename_tokens = [str(t).lower() for t in tokens]
+            fp.filename_tokens = [str(t).lower().strip() for t in tokens if str(t).strip()]
         else:
             fp.filename_tokens = []

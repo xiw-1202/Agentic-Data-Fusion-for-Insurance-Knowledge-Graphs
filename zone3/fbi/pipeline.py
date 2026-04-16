@@ -161,12 +161,12 @@ def run_phase2(
                 semantic_count += len(sem_groups)
 
         elif fp.file_type in ("pdf", "txt"):
-            # Each major section becomes a candidate class
-            for section in fp.sections:
+            # One class per document — sections are attributes, not classes
+            if fp.sections or fp.defined_terms:
+                all_headers = fp.sections + fp.defined_terms
                 cls = CandidateClass(
                     prefix="",
-                    headers=[section],
-                    name=section,
+                    headers=all_headers,
                     source_file=fp.basename,
                     source_files=[fp.file_path],
                     level=1,

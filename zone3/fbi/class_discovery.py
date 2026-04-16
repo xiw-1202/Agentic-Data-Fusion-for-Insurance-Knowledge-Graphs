@@ -226,7 +226,7 @@ def build_semantic_grouping_prompt(headers: list[str]) -> str:
     header_list = "\n".join(f"- {h}" for h in headers)
 
     return (
-        "You are an insurance data-model expert.\n"
+        "You are a data analyst.\n"
         "Group the following column headers by semantic concept.\n"
         "Each group should represent a single ontological class or entity type.\n\n"
         "Return ONLY a JSON object in this exact format:\n"
@@ -393,8 +393,8 @@ def build_naming_prompt(parent_class: CandidateClass) -> str:
     Returns a prompt that asks the LLM to name a parent class and its children.
     """
     lines = [
-        "You are an insurance ontology expert.",
-        "Name the following class and its subclasses based on the evidence below.",
+        "Name the following data groups based ONLY on the column headers shown below.",
+        "Do NOT invent categories. Use ONLY the evidence provided.",
         "",
         "Shared headers (define the parent concept):",
     ]
@@ -417,12 +417,13 @@ def build_naming_prompt(parent_class: CandidateClass) -> str:
 
     lines.extend([
         "",
-        "Return ONLY a JSON object in this exact format:",
-        '{"parent_name": "ParentClassName",',
-        ' "children": [{"name": "ChildName", "is_subclass": true}]}',
+        "Return ONLY a JSON object:",
+        '{"parent_name": "ParentName", "children": [{"name": "ChildName", "is_subclass": true}]}',
         "",
         "Rules:",
-        "- Use concise PascalCase names from insurance domain vocabulary",
+        "- Name MUST describe the actual headers shown, not general categories",
+        "- Do NOT add types not evidenced by the headers",
+        "- Use concise PascalCase names (1-3 words)",
         "- Parent name should capture the shared concept",
         "- Child names should capture what makes each variant unique",
         "- is_subclass should be true for all children",
@@ -441,12 +442,12 @@ def _build_standalone_naming_prompt(cls: CandidateClass) -> str:
         source_info = f"\nSource files: {', '.join(cls.source_files)}"
 
     return (
-        "You are an insurance ontology expert.\n"
-        "Name the following class based on its headers.\n\n"
+        "Name the following data group based ONLY on its column headers.\n"
+        "Do NOT invent categories beyond what the headers describe.\n\n"
         f"Headers:\n{header_list}\n"
         f"{source_info}\n\n"
         "Return ONLY a JSON object: {\"name\": \"ClassName\"}\n"
-        "Use concise PascalCase from insurance domain vocabulary."
+        "Use concise PascalCase (1-3 words). Name must reflect the actual headers."
     )
 
 

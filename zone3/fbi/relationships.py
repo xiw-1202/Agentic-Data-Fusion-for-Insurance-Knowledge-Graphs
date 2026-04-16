@@ -107,7 +107,7 @@ def build_relationship_naming_prompt(
     {"relationships": [{"source": "...", "target": "...", "bridge": "...", "name": "..."}]}
     """
     lines = [
-        "You are an insurance ontology expert.",
+        "You are a data ontology expert.",
         "Name each relationship below based on the bridge column that connects two classes.",
         "",
         "Relationships to name:",
@@ -128,7 +128,7 @@ def build_relationship_naming_prompt(
         "Rules:",
         "- Use concise lowercase relationship names (e.g., 'covers', 'references', 'belongs_to')",
         "- The name should describe how the source relates to the target",
-        "- Use insurance domain vocabulary where appropriate",
+        "- Use domain vocabulary where appropriate",
     ])
 
     return "\n".join(lines)
