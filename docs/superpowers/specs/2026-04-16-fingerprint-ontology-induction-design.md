@@ -22,8 +22,8 @@ Zone 3 (ontology induction) currently produces flat, coarse classes (9-11 total)
 2. **No fine-tuning**: Uses qwen2.5:72b as-is via Ollama. No training data, no parameter updates.
 3. **No leakage**: Never reference Riskine, ACORD, or any evaluation ontology in prompts or logic.
 4. **Extensible**: When new LOB files are added, the pipeline discovers new classes automatically. No schema changes needed.
-5. **LLM-minimal**: The 72B local model is an assistant (naming, grouping ambiguous items), not the driver. All structural decisions are algorithmic.
-6. **Self-contained prompts**: Every LLM prompt must contain all information the model needs to answer. No references to external standards or assumed domain knowledge.
+5. **Self-contained prompts**: Every LLM prompt must contain all information the model needs to answer. No references to external standards or assumed domain knowledge.
+6. **LLM as assistant**: The 72B local model assists with naming, grouping, and validation. Structural decisions are algorithmic. No constraint on number of LLM calls — use as many as needed for quality.
 
 ## 3. Data Sources
 
@@ -556,21 +556,19 @@ Names in [brackets] will be determined by the LLM at runtime — they are NOT ha
 | Coverage subtypes | 0 | 2-3 |
 | Claim subtypes | 0 | 2+ |
 | Survey subtypes | 0 | 3-4 |
-| LLM calls total | 100+ | ~20-30 |
+| LLM calls total | 100+ | As needed |
 | Domain-agnostic | Yes | Yes |
 | New LOB extensible | Partial | Full |
 
-## 10. LLM Budget Summary
+## 10. LLM Usage
 
-| Phase | Calls | Purpose |
-|-------|:-----:|---------|
-| 1b: Expand headers | 2-3 | Batch-expand cryptic abbreviations |
-| 1c: Parse filenames | 1 | Tokenize filenames |
-| 2 iter 2: Semantic grouping | 2-3 | Group ungrouped headers |
-| 2 iter 4: Hierarchy naming | 5-8 | Name classes at each level |
-| 3b: Relationship naming | 3-5 | Name bridge relationships |
-| 4c: Validation | 3-5 | Edge case entity assignment |
-| **Total** | **~20-30** | **vs. 100+ in current SV-LOI** |
+No constraint on number of LLM calls. Use as many as needed for quality output. The LLM is called for:
+- Expanding cryptic headers (Phase 1b)
+- Parsing filenames (Phase 1c)
+- Semantic grouping of ungrouped headers (Phase 2 iter 2)
+- Naming classes at each hierarchy level (Phase 2 iter 4)
+- Naming inter-class relationships (Phase 3b)
+- Validating ambiguous entity assignments (Phase 4c)
 
 All prompts are self-contained. No references to external standards, domain ontologies, or assumed knowledge.
 
