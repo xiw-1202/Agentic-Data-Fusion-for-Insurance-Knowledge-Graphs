@@ -119,6 +119,46 @@ class TestClassifyTokens:
         assert "tmobile" in result.lob_tokens
 
 
+class TestSingletonAbsorption:
+    def test_tmobile_singleton_absorbed_into_cluster(self) -> None:
+        """Lone TMobile claim file should be merged with TMobile survey cluster."""
+        fps = [
+            FileFingerprint(
+                file_path="/data/tmobileclaim.csv",
+                file_type="csv",
+                filename_tokens=["tmobile", "claim"],
+            ),
+            FileFingerprint(
+                file_path="/data/tmobilesurvey.csv",
+                file_type="csv",
+                filename_tokens=["tmobile", "survey"],
+            ),
+            FileFingerprint(
+                file_path="/data/tmobilechatsurvey.csv",
+                file_type="csv",
+                filename_tokens=["tmobile", "chat", "survey"],
+            ),
+            FileFingerprint(
+                file_path="/data/geicoclaim.csv",
+                file_type="csv",
+                filename_tokens=["geico", "renter", "claim"],
+            ),
+            FileFingerprint(
+                file_path="/data/geicosurvey.csv",
+                file_type="csv",
+                filename_tokens=["geico", "renter", "survey"],
+            ),
+        ]
+        result = classify_tokens(fps)
+        # tmobile should now be LOB (all 3 tmobile files in ONE cluster)
+        assert "tmobile" in result.lob_tokens, (
+            f"Expected tmobile in LOB, got: {result.lob_tokens}"
+        )
+        # claim and survey should still be function (appear in GEICO + TMobile groups)
+        assert "claim" in result.function_tokens
+        assert "survey" in result.function_tokens
+
+
 class TestHelpers:
     def test_token_index_basic(self) -> None:
         from zone3.fbi.token_classifier import _build_token_index

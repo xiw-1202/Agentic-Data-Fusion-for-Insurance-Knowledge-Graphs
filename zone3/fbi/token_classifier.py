@@ -85,6 +85,12 @@ def _cluster_files_by_shared_tokens(
     Two files belong to the same cluster if they share at least
     ``min_shared`` filename tokens. Returns a list of filename sets
     (includes singletons for files not sharing enough tokens with anyone).
+
+    After strict clustering, runs a post-merge step to absorb stranded
+    singletons into established clusters via dominant tokens (tokens
+    appearing in >= ``min_token_files`` files across the corpus). This
+    prevents cases like ``tmobileclaim`` becoming a singleton while the
+    TMobile cluster exists — the dominant ``tmobile`` token merges them.
     """
     names = [fp.basename for fp in fingerprints]
     tokens_by_name = {fp.basename: set(fp.filename_tokens) for fp in fingerprints}
@@ -96,7 +102,92 @@ def _cluster_files_by_shared_tokens(
             if len(tokens_by_name[a] & tokens_by_name[b]) >= min_shared:
                 uf.union(a, b)
 
-    return uf.groups()
+    clusters = uf.groups()
+    token_to_files = _build_token_index(fingerprints)
+    return _merge_clusters_by_dominant_tokens(clusters, token_to_files)
+
+
+def _merge_clusters_by_dominant_tokens(
+    clusters: list[set[str]],
+    token_to_files: dict[str, set[str]],
+    min_token_files: int = 3,
+) -> list[set[str]]:
+    """Merge singleton clusters into established clusters via dominant tokens.
+
+    A "dominant" token is one appearing in ``>= min_token_files`` files across
+    the corpus. For each dominant token T, we look at the clusters containing
+    files with token T:
+
+    - If merging would join >= 2 **established** (non-singleton) clusters,
+      skip (T is likely a function token that spans legitimate LOBs).
+    - If exactly one established cluster is involved, absorb all singleton
+      clusters into it.
+    - If only singletons are involved, merge them into a new cluster.
+
+    This guard prevents over-merging via cross-LOB function tokens like
+    ``survey`` while still fixing stranded-singleton cases like ``tmobile``.
+    """
+    if len(clusters) <= 1:
+        return clusters
+
+    # Map: filename -> initial cluster index
+    file_to_cluster: dict[str, int] = {}
+    for i, cluster in enumerate(clusters):
+        for name in cluster:
+            file_to_cluster[name] = i
+
+    # Union-find over cluster indices
+    parent = list(range(len(clusters)))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    # For each dominant token, decide whether to merge its clusters.
+    for _token, files_with_token in token_to_files.items():
+        if len(files_with_token) < min_token_files:
+            continue
+
+        cluster_ids = {
+            file_to_cluster[f] for f in files_with_token if f in file_to_cluster
+        }
+        if len(cluster_ids) <= 1:
+            continue
+
+        # Separate singleton vs non-singleton clusters among those sharing T.
+        singleton_ids = {cid for cid in cluster_ids if len(clusters[cid]) == 1}
+        non_singleton_ids = cluster_ids - singleton_ids
+
+        if len(non_singleton_ids) >= 2:
+            # Would merge 2+ established clusters — likely a function token.
+            continue
+
+        if len(non_singleton_ids) == 1:
+            # Absorb all singletons into the one established cluster.
+            target = next(iter(non_singleton_ids))
+            for sid in singleton_ids:
+                union(target, sid)
+        else:
+            # All singletons share this token — merge them into one cluster.
+            singleton_list = sorted(singleton_ids)
+            first = singleton_list[0]
+            for sid in singleton_list[1:]:
+                union(first, sid)
+
+    # Collect merged clusters
+    merged: dict[int, set[str]] = defaultdict(set)
+    for i, cluster in enumerate(clusters):
+        root = find(i)
+        merged[root].update(cluster)
+
+    return list(merged.values())
 
 
 def _lob_defining_tokens(
