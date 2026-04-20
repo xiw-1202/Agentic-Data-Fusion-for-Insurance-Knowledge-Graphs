@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from zone3.fbi.fingerprint import FileFingerprint
 from zone3.fbi.token_classifier import TokenClassification
+from zone3.fbi.token_utils import normalize_token as _normalize_token
 
 
 # ---------------------------------------------------------------------------
@@ -52,19 +53,6 @@ class FunctionGroup:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _normalize_token(token: str) -> str:
-    """Normalize a token for fuzzy singular/plural matching.
-
-    Rule: lowercase, then strip a trailing ``s`` **only if** the token has
-    more than 3 characters. This catches ``claims -> claim`` and
-    ``surveys -> survey`` while preserving short tokens like ``cds``.
-    """
-    t = token.lower()
-    if len(t) > 3 and t.endswith("s"):
-        return t[:-1]
-    return t
 
 
 def _compute_dominant_prefixes(headers: list[str], min_size: int = 3) -> set[str]:

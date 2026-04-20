@@ -26,12 +26,13 @@ class TestClassifyTokens:
         ]
         result = classify_tokens(fps)
         assert "geico" in result.lob_tokens
-        assert "renters" in result.lob_tokens
+        # "renters" normalizes to "renter"
+        assert "renter" in result.lob_tokens
         assert "tmobile" in result.lob_tokens
         # survey appears in both GEICO and TMobile groups -> function
         assert "survey" in result.function_tokens
-        # both "claim" and "claims" should be function (only non-LOB token in their file)
-        assert "claim" in result.function_tokens or "claims" in result.function_tokens
+        # "claim" and "claims" both normalize to "claim" before classification
+        assert "claim" in result.function_tokens
 
     def test_modifier_tokens(self) -> None:
         """Tokens appearing in only 1 file next to another non-LOB token are modifiers."""
@@ -90,15 +91,32 @@ class TestClassifyTokens:
         result = classify_tokens(fps)
         # Expected LOB tokens
         assert "geico" in result.lob_tokens
-        assert "renters" in result.lob_tokens
+        # "renters" normalizes to "renter"
+        assert "renter" in result.lob_tokens
         assert "tmobile" in result.lob_tokens
         # Expected function tokens (cross-LOB)
         assert "survey" in result.function_tokens
-        # "claim" or "claims" must be function (both GEICO and TMobile have it)
-        assert (
-            "claim" in result.function_tokens
-            or "claims" in result.function_tokens
+        # "claim" (normalized from both "claim" and "claims") must be function
+        assert "claim" in result.function_tokens
+
+    def test_claim_claims_normalize_together(self) -> None:
+        """After normalization, 'claim' and 'claims' should both map to 'claim'."""
+        # Two files per LOB so each LOB forms a real cluster (>= 2 shared tokens).
+        fps = [
+            make_fp("geicorentersclaims.csv", ["geico", "renters", "claims"]),
+            make_fp("geicorenterspolicy.csv", ["geico", "renters", "policy"]),
+            make_fp("tmobileclaim.csv", ["tmobile", "wireless", "claim"]),
+            make_fp("tmobilesurvey.csv", ["tmobile", "wireless", "survey"]),
+        ]
+        result = classify_tokens(fps)
+        # "claim" (normalized from "claims") should be function token — it
+        # appears in both GEICO and TMobile clusters after normalization.
+        assert "claim" in result.function_tokens, (
+            f"Expected 'claim' in function_tokens, got {result.function_tokens}"
         )
+        # "geico" and "tmobile" should be LOB tokens
+        assert "geico" in result.lob_tokens
+        assert "tmobile" in result.lob_tokens
 
 
 class TestHelpers:

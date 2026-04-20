@@ -17,9 +17,10 @@ union-find clustering over files by shared-token counts.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from zone3.fbi.fingerprint import FileFingerprint
+from zone3.fbi.token_utils import normalize_token
 
 
 @dataclass
@@ -152,6 +153,14 @@ def classify_tokens(
     """
     if not fingerprints:
         return TokenClassification()
+
+    # Normalize tokens upfront so that e.g. "claim" and "claims" are treated
+    # as the same token for clustering and classification. We build shadow
+    # copies via dataclasses.replace() to avoid mutating the originals.
+    fingerprints = [
+        replace(fp, filename_tokens=[normalize_token(t) for t in fp.filename_tokens])
+        for fp in fingerprints
+    ]
 
     tokens_by_name: dict[str, set[str]] = {
         fp.basename: set(fp.filename_tokens) for fp in fingerprints
