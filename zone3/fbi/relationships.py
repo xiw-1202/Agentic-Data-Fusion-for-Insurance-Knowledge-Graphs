@@ -46,36 +46,57 @@ def _collect_all_headers(cls: CandidateClass) -> set[str]:
 
 def find_bridge_columns(
     classes: list[CandidateClass],
+    raw_headers_by_class: dict[str, set[str]] | None = None,
 ) -> list[ClassRelationship]:
     """Find headers appearing in 2+ different classes and create relationships.
 
-    Builds a column -> set[class_index] mapping, then creates one
+    If ``raw_headers_by_class`` is provided, it maps top-level class name →
+    the union of raw headers from that class's source files. Use this when
+    classes were built from shared-header intersections, because bridge
+    columns (e.g. ``POLICY_NUMBER``) may not appear in any class's shared
+    headers but DO appear in the raw source file headers.
+
+    Otherwise, fall back to walking ``cls.headers`` (and children
+    recursively) — useful for simpler inputs.
+
+    Builds a column → set[class_name] mapping, then creates one
     ClassRelationship per unique (source, target, bridge) triple.
     Relationship names are left empty for the LLM to fill later.
     """
     if len(classes) < 2:
         return []
 
-    # Map each column to the set of class indices it appears in
-    column_to_classes: dict[str, set[int]] = defaultdict(set)
+    # Map each column to the ordered list of class names it appears in.
+    # Using a dict preserves first-seen order to keep output deterministic.
+    column_to_classes: dict[str, list[str]] = defaultdict(list)
 
-    for idx, cls in enumerate(classes):
-        all_headers = _collect_all_headers(cls)
-        for header in all_headers:
-            column_to_classes[header].add(idx)
+    if raw_headers_by_class is not None:
+        # Use the caller-provided raw headers. Iterate classes in order so
+        # that relationship ordering is stable.
+        for cls in classes:
+            class_name = cls.name or cls.prefix or "(unnamed)"
+            headers = raw_headers_by_class.get(class_name, set())
+            for header in headers:
+                if class_name not in column_to_classes[header]:
+                    column_to_classes[header].append(class_name)
+    else:
+        # Fallback: collect headers from each class (including children).
+        for idx, cls in enumerate(classes):
+            class_name = cls.name or cls.prefix or f"Class_{idx}"
+            all_headers = _collect_all_headers(cls)
+            for header in all_headers:
+                if class_name not in column_to_classes[header]:
+                    column_to_classes[header].append(class_name)
 
     # For each bridge column, create relationships for every pair
     seen_triples: set[tuple[str, str, str]] = set()
     relationships: list[ClassRelationship] = []
 
-    for column, class_indices in column_to_classes.items():
-        if len(class_indices) < 2:
+    for column, class_names in column_to_classes.items():
+        if len(class_names) < 2:
             continue
 
-        for i, j in combinations(sorted(class_indices), 2):
-            source_name = classes[i].name or classes[i].prefix or f"Class_{i}"
-            target_name = classes[j].name or classes[j].prefix or f"Class_{j}"
-
+        for source_name, target_name in combinations(class_names, 2):
             triple = (source_name, target_name, column)
             if triple in seen_triples:
                 continue

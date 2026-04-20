@@ -111,6 +111,52 @@ class TestFindBridgeColumns:
 
 
 # ---------------------------------------------------------------------------
+# TestBridgeDetectionWithRawHeaders
+# ---------------------------------------------------------------------------
+
+
+class TestBridgeDetectionWithRawHeaders:
+    def test_uses_raw_headers_when_provided(self) -> None:
+        """POLICY_NUMBER appears in raw headers but not in class.headers → still detected."""
+        # Classes built from shared-intersection have minimal headers
+        claim = CandidateClass(
+            prefix="Claim",
+            name="Claim",
+            headers=["CLAIM_NUMBER", "CLAIM_STATUS"],
+        )
+        policy = CandidateClass(
+            prefix="Policy",
+            name="Policy",
+            headers=["COVAMT_PERS", "EFF_DATE"],
+        )
+        # But the raw files have POLICY_NUMBER in both
+        raw_by_class = {
+            "Claim": {"CLAIM_NUMBER", "CLAIM_STATUS", "POLICY_NUMBER"},
+            "Policy": {"POLICY_NUMBER", "COVAMT_PERS", "EFF_DATE"},
+        }
+        bridges = find_bridge_columns(
+            [claim, policy],
+            raw_headers_by_class=raw_by_class,
+        )
+        assert any(b.bridge_column == "POLICY_NUMBER" for b in bridges)
+
+    def test_falls_back_to_class_headers_when_no_mapping(self) -> None:
+        """Without raw mapping, still works with cls.headers."""
+        a = CandidateClass(
+            prefix="A",
+            name="A",
+            headers=["SHARED", "A_ONLY"],
+        )
+        b = CandidateClass(
+            prefix="B",
+            name="B",
+            headers=["SHARED", "B_ONLY"],
+        )
+        bridges = find_bridge_columns([a, b])
+        assert any(br.bridge_column == "SHARED" for br in bridges)
+
+
+# ---------------------------------------------------------------------------
 # TestBuildRelationshipNamingPrompt
 # ---------------------------------------------------------------------------
 

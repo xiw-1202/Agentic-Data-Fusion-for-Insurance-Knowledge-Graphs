@@ -17,18 +17,11 @@ import json
 import os
 import time
 from collections import defaultdict
-from dataclasses import asdict
-from pathlib import Path
 
 import config
 from zone3.fbi.class_discovery import (
     CandidateClass,
-    detect_sibling_patterns,
-    find_prefix_groups,
-    get_ungrouped_headers,
-    merge_cross_file_classes,
     name_classes,
-    semantic_group_headers,
 )
 from zone3.fbi.entity_assign import (
     assign_all_entities,
@@ -40,11 +33,14 @@ from zone3.fbi.fingerprint import (
     extract_fingerprints,
     parse_filename_tokens,
 )
+from zone3.fbi.function_grouping import group_files_by_function
+from zone3.fbi.functional_classes import build_functional_classes
 from zone3.fbi.relationships import (
     ClassRelationship,
     find_bridge_columns,
     name_relationships,
 )
+from zone3.fbi.token_classifier import classify_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -93,106 +89,77 @@ def run_phase2(
     fingerprints: list[FileFingerprint],
     model: str | None = None,
 ) -> list[CandidateClass]:
-    """Phase 2: Multi-iteration class discovery."""
+    """Phase 2: Function-first class discovery.
+
+    Pipeline:
+      Step 1: classify_tokens → separate LOB/function tokens
+      Step 2: group_files_by_function → list[FunctionGroup]
+      Step 3: build_functional_classes → list[CandidateClass] with sibling sub-hierarchy
+      Step 4: name_classes via LLM
+    """
     print("\n" + "=" * 60)
-    print("PHASE 2: Class Discovery")
+    print("PHASE 2: Function-First Class Discovery")
     print("=" * 60)
 
-    all_classes: list[CandidateClass] = []
+    # Step 1: classify tokens
+    print("\n[Step 1] Classifying filename tokens (LOB vs function) ...")
+    token_classification = classify_tokens(fingerprints)
+    print(f"     LOB tokens:      {sorted(token_classification.lob_tokens)}")
+    print(f"     Function tokens: {sorted(token_classification.function_tokens)}")
+    print(f"     Modifier tokens: {sorted(token_classification.modifier_tokens)}")
+    print(f"     LOB groups:      {len(token_classification.lob_groups)}")
 
-    # --- Iter 1: prefix groups + sibling patterns per CSV file ---
-    print("\n[Iter 1] Prefix grouping + sibling detection per CSV file ...")
-    for fp in fingerprints:
-        if fp.file_type != "csv":
-            continue
+    # Step 2: group files by function
+    print("\n[Step 2] Grouping files by function across LOBs ...")
+    groups = group_files_by_function(fingerprints, token_classification)
+    print(f"     Produced {len(groups)} functional groups:")
+    for g in groups:
+        sizes = f"{len(g.files)} file(s)"
+        fns = ",".join(sorted(g.function_tokens)) or "(no function tokens)"
+        print(f"       - {fns} [{sizes}]")
 
-        groups = find_prefix_groups(fp.headers_raw)
-        for g in groups:
-            g.source_file = fp.basename
-            g.source_files = [fp.file_path]
+    # Step 3: build class hierarchy
+    print("\n[Step 3] Building class hierarchy with sibling sub-classes ...")
+    classes = build_functional_classes(groups)
 
-        siblings = detect_sibling_patterns(groups)
-        # Sibling groups create parent-child hierarchies
-        for sib in siblings:
-            parent = CandidateClass(
-                prefix=sib.common_prefix,
-                headers=[],
-                children=list(sib.children),
-                source_file=fp.basename,
-                source_files=[fp.file_path],
-                level=1,
+    def count_all(cs: list[CandidateClass]) -> int:
+        total = len(cs)
+        for c in cs:
+            total += count_all(c.children)
+        return total
+
+    print(
+        f"     {count_all(classes)} total classes across "
+        f"{len(classes)} top-level groups"
+    )
+
+    # Step 4: name classes via LLM (recursively)
+    print("\n[Step 4] Naming classes via LLM ...")
+    name_classes(classes, model=model)
+
+    def name_recursively(cs: list[CandidateClass], model: str | None) -> None:
+        for c in cs:
+            if c.children:
+                name_classes(c.children, model=model)
+                name_recursively(c.children, model)
+
+    name_recursively(classes, model)
+
+    # Print hierarchy summary
+    def print_tree(cs: list[CandidateClass], indent: int = 0) -> None:
+        for c in cs:
+            name = c.name or c.prefix or "(unnamed)"
+            n_headers = len(c.headers)
+            n_children = len(c.children)
+            print(
+                f"     {'  ' * indent}- {name} "
+                f"({n_headers}h, {n_children} children)"
             )
-            for child in parent.children:
-                child.parent = parent
-                child.level = 2
-                child.source_files = [fp.file_path]
-            all_classes.append(parent)
+            print_tree(c.children, indent + 1)
 
-        # Non-sibling groups are standalone classes
-        sibling_group_indices: set[int] = set()
-        for sib in siblings:
-            for child in sib.children:
-                for i, g in enumerate(groups):
-                    if g is child:
-                        sibling_group_indices.add(i)
+    print_tree(classes)
 
-        for i, g in enumerate(groups):
-            if i not in sibling_group_indices:
-                g.level = 1
-                g.source_files = [fp.file_path]
-                all_classes.append(g)
-
-    print(f"     Found {len(all_classes)} prefix-based classes")
-
-    # --- Iter 2: semantic grouping for ungrouped headers ---
-    print("\n[Iter 2] Semantic grouping of ungrouped headers ...")
-    semantic_count = 0
-    for fp in fingerprints:
-        if fp.file_type == "csv":
-            # Use expanded names for better semantic grouping
-            headers = list(fp.headers_expanded.values()) if fp.headers_expanded else fp.headers_raw
-            ungrouped = get_ungrouped_headers(headers, all_classes)
-            if ungrouped:
-                sem_groups = semantic_group_headers(ungrouped, model=model)
-                for sg in sem_groups:
-                    sg.source_file = fp.basename
-                    sg.source_files = [fp.file_path]
-                all_classes.extend(sem_groups)
-                semantic_count += len(sem_groups)
-
-        elif fp.file_type in ("pdf", "txt"):
-            # One class per document — sections are attributes, not classes
-            if fp.sections or fp.defined_terms:
-                all_headers = fp.sections + fp.defined_terms
-                cls = CandidateClass(
-                    prefix="",
-                    headers=all_headers,
-                    source_file=fp.basename,
-                    source_files=[fp.file_path],
-                    level=1,
-                )
-                all_classes.append(cls)
-                semantic_count += 1
-
-    print(f"     Added {semantic_count} semantically-grouped classes")
-
-    # --- Iter 3: merge cross-file classes ---
-    print("\n[Iter 3] Merging cross-file classes ...")
-    pre_merge = len(all_classes)
-    all_classes = merge_cross_file_classes(all_classes)
-    print(f"     {pre_merge} classes -> {len(all_classes)} after merging")
-
-    # --- Iter 4: name classes via LLM ---
-    print("\n[Iter 4] Naming classes via LLM ...")
-    name_classes(all_classes, model=model)
-    for cls in all_classes:
-        children_str = ""
-        if cls.children:
-            child_names = [c.name or c.prefix for c in cls.children]
-            children_str = f" -> [{', '.join(child_names)}]"
-        print(f"     - {cls.name or cls.prefix}{children_str}")
-
-    return all_classes
+    return classes
 
 
 # ---------------------------------------------------------------------------
@@ -202,22 +169,64 @@ def run_phase2(
 
 def run_phase3(
     classes: list[CandidateClass],
+    fingerprints: list[FileFingerprint],
     model: str | None = None,
 ) -> list[ClassRelationship]:
-    """Phase 3: Relationship discovery via bridge columns."""
+    """Phase 3: Relationship discovery using raw file headers.
+
+    Builds a map from top-level class name → union of raw headers across
+    all source files (including children recursively), then uses that
+    mapping in :func:`find_bridge_columns`. This is essential when classes
+    were built from shared-header intersections because bridge columns
+    may not appear in any class's shared headers but DO appear in the
+    raw file headers.
+    """
     print("\n" + "=" * 60)
     print("PHASE 3: Relationship Discovery")
     print("=" * 60)
 
-    print("\n[3a] Finding bridge columns ...")
-    bridges = find_bridge_columns(classes)
+    # Build lookup maps for fingerprints: by full path and by basename
+    fp_by_path: dict[str, FileFingerprint] = {fp.file_path: fp for fp in fingerprints}
+    fp_by_name: dict[str, FileFingerprint] = {
+        fp.file_path.split("/")[-1]: fp for fp in fingerprints
+    }
+
+    def collect_source_files(cls: CandidateClass, acc: set[str]) -> None:
+        acc.update(cls.source_files)
+        if cls.source_file:
+            acc.add(cls.source_file)
+        for child in cls.children:
+            collect_source_files(child, acc)
+
+    raw_by_class: dict[str, set[str]] = {}
+    for top_class in classes:
+        source_paths: set[str] = set()
+        collect_source_files(top_class, source_paths)
+        all_raw: set[str] = set()
+        for path in source_paths:
+            fp = fp_by_path.get(path) or fp_by_name.get(path.split("/")[-1])
+            if fp is None:
+                continue
+            all_raw.update(fp.headers_raw)
+            all_raw.update(fp.sections)
+        class_name = top_class.name or top_class.prefix or "(unnamed)"
+        raw_by_class[class_name] = all_raw
+
+    # Step 1: find bridges using raw headers
+    print("\n[Step 1] Finding bridge columns via raw file headers ...")
+    bridges = find_bridge_columns(classes, raw_headers_by_class=raw_by_class)
     print(f"     Found {len(bridges)} bridge relationships")
 
-    print("\n[3b] Naming relationships via LLM ...")
-    name_relationships(bridges, model=model)
+    # Step 2: name via LLM
+    if bridges:
+        print("\n[Step 2] Naming relationships via LLM ...")
+        name_relationships(bridges, model=model)
 
-    for rel in bridges:
-        print(f"     - {rel.source_class} --[{rel.relationship_name}]--> {rel.target_class}  (via {rel.bridge_column})")
+    for rel in bridges[:20]:
+        print(
+            f"     - {rel.source_class} --[{rel.relationship_name}]--> "
+            f"{rel.target_class}  (via {rel.bridge_column})"
+        )
 
     return bridges
 
@@ -435,7 +444,7 @@ def main() -> None:
     classes = run_phase2(fingerprints, model=args.model)
 
     # Phase 3: Relationship Discovery
-    relationships = run_phase3(classes, model=args.model)
+    relationships = run_phase3(classes, fingerprints, model=args.model)
 
     # Save intermediate results
     save_results(fingerprints, classes, relationships, output_dir)
