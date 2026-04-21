@@ -25,13 +25,11 @@ class HybridRAG:
 
     def generate_answer(self, question: str) -> Dict[str, Any]:
         """Combine contexts from both Graph and Doc and generate total answer."""
-        # 1. Get Graph Context
-        graph_res = self.graph_rag.generate_answer(question)
-        graph_context = graph_res.get("context_used", "No graph context.")
-        
-        # 2. Get Document Context
-        doc_res = self.doc_rag.generate_answer(question)
-        doc_context = "\n\n".join([f"Source: {c['source']}\nContent: {c['content']}" for c in doc_res.get("context", [])])
+        graph_retrieval = self.graph_rag.retrieve_context(question)
+        graph_context = graph_retrieval.get("context_text", "No graph context.")
+
+        doc_retrieval = self.doc_rag.retrieve_context(question)
+        doc_context = doc_retrieval.get("context_text", "No document context.")
         
         prompt = ChatPromptTemplate.from_template("""
         You are an elite insurance investigator. You have two sources of information:
@@ -48,6 +46,7 @@ class HybridRAG:
         
         Synthesize an answer using both sources. Prioritize Knowledge Graph for structural facts and Documents for narrative details. 
         If there is a conflict, mention BOTH.
+        If neither source supports an answer, say you don't know based on the provided evidence.
         
         Answer:
         """)
@@ -62,7 +61,9 @@ class HybridRAG:
         return {
             "answer": response.content,
             "graph_context": graph_context,
-            "doc_context": doc_context
+            "doc_context": doc_context,
+            "graph_hits": graph_retrieval.get("entity_hits", []),
+            "doc_chunks": doc_retrieval.get("chunks", []),
         }
 
     def close(self):

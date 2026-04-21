@@ -12,6 +12,12 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from rag_comp.retriever import KGRetriever
 
+
+def _format_graph_context(context_data: List[Dict[str, Any]]) -> str:
+    if not context_data:
+        return "No relevant graph relationships found."
+    return json.dumps(context_data, indent=2)
+
 class GraphRAG:
     def __init__(self, model_name: str = None):
         self.retriever = KGRetriever()
@@ -23,15 +29,63 @@ class GraphRAG:
             format="json"
         )
 
-    def get_enriched_context(self, query: str, top_k: int = 5) -> str:
-        """Retrieve nodes and their immediate relationships for context."""
+    def _is_relationship_summary_question(self, query: str) -> bool:
+        lowered = query.lower()
+        summary_markers = [
+            "most common relationship",
+            "common relationship types",
+            "common relationships",
+            "relationship types between claims",
+        ]
+        return any(marker in lowered for marker in summary_markers)
+
+    def _get_relationship_summary_context(self, limit: int = 10) -> Dict[str, Any]:
+        cypher = """
+        MATCH (n:Entity)-[r]-(m)
+        WHERE n.id STARTS WITH 'CLM'
+        RETURN type(r) AS relationship, count(*) AS frequency
+        ORDER BY frequency DESC, relationship ASC
+        LIMIT $limit
+        """
+
+        context_data: List[Dict[str, Any]] = []
+        try:
+            with self.retriever.driver.session(database=config.NEO4J_DATABASE) as session:
+                for record in session.run(cypher, limit=limit):
+                    context_data.append(
+                        {
+                            "relationship": record["relationship"],
+                            "frequency": record["frequency"],
+                        }
+                    )
+        except Exception as e:
+            print(f"  [Cypher Error] {e}")
+
+        context_text = _format_graph_context(context_data)
+        if not context_data:
+            context_text = "No relationship summary data found in Knowledge Graph."
+
+        return {
+            "context_text": context_text,
+            "context_data": context_data,
+            "entity_hits": [],
+            "strategy": "relationship_summary",
+        }
+
+    def _get_entity_neighborhood_context(
+        self, query: str, top_k: int = 5
+    ) -> Dict[str, Any]:
         hits = self.retriever.search_entities(query, top_k=top_k)
         if not hits:
-            return "No relevant entities found in Knowledge Graph."
-        
-        node_ids = [str(hit['id']) for hit in hits]
-        
-        # Enrichment Cypher query
+            return {
+                "context_text": "No relevant entities found in Knowledge Graph.",
+                "context_data": [],
+                "entity_hits": [],
+                "strategy": "entity_neighborhood",
+            }
+
+        node_ids = [str(hit["id"]) for hit in hits]
+
         cypher = """
         // 1. Direct 1-hop bridges
         MATCH (n:Entity)-[r]-(m:Entity)
@@ -66,15 +120,29 @@ class GraphRAG:
                     context_data = record["combined_context"]
         except Exception as e:
             print(f"  [Cypher Error] {e}")
-            
+
         if not context_data:
-            return f"Found relevant entities but no relationships: {', '.join(node_ids)}"
-            
-        return json.dumps(context_data, indent=2)
+            context_text = f"Found relevant entities but no relationships: {', '.join(node_ids)}"
+        else:
+            context_text = _format_graph_context(context_data)
+
+        return {
+            "context_text": context_text,
+            "context_data": context_data,
+            "entity_hits": hits,
+            "strategy": "entity_neighborhood",
+        }
+
+    def retrieve_context(self, query: str, top_k: int = 5) -> Dict[str, Any]:
+        """Retrieve graph context without performing answer generation."""
+        if self._is_relationship_summary_question(query):
+            return self._get_relationship_summary_context()
+        return self._get_entity_neighborhood_context(query, top_k=top_k)
 
     def generate_answer(self, question: str) -> Dict[str, Any]:
         """Generate a grounded answer using the Knowledge Graph context."""
-        context = self.get_enriched_context(question)
+        retrieval = self.retrieve_context(question)
+        context = retrieval["context_text"]
         
         prompt = ChatPromptTemplate.from_template("""
         You are an Abstract Data Extractor. Answer the question using ONLY the provided Knowledge Graph Context.
@@ -109,7 +177,9 @@ class GraphRAG:
         return {
             "answer": answer,
             "reasoning": reasoning,
-            "context_used": context
+            "context_used": context,
+            "entity_hits": retrieval["entity_hits"],
+            "retrieval_strategy": retrieval["strategy"],
         }
 
     def close(self):
