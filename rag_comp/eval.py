@@ -3,6 +3,8 @@ import sys
 import json
 import time
 import argparse
+import signal
+from contextlib import contextmanager
 from typing import List, Dict
 
 # Allow imports from project root
@@ -20,6 +22,25 @@ DATASET_ALIASES = {
     "graph_primary": config.GRAPH_PRIMARY_EVAL_FILE,
     "combined": None,
 }
+
+
+@contextmanager
+def _time_limit(seconds: int | None):
+    if not seconds or seconds <= 0 or not hasattr(signal, "setitimer"):
+        yield
+        return
+
+    def _handle_timeout(signum, frame):
+        raise TimeoutError(f"Timed out after {seconds} seconds.")
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, _handle_timeout)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def _normalize_task(task: Dict, dataset_name: str) -> Dict:
@@ -64,11 +85,72 @@ def load_tasks(input_file: str = None, mode: str = "compare"):
 
     return []
 
-def run_benchmark(num_tasks: int = None, mode: str = "compare", model_name: str = None, output_file: str = None, resume: bool = False, input_file: str = None):
+
+def _run_stage(label: str, fn, timeout_seconds: int | None):
+    start = time.time()
+    try:
+        with _time_limit(timeout_seconds):
+            result = fn()
+        return {
+            "ok": True,
+            "result": result,
+            "latency_seconds": time.time() - start,
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "result": None,
+            "latency_seconds": time.time() - start,
+            "error": str(exc),
+        }
+
+
+def _build_failed_mode_result(mode_name: str, error: str) -> Dict:
+    return {
+        "answer": f"ERROR: {mode_name} stage failed: {error}",
+        "error": error,
+    }
+
+
+def _build_failed_judgment(error: str, answers: Dict[str, str], latencies: Dict[str, float]) -> Dict:
+    return {
+        "error": error,
+        "winner": "error",
+        "ranking": list(answers.keys()),
+        "rationale": "Evaluation failed due to timeout or runtime error.",
+        "modes": {
+            mode_name: {
+                "keyword_coverage": 0.0,
+                "faithfulness": 0.0,
+                "relevancy": 0.0,
+                "completeness": 0.0,
+                "insurance_factor": 0.0,
+                "overall_score": 0,
+                "hallucination_detected": False,
+                "latency_seconds": latency,
+                "error": answers.get(mode_name, ""),
+            }
+            for mode_name, latency in latencies.items()
+        },
+    }
+
+
+def run_benchmark(
+    num_tasks: int = None,
+    mode: str = "compare",
+    model_name: str = None,
+    output_file: str = None,
+    resume: bool = False,
+    input_file: str = None,
+    stage_timeout: int | None = 90,
+    judge_timeout: int | None = 90,
+):
     print("="*60)
     print(f"RAG Comparison Benchmark ({mode.upper()})")
     print(f"Input: {input_file or 'Default'}")
     print(f"Model: {model_name or config.OLLAMA_MODEL}")
+    print(f"Stage timeout: {stage_timeout or 'disabled'}s | Judge timeout: {judge_timeout or 'disabled'}s")
     print("="*60)
     
     # Setup output path
@@ -136,40 +218,79 @@ def run_benchmark(num_tasks: int = None, mode: str = "compare", model_name: str 
         mode_results = {}
         
         if doc_rag:
-            start = time.time()
-            res = doc_rag.generate_answer(question)
-            latencies["doc"] = time.time() - start
-            answers["doc"] = res.get("answer", "ERROR")
-            evidence_by_mode["doc"] = res.get("context_text", "No document context.")
-            mode_results["doc"] = res
+            print("  -> Running doc stage...")
+            stage = _run_stage("doc", lambda: doc_rag.generate_answer(question), stage_timeout)
+            latencies["doc"] = stage["latency_seconds"]
+            if stage["ok"]:
+                res = stage["result"]
+                answers["doc"] = res.get("answer", "ERROR")
+                evidence_by_mode["doc"] = res.get("context_text", "No document context.")
+                mode_results["doc"] = res
+                print(f"     doc done in {latencies['doc']:.2f}s")
+            else:
+                error = stage["error"] or "Unknown error."
+                answers["doc"] = f"ERROR: {error}"
+                evidence_by_mode["doc"] = f"doc stage failed: {error}"
+                mode_results["doc"] = _build_failed_mode_result("doc", error)
+                print(f"     doc failed in {latencies['doc']:.2f}s: {error}")
             
         if graph_rag:
-            start = time.time()
-            res = graph_rag.generate_answer(question)
-            latencies["graph"] = time.time() - start
-            answers["graph"] = res.get("answer", "ERROR")
-            evidence_by_mode["graph"] = res.get("context_used", "No graph context.")
-            mode_results["graph"] = res
+            print("  -> Running graph stage...")
+            stage = _run_stage("graph", lambda: graph_rag.generate_answer(question), stage_timeout)
+            latencies["graph"] = stage["latency_seconds"]
+            if stage["ok"]:
+                res = stage["result"]
+                answers["graph"] = res.get("answer", "ERROR")
+                evidence_by_mode["graph"] = res.get("context_used", "No graph context.")
+                mode_results["graph"] = res
+                print(f"     graph done in {latencies['graph']:.2f}s")
+            else:
+                error = stage["error"] or "Unknown error."
+                answers["graph"] = f"ERROR: {error}"
+                evidence_by_mode["graph"] = f"graph stage failed: {error}"
+                mode_results["graph"] = _build_failed_mode_result("graph", error)
+                print(f"     graph failed in {latencies['graph']:.2f}s: {error}")
             
         if hybrid_rag:
-            start = time.time()
-            res = hybrid_rag.generate_answer(question)
-            latencies["hybrid"] = time.time() - start
-            answers["hybrid"] = res.get("answer", "ERROR")
-            evidence_by_mode["hybrid"] = (
-                f"Knowledge Graph Context:\n{res.get('graph_context', 'No graph context.')}\n\n"
-                f"Document Context:\n{res.get('doc_context', 'No document context.')}"
-            )
-            mode_results["hybrid"] = res
+            print("  -> Running hybrid stage...")
+            stage = _run_stage("hybrid", lambda: hybrid_rag.generate_answer(question), stage_timeout)
+            latencies["hybrid"] = stage["latency_seconds"]
+            if stage["ok"]:
+                res = stage["result"]
+                answers["hybrid"] = res.get("answer", "ERROR")
+                evidence_by_mode["hybrid"] = (
+                    f"Knowledge Graph Context:\n{res.get('graph_context', 'No graph context.')}\n\n"
+                    f"Document Context:\n{res.get('doc_context', 'No document context.')}"
+                )
+                mode_results["hybrid"] = res
+                print(f"     hybrid done in {latencies['hybrid']:.2f}s")
+            else:
+                error = stage["error"] or "Unknown error."
+                answers["hybrid"] = f"ERROR: {error}"
+                evidence_by_mode["hybrid"] = f"hybrid stage failed: {error}"
+                mode_results["hybrid"] = _build_failed_mode_result("hybrid", error)
+                print(f"     hybrid failed in {latencies['hybrid']:.2f}s: {error}")
             
         # Judge the results
-        judgment = judge.judge_answers(
-            question,
-            keywords,
-            answers,
-            expected_answer=expected_answer,
-            evidence_by_mode=evidence_by_mode,
+        print("  -> Running judge stage...")
+        judgment_stage = _run_stage(
+            "judge",
+            lambda: judge.judge_answers(
+                question,
+                keywords,
+                answers,
+                expected_answer=expected_answer,
+                evidence_by_mode=evidence_by_mode,
+            ),
+            judge_timeout,
         )
+        if judgment_stage["ok"]:
+            judgment = judgment_stage["result"]
+            print(f"     judge done in {judgment_stage['latency_seconds']:.2f}s")
+        else:
+            error = judgment_stage["error"] or "Unknown error."
+            judgment = _build_failed_judgment(error, answers, latencies)
+            print(f"     judge failed in {judgment_stage['latency_seconds']:.2f}s: {error}")
         
         # Merge automated metrics into judgment for recording
         if "modes" in judgment:
@@ -199,6 +320,8 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output JSON filename (relative to root or absolute)")
     parser.add_argument("-i", "--input", help="Input dataset JSON filename")
     parser.add_argument("--resume", action="store_true", help="Resume from existing output file")
+    parser.add_argument("--stage-timeout", type=int, default=90, help="Per-mode timeout in seconds; 0 disables.")
+    parser.add_argument("--judge-timeout", type=int, default=90, help="Judge timeout in seconds; 0 disables.")
     
     args = parser.parse_args()
     
@@ -213,5 +336,7 @@ if __name__ == "__main__":
         model_name=selected_model,
         output_file=args.output,
         resume=args.resume,
-        input_file=args.input
+        input_file=args.input,
+        stage_timeout=args.stage_timeout or None,
+        judge_timeout=args.judge_timeout or None,
     )
