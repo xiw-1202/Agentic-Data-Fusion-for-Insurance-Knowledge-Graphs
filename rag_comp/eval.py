@@ -281,6 +281,7 @@ def run_benchmark(
                 answers,
                 expected_answer=expected_answer,
                 evidence_by_mode=evidence_by_mode,
+                task_category=task.get("category", ""),
             ),
             judge_timeout,
         )

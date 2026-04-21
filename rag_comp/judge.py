@@ -35,6 +35,7 @@ class RAGJudge:
         answers: Dict[str, str],
         expected_answer: str = "",
         evidence_by_mode: Dict[str, str] | None = None,
+        task_category: str = "",
     ) -> Dict[str, Any]:
         """
         Evaluate multiple answers to the same question.
@@ -46,6 +47,7 @@ class RAGJudge:
         You are an expert insurance auditor. Evaluate the following answers to a specific question based on ground truth keywords and insurance domain standards.
         
         Question: {question}
+        Task Category: {task_category}
         Grounded Expected Answer: {expected_answer}
         Ground Truth Keywords (Must be addressed): {keywords}
         
@@ -63,6 +65,13 @@ class RAGJudge:
         4. completeness (0.0 to 1.0): Does it cover all aspects of the inquiry?
         5. insurance_factor (0.0 to 1.0): Does it use correct insurance terminology and logic?
         6. overall_score (1-10): General quality assessment.
+
+        Special scoring guidance:
+        - If the expected answer is an abstention, reward answers that explicitly abstain and preserve the reason:
+          either the claim/entity does not exist, or the claim exists but the requested fact/path is not represented.
+        - Penalize confident guessed answers on unanswerable questions very heavily.
+        - For aggregation questions, exact numeric correctness and exact top-k/ranking correctness matter more than verbosity.
+        - For constrained multi-hop questions, completeness means satisfying all requested parts of the graph path, not just one fact.
 
         Rank the answers from 1 (Best) to 3 (Worst). Use the mode names: {mode_names}.
         
@@ -102,6 +111,7 @@ class RAGJudge:
         try:
             return chain.invoke({
                 "question": question,
+                "task_category": task_category or "unspecified",
                 "expected_answer": expected_answer or "Not provided.",
                 "keywords": ", ".join(ground_truth_keywords),
                 "answers_formatted": formatted_answers,

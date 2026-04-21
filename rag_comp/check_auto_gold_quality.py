@@ -72,6 +72,9 @@ CATEGORY_SOURCE_RULES = {
     "1_hop": {"min": 2},
     "2_hop": {"min": 3},
     "cross_source": {"exact": 2},
+    "aggregation": {"min": 1},
+    "unanswerable": {"min": 1},
+    "constrained_multi_hop": {"min": 4},
 }
 
 

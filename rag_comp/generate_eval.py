@@ -3,7 +3,7 @@ import sys
 import json
 import random
 import argparse
-from typing import List, Dict
+from typing import Any, Dict, List
 
 # Allow imports from project root
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +42,163 @@ SEED_QUESTIONS = [
     }
 ]
 
+
+def _limit_sample(items: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+    if len(items) <= limit:
+        return items
+    return random.sample(items, limit)
+
+
+def _entity_exists(session, entity_id: str) -> bool:
+    record = session.run(
+        """
+        MATCH (n:Entity {id: $entity_id})
+        RETURN n.id AS id
+        LIMIT 1
+        """,
+        entity_id=entity_id,
+    ).single()
+    return record is not None
+
+
+def _next_missing_claim_id(session, seed: int) -> str:
+    candidate_num = seed
+    while True:
+        candidate = f"CLM-NOT-FOUND-{candidate_num:03d}"
+        if not _entity_exists(session, candidate):
+            return candidate
+        candidate_num += 1
+
+
+def _build_nonexistent_claim_task(claim_id: str, requested_fact: str) -> Dict[str, Any]:
+    return {
+        "category": "unanswerable",
+        "question": f"What {requested_fact} is associated with claim {claim_id}?",
+        "expected_answer": (
+            f"Abstain: claim {claim_id} does not exist in the available knowledge graph, "
+            f"so its {requested_fact} cannot be determined from this data."
+        ),
+        "keywords": [claim_id, "does not exist", "cannot be determined"],
+        "source_ids": [claim_id],
+        "support": {"abstention_reason": "claim_missing"},
+    }
+
+
+def _build_missing_fact_task(
+    claim_id: str,
+    requested_fact: str,
+    missing_path_label: str,
+) -> Dict[str, Any]:
+    return {
+        "category": "unanswerable",
+        "question": f"What {requested_fact} is associated with claim {claim_id}?",
+        "expected_answer": (
+            f"Abstain: claim {claim_id} exists in the available knowledge graph, but no "
+            f"{missing_path_label} path or fact is represented for it, so the requested "
+            f"{requested_fact} cannot be determined from this data."
+        ),
+        "keywords": [claim_id, "exists", "cannot be determined"],
+        "source_ids": [claim_id],
+        "support": {"abstention_reason": "missing_fact_or_path", "missing_path": missing_path_label},
+    }
+
+
+def _build_organization_count_task(org_id: str, claim_count: int) -> Dict[str, Any]:
+    return {
+        "category": "aggregation",
+        "question": "Which organization is connected to the most claims, and how many claims is it connected to?",
+        "expected_answer": f"{org_id} is connected to the most claims, with {claim_count} claims.",
+        "keywords": [org_id, str(claim_count), "most claims"],
+        "source_ids": [org_id],
+        "support": {"query_type": "top_count"},
+    }
+
+
+def _build_distinct_account_count_task(account_count: int, sample_accounts: List[str]) -> Dict[str, Any]:
+    source_ids = sample_accounts[:3] if sample_accounts else [str(account_count)]
+    return {
+        "category": "aggregation",
+        "question": "How many distinct ACCT_NAME values are associated with claim-linked persons?",
+        "expected_answer": (
+            f"There are {account_count} distinct ACCT_NAME values associated with claim-linked persons."
+        ),
+        "keywords": [str(account_count), "ACCT_NAME", "distinct"],
+        "source_ids": source_ids,
+        "support": {"query_type": "count_distinct"},
+    }
+
+
+def _build_claim_coverage_count_task(claim_count: int) -> Dict[str, Any]:
+    return {
+        "category": "aggregation",
+        "question": "How many claims have both a linked person and a policy number in the knowledge graph?",
+        "expected_answer": (
+            f"There are {claim_count} claims that have both a linked person and a policy number."
+        ),
+        "keywords": [str(claim_count), "linked person", "policy number"],
+        "source_ids": [str(claim_count)],
+        "support": {"query_type": "count_with_required_relationships"},
+    }
+
+
+def _build_relationship_ranking_task(relationship_summary: List[Dict[str, Any]]) -> Dict[str, Any]:
+    relationship_names = [item["relationship"] for item in relationship_summary]
+    summary_text = ", ".join(
+        f"{item['relationship']} ({item['frequency']})" for item in relationship_summary
+    )
+    return {
+        "category": "aggregation",
+        "question": "What are the top 3 most common relationship types connected to claim nodes in the graph?",
+        "expected_answer": f"The top 3 relationship types connected to claim nodes are {summary_text}.",
+        "keywords": relationship_names[:3],
+        "source_ids": relationship_names[:3],
+        "support": {"query_type": "top_relationships"},
+    }
+
+
+def _build_constrained_person_org_account_task(
+    claim_id: str,
+    person_id: str,
+    org_id: str,
+    acct_id: str,
+) -> Dict[str, Any]:
+    return {
+        "category": "constrained_multi_hop",
+        "question": (
+            f"For claim {claim_id}, which person is linked to the claim, and what organization "
+            "and ACCT_NAME are associated with that same person?"
+        ),
+        "expected_answer": (
+            f"Claim {claim_id} belongs to {person_id}, whose organization is {org_id} and "
+            f"whose ACCT_NAME is {acct_id}."
+        ),
+        "keywords": [claim_id, person_id, org_id, acct_id],
+        "source_ids": [claim_id, person_id, org_id, acct_id],
+        "support": {"query_type": "claim_person_org_account"},
+    }
+
+
+def _build_constrained_policy_lob_task(
+    claim_id: str,
+    person_id: str,
+    policy_id: str,
+    lob_id: str,
+) -> Dict[str, Any]:
+    return {
+        "category": "constrained_multi_hop",
+        "question": (
+            f"For claim {claim_id}, which person is linked to it, and what policy number and "
+            "line of business are recorded for that same claim?"
+        ),
+        "expected_answer": (
+            f"Claim {claim_id} is linked to {person_id}, with policy number {policy_id} and "
+            f"line of business {lob_id}."
+        ),
+        "keywords": [claim_id, person_id, policy_id, lob_id],
+        "source_ids": [claim_id, person_id, policy_id, lob_id],
+        "support": {"query_type": "claim_person_policy_lob"},
+    }
+
 def load_chunks():
     path = os.path.join(_ROOT, config.CHUNKS_FILE)
     if os.path.exists(path):
@@ -49,11 +206,195 @@ def load_chunks():
             return json.load(f)
     return []
 
+
+def fetch_aggregation_tasks(session) -> List[Dict[str, Any]]:
+    tasks: List[Dict[str, Any]] = []
+
+    record = session.run(
+        """
+        MATCH (c:Entity)-[:BELONGS_TO]->(p:Entity)-[:HAS_ACCT_NAME]->(acct:Entity)
+        WHERE c.id STARTS WITH 'CLM' AND p.id STARTS WITH 'PER'
+        RETURN count(DISTINCT acct.id) AS acct_count, collect(DISTINCT acct.id)[0..5] AS sample_accounts
+        """
+    ).single()
+    if record and record["acct_count"] is not None:
+        tasks.append(
+            _build_distinct_account_count_task(
+                int(record["acct_count"]),
+                [str(value) for value in record["sample_accounts"] or []],
+            )
+        )
+
+    record = session.run(
+        """
+        MATCH (c:Entity)-[:BELONGS_TO]->(:Entity)-[:HAS_ORGANIZATION_NAME]->(org:Entity)
+        WHERE c.id STARTS WITH 'CLM'
+        RETURN org.id AS org_id, count(DISTINCT c) AS claim_count
+        ORDER BY claim_count DESC, org_id ASC
+        LIMIT 1
+        """
+    ).single()
+    if record and record["org_id"] is not None:
+        tasks.append(
+            _build_organization_count_task(
+                str(record["org_id"]),
+                int(record["claim_count"]),
+            )
+        )
+
+    record = session.run(
+        """
+        MATCH (c:Entity)
+        WHERE c.id STARTS WITH 'CLM'
+          AND EXISTS { MATCH (c)-[:BELONGS_TO]->(:Entity) }
+          AND EXISTS { MATCH (c)-[:HAS_POLICY_NUMBER]->(:Entity) }
+        RETURN count(DISTINCT c) AS claim_count
+        """
+    ).single()
+    if record and record["claim_count"] is not None:
+        tasks.append(_build_claim_coverage_count_task(int(record["claim_count"])))
+
+    relationship_rows = list(
+        session.run(
+            """
+            MATCH (c:Entity)-[r]-()
+            WHERE c.id STARTS WITH 'CLM'
+            RETURN type(r) AS relationship, count(*) AS frequency
+            ORDER BY frequency DESC, relationship ASC
+            LIMIT 3
+            """
+        )
+    )
+    if relationship_rows:
+        tasks.append(
+            _build_relationship_ranking_task(
+                [
+                    {
+                        "relationship": str(row["relationship"]),
+                        "frequency": int(row["frequency"]),
+                    }
+                    for row in relationship_rows
+                ]
+            )
+        )
+
+    return tasks
+
+
+def fetch_unanswerable_tasks(session) -> List[Dict[str, Any]]:
+    tasks: List[Dict[str, Any]] = []
+
+    missing_fact_claims = list(
+        session.run(
+            """
+            MATCH (c:Entity)
+            WHERE c.id STARTS WITH 'CLM'
+              AND EXISTS { MATCH (c)-[:BELONGS_TO]->(:Entity) }
+              AND NOT EXISTS { MATCH (c)-[:BELONGS_TO]->(:Entity)-[:HAS_SURVEY_NAME]->(:Entity) }
+            RETURN c.id AS claim_id
+            ORDER BY claim_id ASC
+            LIMIT 2
+            """
+        )
+    )
+    for row in missing_fact_claims:
+        tasks.append(
+            _build_missing_fact_task(
+                str(row["claim_id"]),
+                requested_fact="survey name",
+                missing_path_label="BELONGS_TO -> HAS_SURVEY_NAME",
+            )
+        )
+
+    missing_path_claims = list(
+        session.run(
+            """
+            MATCH (c:Entity)
+            WHERE c.id STARTS WITH 'CLM'
+              AND EXISTS { MATCH (c)-[:BELONGS_TO]->(:Entity) }
+              AND NOT EXISTS { MATCH (c)-[:BELONGS_TO]->(:Entity)-[:HAS_SURVEY_GATEWAY_NAME]->(:Entity) }
+            RETURN c.id AS claim_id
+            ORDER BY claim_id DESC
+            LIMIT 2
+            """
+        )
+    )
+    for row in missing_path_claims:
+        tasks.append(
+            _build_missing_fact_task(
+                str(row["claim_id"]),
+                requested_fact="survey gateway name",
+                missing_path_label="BELONGS_TO -> HAS_SURVEY_GATEWAY_NAME",
+            )
+        )
+
+    for seed, fact_name in enumerate(["policy number", "NPS score", "organization"], start=1):
+        missing_claim_id = _next_missing_claim_id(session, seed)
+        tasks.append(_build_nonexistent_claim_task(missing_claim_id, fact_name))
+
+    return tasks
+
+
+def fetch_constrained_multi_hop_tasks(session) -> List[Dict[str, Any]]:
+    tasks: List[Dict[str, Any]] = []
+
+    rows = list(
+        session.run(
+            """
+            MATCH (c:Entity)-[:BELONGS_TO]->(p:Entity)
+            MATCH (p)-[:HAS_ORGANIZATION_NAME]->(org:Entity)
+            MATCH (p)-[:HAS_ACCT_NAME]->(acct:Entity)
+            WHERE c.id STARTS WITH 'CLM' AND p.id STARTS WITH 'PER'
+            RETURN DISTINCT c.id AS claim_id, p.id AS person_id, org.id AS org_id, acct.id AS acct_id
+            ORDER BY claim_id ASC
+            LIMIT 4
+            """
+        )
+    )
+    for row in rows:
+        tasks.append(
+            _build_constrained_person_org_account_task(
+                str(row["claim_id"]),
+                str(row["person_id"]),
+                str(row["org_id"]),
+                str(row["acct_id"]),
+            )
+        )
+
+    rows = list(
+        session.run(
+            """
+            MATCH (c:Entity)-[:BELONGS_TO]->(p:Entity)
+            MATCH (c)-[:HAS_POLICY_NUMBER]->(policy:Entity)
+            MATCH (c)-[:HAS_LOB]->(lob:Entity)
+            WHERE c.id STARTS WITH 'CLM' AND p.id STARTS WITH 'PER'
+            RETURN DISTINCT c.id AS claim_id, p.id AS person_id, policy.id AS policy_id, lob.id AS lob_id
+            ORDER BY claim_id DESC
+            LIMIT 4
+            """
+        )
+    )
+    for row in rows:
+        tasks.append(
+            _build_constrained_policy_lob_task(
+                str(row["claim_id"]),
+                str(row["person_id"]),
+                str(row["policy_id"]),
+                str(row["lob_id"]),
+            )
+        )
+
+    return tasks
+
+
 def fetch_motifs(session):
     motifs = {
         "1_hop": [],
         "2_hop": [],
-        "cross_source": []
+        "cross_source": [],
+        "aggregation": fetch_aggregation_tasks(session),
+        "unanswerable": fetch_unanswerable_tasks(session),
+        "constrained_multi_hop": fetch_constrained_multi_hop_tasks(session),
     }
     
     # 1-hop: Claim/Policy to Attribute
@@ -131,10 +472,20 @@ def fetch_motifs(session):
             break
 
     return {
-        "1_hop": random.sample(motifs["1_hop"], min(15, len(motifs["1_hop"]))),
-        "2_hop": random.sample(motifs["2_hop"], min(15, len(motifs["2_hop"]))),
-        "cross_source": motifs["cross_source"]
+        "1_hop": _limit_sample(motifs["1_hop"], 15),
+        "2_hop": _limit_sample(motifs["2_hop"], 15),
+        "cross_source": motifs["cross_source"],
+        "aggregation": _limit_sample(motifs["aggregation"], 8),
+        "unanswerable": _limit_sample(motifs["unanswerable"], 8),
+        "constrained_multi_hop": _limit_sample(motifs["constrained_multi_hop"], 8),
     }
+
+
+def _log_category_summary(motifs: Dict[str, List[Dict[str, Any]]]) -> None:
+    print("Question candidates by category:")
+    for category, items in motifs.items():
+        print(f"  - {category}: {len(items)}")
+
 
 def generate_questions(motifs, llm, existing_questions=None):
     if existing_questions:
@@ -143,11 +494,28 @@ def generate_questions(motifs, llm, existing_questions=None):
         questions = SEED_QUESTIONS.copy()
         
     task_id = len(questions) + 1
+
+    print(f"Starting question generation from task ID {task_id}.")
     
     for category, subgraph_list in motifs.items():
-        if not subgraph_list: continue
+        if not subgraph_list:
+            print(f"Skipping {category}: no candidate items found.")
+            continue
+
+        print(f"\nProcessing category '{category}' with {len(subgraph_list)} item(s).")
         
-        for item in subgraph_list:
+        for index, item in enumerate(subgraph_list, start=1):
+            if "question" in item and "expected_answer" in item:
+                data = dict(item)
+                data["id"] = f"gen_{task_id}"
+                questions.append(data)
+                print(
+                    f"  [{category} {index}/{len(subgraph_list)}] "
+                    f"Added deterministic question {data['id']}: {data['question'][:90]}"
+                )
+                task_id += 1
+                continue
+
             subgraph = item["subgraph"]
             source_ids = item["source_ids"]
             
@@ -194,7 +562,10 @@ Instructions:
 }}
 """
             try:
-                print(f"Generating for {category} [{task_id}]...")
+                print(
+                    f"  [{category} {index}/{len(subgraph_list)}] "
+                    f"Generating LLM-backed question {task_id}..."
+                )
                 response = llm.invoke([HumanMessage(content=prompt)])
                 content = response.content.strip()
                 if "```json" in content:
@@ -204,9 +575,15 @@ Instructions:
                 data['id'] = f"gen_{task_id}"
                 data['source_ids'] = source_ids
                 questions.append(data)
+                print(
+                    f"     Saved {data['id']}: {data.get('question', '')[:90]}"
+                )
                 task_id += 1
             except Exception as e:
-                print(f"  [Error] {e}")
+                print(
+                    f"     Error while generating category '{category}' item "
+                    f"{index}/{len(subgraph_list)}: {e}"
+                )
                 
     return questions
 
@@ -236,7 +613,14 @@ def run():
             args.mode = "full"
 
     driver = GraphDatabase.driver(config.NEO4J_URI, auth=(config.NEO4J_USERNAME, config.NEO4J_PASSWORD))
-    motifs = {"1_hop": [], "2_hop": [], "cross_source": []}
+    motifs = {
+        "1_hop": [],
+        "2_hop": [],
+        "cross_source": [],
+        "aggregation": [],
+        "unanswerable": [],
+        "constrained_multi_hop": [],
+    }
     
     try:
         with driver.session(database=config.NEO4J_DATABASE) as session:
@@ -245,6 +629,7 @@ def run():
                 motifs = {"cross_source": all_motifs["cross_source"]}
             else:
                 motifs = all_motifs
+            _log_category_summary(motifs)
     except Exception as e:
         print(f"Could not connect to Neo4j to mine motifs: {e}")
         if args.mode == "full":
