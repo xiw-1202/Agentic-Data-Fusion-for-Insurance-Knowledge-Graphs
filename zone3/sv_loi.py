@@ -66,143 +66,29 @@ from zone3.graph_cache import (
     is_concept_entity,
     STRUCTURED_PREFIXES,
 )
-
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-BATCH_SIZE = 15          # entities per LLM typing prompt (smaller = more context per entity)
-MAX_MEMBERS_IN_PROMPT = 15
-MIN_CLASS_SIZE = 10      # fallback floor — actual threshold is max(this, 1% of entities)
-DEVIATION_THRESHOLD = 2.0  # σ threshold for structural flagging
-MAX_ARBITRATION_BATCH = 10  # entities per arbitration prompt
-MAX_CLASS_FRACTION = 0.25  # no single class should exceed 25% of entities
-
-# Structured entity prefixes — these already have entity_type from Stage 1.
-# SV-LOI should use their existing types directly, not re-classify via LLM.
-_STRUCTURED_PREFIXES = STRUCTURED_PREFIXES
-
-# Target class count range (guide for class discovery)
-# Higher minimum to counteract consolidation over-merging
-TARGET_CLASSES_MIN = 8
-TARGET_CLASSES_MAX = 15
-
-# REMOVED: PROTECTED_CLASS_NAMES was a hardcoded list that overlapped with
-# Riskine reference classes (domain leakage). Protection is now data-driven:
-# merge_leaf_classes() uses relational diversity (distinct_rels < 4) to
-# distinguish property-value classes from real ontology classes.
-# Classes with rich relational structure survive merging naturally.
-PROTECTED_CLASS_NAMES: set[str] = set()  # empty — fully data-driven
-
-# Forbidden class names — data types masquerading as ontology classes
-FORBIDDEN_CLASS_NAMES = {
-    "financialamount", "timperiod", "timeperiod", "measurement", "amount",
-    "number", "date", "text", "quantity", "value", "metric", "event",
-    "condition", "location", "data", "record", "entry", "item", "type",
-    "category", "group", "class", "entity", "thing", "other",
-}
-
-# Zone 2 entity_type → ontology class name normalization.
-# Maps extraction-level labels to domain-role class names.
-# None = drop (data type / attribute, not an ontology class).
-# Types not in this map pass through as-is.
-ZONE2_TYPE_NORMALIZATION: dict[str, str | None] = {
-    "InsurancePolicy": "Policy",
-    "CoverageType": "Coverage",
-    "ExcludedPeril": "Exclusion",
-    "InsuredProperty": "Property",
-    "InsuredItem": "Property",
-    "Claimant": "Person",
-    "ServiceProvider": "Organization",
-    "WarrantyProvider": "Organization",
-    "RepairFacility": "Organization",
-    "DeductibleAmount": None,
-    "FinancialTransaction": None,
-    "ClaimStatus": None,
-    "PolicyCoverageLimit": None,
-    "StateRegulation": None,
-    "ServiceContractTerm": None,
-}
-
-
-# ---------------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------------
-
-def get_llm(model: str) -> ChatOllama:
-    return ChatOllama(
-        model=model,
-        base_url=config.OLLAMA_BASE_URL,
-        temperature=0,
-    )
-
-
-def get_neo4j_graph() -> Neo4jGraph:
-    return Neo4jGraph(
-        url=config.NEO4J_URI,
-        username=config.NEO4J_USERNAME,
-        password=config.NEO4J_PASSWORD,
-        database=config.NEO4J_DATABASE,
-    )
-
-
-def _sanitize_label(name: str) -> str:
-    """Make a PascalCase name safe for Neo4j label."""
-    cleaned = re.sub(r'[^A-Za-z0-9]', '', name.strip())
-    if not cleaned:
-        return "UnknownClass"
-    if cleaned[0].isdigit():
-        cleaned = "Class" + cleaned
-    return cleaned
-
-
-def _sanitize_rel_type(name: str) -> str:
-    """Make a relation type name safe for Neo4j. Preserves underscores."""
-    cleaned = re.sub(r'[^A-Za-z0-9_]', '', name.strip())
-    if not cleaned:
-        return "UNKNOWN_REL"
-    return cleaned
-
-
-def _parse_json_safely(text: str) -> Union[dict, list]:
-    """Try to parse JSON from LLM output with fallbacks."""
-    text = text.strip()
-    # Strip markdown code fences: ```json ... ``` or ``` ... ```
-    text = re.sub(r'^```(?:json)?\s*\n?', '', text)
-    text = re.sub(r'\n?```\s*$', '', text)
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        pass
-    m = re.search(r'\[.*\]', text, re.DOTALL) or re.search(r'\{.*\}', text, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group())
-        except (json.JSONDecodeError, ValueError):
-            pass
-    return {}
-
-
-def _invoke_llm(llm: ChatOllama, prompt: str) -> str:
-    """Call LLM and return content string."""
-    try:
-        resp = llm.invoke([HumanMessage(content=prompt)])
-        return resp.content if hasattr(resp, "content") else str(resp)
-    except Exception as e:
-        print(f"    [llm] Error: {e}")
-        return ""
-
-
-# ---------------------------------------------------------------------------
-# Step 1: Load Entities from Neo4j (reused from RSI-LCR)
-# ---------------------------------------------------------------------------
-
-def load_entities() -> list[dict]:
-    """Load all Entity nodes from local cache (zero Neo4j round-trips)."""
-    print("\n[Phase 0] Load graph cache", flush=True)
-    return load_cached_entities(fmt="sv_loi")
+from zone3._svloi.constants import (
+    BATCH_SIZE,
+    MAX_MEMBERS_IN_PROMPT,
+    MIN_CLASS_SIZE,
+    DEVIATION_THRESHOLD,
+    MAX_ARBITRATION_BATCH,
+    MAX_CLASS_FRACTION,
+    _STRUCTURED_PREFIXES,
+    TARGET_CLASSES_MIN,
+    TARGET_CLASSES_MAX,
+    PROTECTED_CLASS_NAMES,
+    FORBIDDEN_CLASS_NAMES,
+    ZONE2_TYPE_NORMALIZATION,
+)
+from zone3._svloi.utils import (
+    get_llm,
+    get_neo4j_graph,
+    _sanitize_label,
+    _sanitize_rel_type,
+    _parse_json_safely,
+    _invoke_llm,
+    load_entities,
+)
 
 
 # ---------------------------------------------------------------------------
