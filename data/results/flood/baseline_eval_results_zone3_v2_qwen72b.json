@@ -1,0 +1,1574 @@
+{
+  "mode": "zone3_v2_qwen72b",
+  "baseline_metrics": {
+    "total_nodes": 5999,
+    "total_relationships": 24457,
+    "unique_labels": 12,
+    "duplicate_node_count": 0,
+    "duplication_rate": 0.0,
+    "concepts_with_multiple_labels": 1,
+    "type_inconsistency_rate": 0.1,
+    "tasks_total": 40,
+    "tasks_with_results": 20,
+    "tasks_keyword_match": 11,
+    "query_accuracy": 0.275,
+    "model": "qwen2.5:72b",
+    "riskine_precision": 0.3333,
+    "riskine_recall": 0.1923,
+    "riskine_f1": 0.2439,
+    "riskine_available": true
+  },
+  "duplication_detail": {
+    "duplicate_groups": 0,
+    "total_duplicated_nodes": 0,
+    "excess_nodes": 0
+  },
+  "type_consistency_detail": {
+    "total_labels": 11,
+    "unique_root_concepts": 10,
+    "concepts_with_multiple_labels": 1,
+    "examples": {
+      "temporal": [
+        "Temporal",
+        "TemporalEvent"
+      ]
+    }
+  },
+  "task_results": [
+    {
+      "id": 1,
+      "category": "coverage",
+      "question": "What types of property does NFIP cover under the General Property Form?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Property",
+          "labels(n)": [
+            "Entity",
+            "Record"
+          ]
+        },
+        {
+          "n.id": "How likely is it that you would recommend Assurant renter's insurance/Assurant Property Claims to a friend or colleague?",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Your communication is confusing and it seems as though through your communication that our coverage has lapsed. It needs to be organized and also the CSR need to be able to be on the same page instead of having to search and reach out to others for valid information.",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "category": "coverage",
+      "question": "What is the maximum limit for Increased Cost of Compliance (ICC / Coverage D) under NFIP?",
+      "rows_returned": 3,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "PHP Coverage Documents",
+          "type(r)": "EFFECTIVE_AFTER",
+          "m.id": "Enrollment"
+        },
+        {
+          "n.id": "PHP Coverage Documents",
+          "type(r)": "CAN_BE_VIEWED_AT",
+          "m.id": "My Documents Tab"
+        },
+        {
+          "n.id": "PHP Coverage Documents",
+          "type(r)": "HAS_EXPIRATION_PERIOD",
+          "m.id": "2 years after enrollment"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "category": "coverage",
+      "question": "What personal property is insured under Coverage B of the NFIP SFIP?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "covamt liab"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "category": "exclusions",
+      "question": "What types of damage are excluded from NFIP coverage?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Vehicle Service Contract",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Automotive Retailer Warranties"
+        },
+        {
+          "n.id": "SERVICE CONTRACT",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Lubricants or Fluids"
+        },
+        {
+          "n.id": "SERVICE CONTRACT",
+          "type(r)": "EXCLUDED_FROM",
+          "m.id": "Manufacturer\u2019s Maintenance Schedule"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "category": "exclusions",
+      "question": "Is flood damage from earth movement covered?",
+      "rows_returned": 6,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Endorsement Earthquake",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "endorsement earthquake code",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "endorsement earthquake nwp",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "category": "policy_terms",
+      "question": "Under NFIP, how many continuous days must a lake flood an insured building before a pre-loss claim may be filed?",
+      "rows_returned": 10,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "CLM-c9d69eae95c5",
+          "type(r)": "HAS_POLICY_NO",
+          "m.id": "REN275361900"
+        },
+        {
+          "n.id": "CLM-265842ca5e9d",
+          "type(r)": "BELONGS_TO",
+          "m.id": "PER-475b5396d190"
+        },
+        {
+          "n.id": "CLM-265842ca5e9d",
+          "type(r)": "HAS_SURVEY_ID",
+          "m.id": "27090"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "category": "policy_terms",
+      "question": "What flood zones are mentioned in the SFIP?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Vehicle Service Contract",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Assurant Global Home",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Claims CWA Email",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "category": "policy_terms",
+      "question": "What is Increased Cost of Compliance (ICC) coverage?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "GLBA Compliance Support",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "category": "claims",
+      "question": "What must a policyholder do after a flood loss?",
+      "rows_returned": 20,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "CLM-94ca7cc26d29",
+          "type(r)": "HAS_REPORT_PERIOD",
+          "m.id": "202309"
+        },
+        {
+          "n.id": "CLM-5d8b9a1f7e5c",
+          "type(r)": "HAS_REPORT_DT_ID",
+          "m.id": "45640"
+        },
+        {
+          "n.id": "CLM-5d8b9a1f7e5c",
+          "type(r)": "HAS_REPORT_DATE",
+          "m.id": "2021-11-13"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "category": "claims",
+      "question": "What is the deadline for filing a proof of loss?",
+      "rows_returned": 7,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "I tried to update vehicles on my policy. I was told over half a dozen times that the problem was escalated and it never was. It had been over two weeks and no update on my account or my billing to reflect the vehicle changed since September 20 when I asked for the request. Two weeks is way too long to not have an update or proof on my account for insurance on a vehicle. When I asked for a document stating that I wanted to remove two vehicles on September 20 until current and add another vehicle since September 20 until current and that my bill needed to reflect that the document they sent me was completely wrong you guys do not listen and you do not care. I will not be paying my bill until you guys fix your issues."
+        },
+        {
+          "n.id": "Failure to Show Proof of Servicing"
+        },
+        {
+          "n.id": "Proof of Servicing"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "category": "definitions",
+      "question": "How does NFIP define 'flood'?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 12,
+      "category": "definitions",
+      "question": "What is the definition of a 'building' under NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 13,
+      "category": "coverage",
+      "question": "Does NFIP cover basement contents?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 14,
+      "category": "coverage",
+      "question": "What personal property is covered under contents coverage?",
+      "rows_returned": 1,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Coverage B",
+          "type(r)": "HAS_COVERAGE_LIMIT",
+          "m.id": "covamt liab"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "category": "policy_terms",
+      "question": "What happens if there is a coinsurance or other insurance?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "I recommend that everyone should have rental insurance on their personal belongings. Most do not realize that other insurance does not cover personal belongings. Assurant staff really broke it down for me and gave me all the information I needed. I am glad and proud to have Assurant behind me. They have my back."
+        },
+        {
+          "n.id": "Other Insurance Obtained"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "category": "claims",
+      "question": "What is the appraisal process for resolving disputes about the amount of an NFIP loss?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "n.id": "Local Court for Dispute on Application",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Dispute Arised Date",
+          "labels(n)": [
+            "Entity"
+          ]
+        },
+        {
+          "n.id": "Unresolved Disputes",
+          "labels(n)": [
+            "Entity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "category": "coverage",
+      "question": "What improvements and betterments are covered?",
+      "rows_returned": 2,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "You guys work great, no improvement needed."
+        },
+        {
+          "n.id": "renter claim improvement"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "category": "exclusions",
+      "question": "What financial losses are excluded from NFIP (e.g., business interruption)?",
+      "rows_returned": 7,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "But the reason as to y'all's city rating is because y'all lie. I filed this claim on Monday, Thursday now, and y'all are just now asking me for payment information that I had already provided on Monday. I state that y'all just lie, y'all still for customers, y'all don't do what y'all, what time's job is, you know, I pay you for a service, y'all don't provide it whenever people actually need it, y'all have made me lose a lot of money because I am a business owner and I haven't had a phone, thanks to y'all. What else? I don't think that anybody should ever buy y'all services because y'all don't do what y'all are supposed to do. All right."
+        },
+        {
+          "n.id": "POWER INTERRUPTION"
+        },
+        {
+          "n.id": "Business Activities"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "category": "policy_terms",
+      "question": "How is the replacement cost value (RCV) determined for building coverage?",
+      "rows_returned": 9,
+      "has_results": true,
+      "keyword_match": false,
+      "sample": [
+        {
+          "n.id": "Our hardest part was not the device replacement, but getting help at the store. We needed to transfer data from a broken device to the new device. The first store we went to barely helped us at 14 Mile near I 75 in Troy, MI. They switched the sim card and that was it, reminding us that they closed soon. The next day we went to a T-Mobile at Square Lake Rd and Rochester Rd in Troy, MI. The screen was more black so it was even harder to work on it, they tried and succeeded at erasing the device and we were able to mail it back. The first location did not even try. Though doing the replacement form was fast, easy and we got the new device the next day. Very satisfied with that experience. Thank you!"
+        },
+        {
+          "n.id": "There\u2019s nothing more you can do to improve my experience. You did it all already (unless you can do same-day replacements, lol)."
+        },
+        {
+          "n.id": "The price for a replacement phone was definitely too high!?"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "category": "policy_terms",
+      "question": "What is the Liberalization Clause in NFIP?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 21,
+      "category": "structured_claims",
+      "question": "Are individual claim records represented as entities in the KG?",
+      "rows_returned": 3,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "id": "CLM-94ca7cc26d29",
+          "type": "ClaimRecord"
+        },
+        {
+          "id": "CLM-5d8b9a1f7e5c",
+          "type": "ClaimRecord"
+        },
+        {
+          "id": "CLM-c9d69eae95c5",
+          "type": "ClaimRecord"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "category": "structured_policies",
+      "question": "Are individual policy records represented as entities in the KG?",
+      "rows_returned": 3,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "id": "POL-14db98a10aee",
+          "type": "PolicyRecord"
+        },
+        {
+          "id": "POL-bf34e5ed32fe",
+          "type": "PolicyRecord"
+        },
+        {
+          "id": "POL-7ff8b9e52a18",
+          "type": "PolicyRecord"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "category": "structured_claims",
+      "question": "Do claim records have payment amount information?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 24,
+      "category": "structured_claims",
+      "question": "Do claim records have date of loss information?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 25,
+      "category": "structured_policies",
+      "question": "Do policy records have coverage amount information?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 26,
+      "category": "structured_policies",
+      "question": "Do policy records have flood zone classification?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 27,
+      "category": "cross_source",
+      "question": "Are any policy records linked to claim records?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 28,
+      "category": "cross_source",
+      "question": "Do structured records share flood zone values with PDF-extracted concepts?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 29,
+      "category": "structured_claims",
+      "question": "Do claim records have cause of damage information?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 30,
+      "category": "identity",
+      "question": "Are property identity nodes linking multiple records?",
+      "rows_returned": 5,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "property_id": "PROP-a5031828c747",
+          "linked_records": 1
+        },
+        {
+          "property_id": "PROP-c0607676b584",
+          "linked_records": 1
+        },
+        {
+          "property_id": "PROP-e5b6fefb5e3b",
+          "linked_records": 1
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "category": "claim_lookup",
+      "question": "Given a specific claim ID, what flood event and damage amounts are associated with it?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 32,
+      "category": "claim_lookup",
+      "question": "What claims were caused by a specific flood event (Hurricane Ike)?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 33,
+      "category": "policy_lookup",
+      "question": "Given a policy, what is its coverage amount and flood zone?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 34,
+      "category": "cross_source",
+      "question": "Find all claims belonging to the same property as a given policy?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 35,
+      "category": "claim_lookup",
+      "question": "What is the total payment amount for claims with water depth greater than 10?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 36,
+      "category": "policy_lookup",
+      "question": "Find policies in flood zone V (high-risk coastal)?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 37,
+      "category": "cross_source",
+      "question": "For a given property, list all associated policies and claims?",
+      "rows_returned": 15,
+      "has_results": true,
+      "keyword_match": true,
+      "sample": [
+        {
+          "property": "PROP-007c3b6dd9e6",
+          "record": "POL-b7c180354412",
+          "type": "PolicyRecord"
+        },
+        {
+          "property": "PROP-02ba4cb0c87e",
+          "record": "POL-4dc84704431f",
+          "type": "PolicyRecord"
+        },
+        {
+          "property": "PROP-06240821ed51",
+          "record": "POL-6c81c3204915",
+          "type": "PolicyRecord"
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "category": "claim_lookup",
+      "question": "What year had the most flood claims?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 39,
+      "category": "policy_lookup",
+      "question": "What are the most common occupancy types for insured properties?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    },
+    {
+      "id": 40,
+      "category": "cross_source",
+      "question": "Which properties have both policies and claims (cross-source linkage)?",
+      "rows_returned": 0,
+      "has_results": false,
+      "keyword_match": false,
+      "sample": []
+    }
+  ],
+  "riskine_detail": {
+    "suffix": "zone3_v2_qwen72b",
+    "precision": 0.3333,
+    "recall": 0.1923,
+    "f1": 0.2439,
+    "induced_label_count": 9,
+    "riskine_class_count": 26,
+    "riskine_covered_count": 5,
+    "alignment_table": [
+      {
+        "induced": "Asset",
+        "riskine": "BankAccount",
+        "cosine": 0.6068,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Hazard",
+        "riskine": "Damage",
+        "cosine": 0.7277,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Party",
+        "riskine": "Identification",
+        "cosine": 0.6336,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Value",
+        "riskine": "Damage",
+        "cosine": 0.646,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "Temporal",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_MATCH",
+        "score": 0.0
+      },
+      {
+        "induced": "TemporalEvent",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_CANDIDATE",
+        "score": 0.0
+      },
+      {
+        "induced": "Record",
+        "riskine": "Address",
+        "cosine": 0.645,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "BuildingFeature",
+        "riskine": "Coverage",
+        "cosine": 0.6031,
+        "verdict": "PARTIAL",
+        "score": 0.5
+      },
+      {
+        "induced": "DeductibleTerms",
+        "riskine": null,
+        "cosine": null,
+        "verdict": "NO_MATCH",
+        "score": 0.0
+      }
+    ],
+    "unmatched_induced": [
+      "Temporal",
+      "TemporalEvent",
+      "DeductibleTerms"
+    ],
+    "unmatched_riskine": [
+      "Animal",
+      "BusinessProcess",
+      "CreditCard",
+      "DataProcessing",
+      "DrivingLicense",
+      "Education",
+      "Employee",
+      "Finances",
+      "Object",
+      "Organization",
+      "Person",
+      "Preference",
+      "Product",
+      "Profession",
+      "Property",
+      "Revenue",
+      "Risk",
+      "SecurityMeasure",
+      "Site",
+      "Structure",
+      "Vehicle"
+    ],
+    "entity_assignment_precision": 0.2222,
+    "entity_assignment_recall": 0.0769,
+    "entity_assignment_f1": 0.1143,
+    "entity_assignment_riskine_covered": [
+      "Coverage",
+      "Structure"
+    ],
+    "entity_assignment_table": [
+      {
+        "induced": "Asset",
+        "members_sample": "Asset: [A, AL, AZ, B, C...]",
+        "riskine": null,
+        "cosine": 0.3365,
+        "score": 0.0
+      },
+      {
+        "induced": "Hazard",
+        "members_sample": "Hazard: [Coverage A, Coverage B, Insured, Policy]",
+        "riskine": "Coverage",
+        "cosine": 0.5857,
+        "score": 1.0
+      },
+      {
+        "induced": "Party",
+        "members_sample": "Party: [You]",
+        "riskine": null,
+        "cosine": 0.3071,
+        "score": 0.0
+      },
+      {
+        "induced": "Value",
+        "members_sample": "Value: [-1, 100, 10000, 100000, 11501...]",
+        "riskine": null,
+        "cosine": 0.3092,
+        "score": 0.0
+      },
+      {
+        "induced": "Temporal",
+        "members_sample": "Temporal: [30 days, 60 days]",
+        "riskine": null,
+        "cosine": 0.3811,
+        "score": 0.0
+      },
+      {
+        "induced": "TemporalEvent",
+        "members_sample": "TemporalEvent: [2022-12-25T00:00:00.000Z, 2023-03-21T00:00:00.000Z, 2023-05-27T00:00:00.000Z, 2023-09-25T00:00:00.000Z, 2023-09-27T00:00:00.000Z...]",
+        "riskine": null,
+        "cosine": 0.2269,
+        "score": 0.0
+      },
+      {
+        "induced": "Record",
+        "members_sample": "Record: [ClaimRecord, PolicyRecord, Property]",
+        "riskine": null,
+        "cosine": 0.4077,
+        "score": 0.0
+      },
+      {
+        "induced": "BuildingFeature",
+        "members_sample": "BuildingFeature: [1, 10, 11, 12, 13...]",
+        "riskine": "Structure",
+        "cosine": 0.5088,
+        "score": 0.5
+      },
+      {
+        "induced": "DeductibleTerms",
+        "members_sample": "DeductibleTerms: [Deductible, Deductible Amount]",
+        "riskine": "Coverage",
+        "cosine": 0.4804,
+        "score": 0.5
+      }
+    ],
+    "entity_assignment_evidenced_classes": [
+      "Coverage",
+      "Damage",
+      "Preference",
+      "Product",
+      "Risk",
+      "Structure"
+    ],
+    "entity_assignment_evidenced_count": 6,
+    "entity_assignment_recall_present": 0.3333,
+    "entity_assignment_f1_present": 0.2667,
+    "standard_metrics": {
+      "bertscore_precision": 0.4254,
+      "bertscore_recall": 0.4303,
+      "bertscore_f1": 0.4278,
+      "per_reference_recall": {
+        "Address": 0.343,
+        "Animal": 0.3622,
+        "BankAccount": 0.4142,
+        "BusinessProcess": 0.5028,
+        "Coverage": 0.7452,
+        "CreditCard": 0.34,
+        "Damage": 0.4176,
+        "DataProcessing": 0.2849,
+        "DrivingLicense": 0.2233,
+        "Education": 0.411,
+        "Employee": 0.3075,
+        "Finances": 0.4884,
+        "Identification": 0.4001,
+        "Object": 0.4932,
+        "Organization": 0.3637,
+        "Person": 0.3627,
+        "Preference": 0.3722,
+        "Product": 0.4894,
+        "Profession": 0.4313,
+        "Property": 1.0,
+        "Revenue": 0.4751,
+        "Risk": 0.4332,
+        "SecurityMeasure": 0.3343,
+        "Site": 0.3365,
+        "Structure": 0.4442,
+        "Vehicle": 0.4128
+      },
+      "fuzzy_precision": 0.0,
+      "fuzzy_recall": 0.0,
+      "fuzzy_f1": 0.0,
+      "fuzzy_threshold": 0.436,
+      "induced_edge_count": 3,
+      "reference_edge_count": 46,
+      "continuous_precision": 0.3278,
+      "continuous_recall": 0.0214,
+      "continuous_f1": 0.0401,
+      "optimal_matching_score": 0.9835,
+      "taxonomy_precision": 0.0,
+      "taxonomy_recall": 0.0,
+      "taxonomy_f1": 0.0,
+      "taxonomy_induced_edges": 3,
+      "taxonomy_reference_edges": 46,
+      "graph_precision": 0.4718,
+      "graph_recall": 0.3629,
+      "graph_f1": 0.4102,
+      "sgc_hops": 2,
+      "avg_wu_palmer": 0.7718,
+      "wu_palmer_matched_pairs": 13,
+      "depth_distribution_induced": {
+        "0": 17,
+        "1": 3
+      },
+      "depth_distribution_reference": {
+        "0": 9,
+        "1": 5,
+        "2": 10,
+        "3": 1,
+        "4": 1
+      },
+      "auc_roc": 0.8735,
+      "pr_auc": 0.054,
+      "mrr": 0.3417,
+      "recall_at_1": 0.0,
+      "recall_at_3": 0.6,
+      "gt_matches": 6,
+      "gt_source": "llm_judge",
+      "auc_classes_matched": 5,
+      "auc_classes_total": 26,
+      "auc_per_class": {
+        "Address": {
+          "matched": true,
+          "matched_induced": "Record",
+          "match_sim": 0.3286,
+          "rank": 4
+        },
+        "Animal": {
+          "matched": false,
+          "best_induced": "Party",
+          "best_sim": 0.3622
+        },
+        "BankAccount": {
+          "matched": true,
+          "matched_induced": "Asset",
+          "match_sim": 0.3475,
+          "rank": 2
+        },
+        "BusinessProcess": {
+          "matched": false,
+          "best_induced": "AppraisalProcess",
+          "best_sim": 0.5028
+        },
+        "Coverage": {
+          "matched": true,
+          "matched_induced": "BuildingFeature",
+          "match_sim": 0.2637,
+          "rank": 8
+        },
+        "CreditCard": {
+          "matched": false,
+          "best_induced": "Amount",
+          "best_sim": 0.34
+        },
+        "Damage": {
+          "matched": true,
+          "matched_induced": "Value",
+          "match_sim": 0.4139,
+          "rank": 2
+        },
+        "DataProcessing": {
+          "matched": false,
+          "best_induced": "Record",
+          "best_sim": 0.2849
+        },
+        "DrivingLicense": {
+          "matched": false,
+          "best_induced": "Record",
+          "best_sim": 0.2233
+        },
+        "Education": {
+          "matched": false,
+          "best_induced": "Policy",
+          "best_sim": 0.411
+        },
+        "Employee": {
+          "matched": false,
+          "best_induced": "Policy",
+          "best_sim": 0.3075
+        },
+        "Finances": {
+          "matched": false,
+          "best_induced": "Asset",
+          "best_sim": 0.4884
+        },
+        "Identification": {
+          "matched": true,
+          "matched_induced": "Party",
+          "match_sim": 0.3664,
+          "rank": 3
+        },
+        "Object": {
+          "matched": false,
+          "best_induced": "Property",
+          "best_sim": 0.4932
+        },
+        "Organization": {
+          "matched": false,
+          "best_induced": "Party",
+          "best_sim": 0.3637
+        },
+        "Person": {
+          "matched": false,
+          "best_induced": "Party",
+          "best_sim": 0.3627
+        },
+        "Preference": {
+          "matched": false,
+          "best_induced": "Policy",
+          "best_sim": 0.3722
+        },
+        "Product": {
+          "matched": false,
+          "best_induced": "Asset",
+          "best_sim": 0.4894
+        },
+        "Profession": {
+          "matched": false,
+          "best_induced": "Asset",
+          "best_sim": 0.4313
+        },
+        "Property": {
+          "matched": false,
+          "best_induced": "Property",
+          "best_sim": 1.0
+        },
+        "Revenue": {
+          "matched": false,
+          "best_induced": "Amount",
+          "best_sim": 0.4751
+        },
+        "Risk": {
+          "matched": false,
+          "best_induced": "Policy",
+          "best_sim": 0.4332
+        },
+        "SecurityMeasure": {
+          "matched": false,
+          "best_induced": "Policy",
+          "best_sim": 0.3343
+        },
+        "Site": {
+          "matched": false,
+          "best_induced": "Party",
+          "best_sim": 0.3365
+        },
+        "Structure": {
+          "matched": false,
+          "best_induced": "BuildingFeature",
+          "best_sim": 0.4442
+        },
+        "Vehicle": {
+          "matched": false,
+          "best_induced": "Asset",
+          "best_sim": 0.4128
+        }
+      },
+      "confusion_matrix": [
+        {
+          "reference": "Address",
+          "best_match": "Amount",
+          "best_similarity": 0.343,
+          "top3_matches": [
+            {
+              "induced": "Amount",
+              "similarity": 0.343
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.338
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.329
+            }
+          ]
+        },
+        {
+          "reference": "Animal",
+          "best_match": "Party",
+          "best_similarity": 0.3622,
+          "top3_matches": [
+            {
+              "induced": "Party",
+              "similarity": 0.3622
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3541
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3289
+            }
+          ]
+        },
+        {
+          "reference": "BankAccount",
+          "best_match": "Amount",
+          "best_similarity": 0.4142,
+          "top3_matches": [
+            {
+              "induced": "Amount",
+              "similarity": 0.4142
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3475
+            },
+            {
+              "induced": "Record",
+              "similarity": 0.2917
+            }
+          ]
+        },
+        {
+          "reference": "BusinessProcess",
+          "best_match": "AppraisalProcess",
+          "best_similarity": 0.5028,
+          "top3_matches": [
+            {
+              "induced": "AppraisalProcess",
+              "similarity": 0.5028
+            },
+            {
+              "induced": "ClaimEvent",
+              "similarity": 0.2887
+            },
+            {
+              "induced": "TemporalEvent",
+              "similarity": 0.2771
+            }
+          ]
+        },
+        {
+          "reference": "Coverage",
+          "best_match": "CoverageLimit",
+          "best_similarity": 0.7452,
+          "top3_matches": [
+            {
+              "induced": "CoverageLimit",
+              "similarity": 0.7452
+            },
+            {
+              "induced": "Policy",
+              "similarity": 0.3931
+            },
+            {
+              "induced": "Record",
+              "similarity": 0.3694
+            }
+          ]
+        },
+        {
+          "reference": "CreditCard",
+          "best_match": "Amount",
+          "best_similarity": 0.34,
+          "top3_matches": [
+            {
+              "induced": "Amount",
+              "similarity": 0.34
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3285
+            },
+            {
+              "induced": "Record",
+              "similarity": 0.3248
+            }
+          ]
+        },
+        {
+          "reference": "Damage",
+          "best_match": "Asset",
+          "best_similarity": 0.4176,
+          "top3_matches": [
+            {
+              "induced": "Asset",
+              "similarity": 0.4176
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.4139
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3674
+            }
+          ]
+        },
+        {
+          "reference": "DataProcessing",
+          "best_match": "Record",
+          "best_similarity": 0.2849,
+          "top3_matches": [
+            {
+              "induced": "Record",
+              "similarity": 0.2849
+            },
+            {
+              "induced": "TemporalEvent",
+              "similarity": 0.2768
+            },
+            {
+              "induced": "AppraisalProcess",
+              "similarity": 0.2584
+            }
+          ]
+        },
+        {
+          "reference": "DrivingLicense",
+          "best_match": "Record",
+          "best_similarity": 0.2233,
+          "top3_matches": [
+            {
+              "induced": "Record",
+              "similarity": 0.2233
+            },
+            {
+              "induced": "CoverageLimit",
+              "similarity": 0.2163
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.1964
+            }
+          ]
+        },
+        {
+          "reference": "Education",
+          "best_match": "Policy",
+          "best_similarity": 0.411,
+          "top3_matches": [
+            {
+              "induced": "Policy",
+              "similarity": 0.411
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3855
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.3132
+            }
+          ]
+        },
+        {
+          "reference": "Employee",
+          "best_match": "Policy",
+          "best_similarity": 0.3075,
+          "top3_matches": [
+            {
+              "induced": "Policy",
+              "similarity": 0.3075
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.2813
+            },
+            {
+              "induced": "Party",
+              "similarity": 0.261
+            }
+          ]
+        },
+        {
+          "reference": "Finances",
+          "best_match": "Asset",
+          "best_similarity": 0.4884,
+          "top3_matches": [
+            {
+              "induced": "Asset",
+              "similarity": 0.4884
+            },
+            {
+              "induced": "Amount",
+              "similarity": 0.3758
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3451
+            }
+          ]
+        },
+        {
+          "reference": "Identification",
+          "best_match": "Asset",
+          "best_similarity": 0.4001,
+          "top3_matches": [
+            {
+              "induced": "Asset",
+              "similarity": 0.4001
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.3903
+            },
+            {
+              "induced": "Party",
+              "similarity": 0.3664
+            }
+          ]
+        },
+        {
+          "reference": "Object",
+          "best_match": "Property",
+          "best_similarity": 0.4932,
+          "top3_matches": [
+            {
+              "induced": "Property",
+              "similarity": 0.4932
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.4403
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3927
+            }
+          ]
+        },
+        {
+          "reference": "Organization",
+          "best_match": "Party",
+          "best_similarity": 0.3637,
+          "top3_matches": [
+            {
+              "induced": "Party",
+              "similarity": 0.3637
+            },
+            {
+              "induced": "Policy",
+              "similarity": 0.3502
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3277
+            }
+          ]
+        },
+        {
+          "reference": "Person",
+          "best_match": "Party",
+          "best_similarity": 0.3627,
+          "top3_matches": [
+            {
+              "induced": "Party",
+              "similarity": 0.3627
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.34
+            },
+            {
+              "induced": "Hazard",
+              "similarity": 0.3335
+            }
+          ]
+        },
+        {
+          "reference": "Preference",
+          "best_match": "Policy",
+          "best_similarity": 0.3722,
+          "top3_matches": [
+            {
+              "induced": "Policy",
+              "similarity": 0.3722
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3532
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.3447
+            }
+          ]
+        },
+        {
+          "reference": "Product",
+          "best_match": "Asset",
+          "best_similarity": 0.4894,
+          "top3_matches": [
+            {
+              "induced": "Asset",
+              "similarity": 0.4894
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.4106
+            },
+            {
+              "induced": "Amount",
+              "similarity": 0.3989
+            }
+          ]
+        },
+        {
+          "reference": "Profession",
+          "best_match": "Asset",
+          "best_similarity": 0.4313,
+          "top3_matches": [
+            {
+              "induced": "Asset",
+              "similarity": 0.4313
+            },
+            {
+              "induced": "Policy",
+              "similarity": 0.3726
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3674
+            }
+          ]
+        },
+        {
+          "reference": "Property",
+          "best_match": "Property",
+          "best_similarity": 1.0,
+          "top3_matches": [
+            {
+              "induced": "Property",
+              "similarity": 1.0
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.5244
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.5059
+            }
+          ]
+        },
+        {
+          "reference": "Revenue",
+          "best_match": "Amount",
+          "best_similarity": 0.4751,
+          "top3_matches": [
+            {
+              "induced": "Amount",
+              "similarity": 0.4751
+            },
+            {
+              "induced": "Value",
+              "similarity": 0.4503
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.4193
+            }
+          ]
+        },
+        {
+          "reference": "Risk",
+          "best_match": "Policy",
+          "best_similarity": 0.4332,
+          "top3_matches": [
+            {
+              "induced": "Policy",
+              "similarity": 0.4332
+            },
+            {
+              "induced": "Hazard",
+              "similarity": 0.4277
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.4089
+            }
+          ]
+        },
+        {
+          "reference": "SecurityMeasure",
+          "best_match": "Policy",
+          "best_similarity": 0.3343,
+          "top3_matches": [
+            {
+              "induced": "Policy",
+              "similarity": 0.3343
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.2968
+            },
+            {
+              "induced": "PolicyDocument",
+              "similarity": 0.258
+            }
+          ]
+        },
+        {
+          "reference": "Site",
+          "best_match": "Party",
+          "best_similarity": 0.3365,
+          "top3_matches": [
+            {
+              "induced": "Party",
+              "similarity": 0.3365
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.306
+            },
+            {
+              "induced": "Amount",
+              "similarity": 0.2813
+            }
+          ]
+        },
+        {
+          "reference": "Structure",
+          "best_match": "BuildingFeature",
+          "best_similarity": 0.4442,
+          "top3_matches": [
+            {
+              "induced": "BuildingFeature",
+              "similarity": 0.4442
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3906
+            },
+            {
+              "induced": "Asset",
+              "similarity": 0.3662
+            }
+          ]
+        },
+        {
+          "reference": "Vehicle",
+          "best_match": "Asset",
+          "best_similarity": 0.4128,
+          "top3_matches": [
+            {
+              "induced": "Asset",
+              "similarity": 0.4128
+            },
+            {
+              "induced": "Property",
+              "similarity": 0.3989
+            },
+            {
+              "induced": "Party",
+              "similarity": 0.3469
+            }
+          ]
+        }
+      ],
+      "intrinsic": {
+        "class_coverage": 0.0311,
+        "entities_labeled": 186,
+        "entities_total": 5979,
+        "n_classes": 9,
+        "n_hierarchy_edges": 3,
+        "avg_class_size": 20.7,
+        "class_distribution": {
+          "Asset": 38,
+          "BuildingFeature": 57,
+          "DeductibleTerms": 2,
+          "Hazard": 4,
+          "Party": 1,
+          "Record": 3,
+          "Temporal": 2,
+          "TemporalEvent": 50,
+          "Value": 29
+        },
+        "class_balance_entropy": 0.7302,
+        "hierarchy_max_depth": 1,
+        "hierarchy_roots": 1,
+        "class_coherence": 0.6102,
+        "coherence_n_classes": 8
+      }
+    }
+  }
+}

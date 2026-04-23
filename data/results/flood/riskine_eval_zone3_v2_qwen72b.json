@@ -1,0 +1,916 @@
+{
+  "suffix": "zone3_v2_qwen72b",
+  "precision": 0.3333,
+  "recall": 0.1923,
+  "f1": 0.2439,
+  "induced_label_count": 9,
+  "riskine_class_count": 26,
+  "riskine_covered_count": 5,
+  "alignment_table": [
+    {
+      "induced": "Asset",
+      "riskine": "BankAccount",
+      "cosine": 0.6068,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Hazard",
+      "riskine": "Damage",
+      "cosine": 0.7277,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Party",
+      "riskine": "Identification",
+      "cosine": 0.6336,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Value",
+      "riskine": "Damage",
+      "cosine": 0.646,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Temporal",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_MATCH",
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalEvent",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_CANDIDATE",
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "riskine": "Address",
+      "cosine": 0.645,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "BuildingFeature",
+      "riskine": "Coverage",
+      "cosine": 0.6031,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "DeductibleTerms",
+      "riskine": null,
+      "cosine": null,
+      "verdict": "NO_MATCH",
+      "score": 0.0
+    }
+  ],
+  "unmatched_induced": [
+    "Temporal",
+    "TemporalEvent",
+    "DeductibleTerms"
+  ],
+  "unmatched_riskine": [
+    "Animal",
+    "BusinessProcess",
+    "CreditCard",
+    "DataProcessing",
+    "DrivingLicense",
+    "Education",
+    "Employee",
+    "Finances",
+    "Object",
+    "Organization",
+    "Person",
+    "Preference",
+    "Product",
+    "Profession",
+    "Property",
+    "Revenue",
+    "Risk",
+    "SecurityMeasure",
+    "Site",
+    "Structure",
+    "Vehicle"
+  ],
+  "entity_assignment_precision": 0.2222,
+  "entity_assignment_recall": 0.0769,
+  "entity_assignment_f1": 0.1143,
+  "entity_assignment_riskine_covered": [
+    "Coverage",
+    "Structure"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Asset",
+      "members_sample": "Asset: [A, AL, AZ, B, C...]",
+      "riskine": null,
+      "cosine": 0.3365,
+      "score": 0.0
+    },
+    {
+      "induced": "Hazard",
+      "members_sample": "Hazard: [Coverage A, Coverage B, Insured, Policy]",
+      "riskine": "Coverage",
+      "cosine": 0.5857,
+      "score": 1.0
+    },
+    {
+      "induced": "Party",
+      "members_sample": "Party: [You]",
+      "riskine": null,
+      "cosine": 0.3071,
+      "score": 0.0
+    },
+    {
+      "induced": "Value",
+      "members_sample": "Value: [-1, 100, 10000, 100000, 11501...]",
+      "riskine": null,
+      "cosine": 0.3092,
+      "score": 0.0
+    },
+    {
+      "induced": "Temporal",
+      "members_sample": "Temporal: [30 days, 60 days]",
+      "riskine": null,
+      "cosine": 0.3811,
+      "score": 0.0
+    },
+    {
+      "induced": "TemporalEvent",
+      "members_sample": "TemporalEvent: [2022-12-25T00:00:00.000Z, 2023-03-21T00:00:00.000Z, 2023-05-27T00:00:00.000Z, 2023-09-25T00:00:00.000Z, 2023-09-27T00:00:00.000Z...]",
+      "riskine": null,
+      "cosine": 0.2269,
+      "score": 0.0
+    },
+    {
+      "induced": "Record",
+      "members_sample": "Record: [ClaimRecord, PolicyRecord, Property]",
+      "riskine": null,
+      "cosine": 0.4077,
+      "score": 0.0
+    },
+    {
+      "induced": "BuildingFeature",
+      "members_sample": "BuildingFeature: [1, 10, 11, 12, 13...]",
+      "riskine": "Structure",
+      "cosine": 0.5088,
+      "score": 0.5
+    },
+    {
+      "induced": "DeductibleTerms",
+      "members_sample": "DeductibleTerms: [Deductible, Deductible Amount]",
+      "riskine": "Coverage",
+      "cosine": 0.4804,
+      "score": 0.5
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Coverage",
+    "Damage",
+    "Preference",
+    "Product",
+    "Risk",
+    "Structure"
+  ],
+  "entity_assignment_evidenced_count": 6,
+  "entity_assignment_recall_present": 0.3333,
+  "entity_assignment_f1_present": 0.2667,
+  "standard_metrics": {
+    "bertscore_precision": 0.4254,
+    "bertscore_recall": 0.4303,
+    "bertscore_f1": 0.4278,
+    "per_reference_recall": {
+      "Address": 0.343,
+      "Animal": 0.3622,
+      "BankAccount": 0.4142,
+      "BusinessProcess": 0.5028,
+      "Coverage": 0.7452,
+      "CreditCard": 0.34,
+      "Damage": 0.4176,
+      "DataProcessing": 0.2849,
+      "DrivingLicense": 0.2233,
+      "Education": 0.411,
+      "Employee": 0.3075,
+      "Finances": 0.4884,
+      "Identification": 0.4001,
+      "Object": 0.4932,
+      "Organization": 0.3637,
+      "Person": 0.3627,
+      "Preference": 0.3722,
+      "Product": 0.4894,
+      "Profession": 0.4313,
+      "Property": 1.0,
+      "Revenue": 0.4751,
+      "Risk": 0.4332,
+      "SecurityMeasure": 0.3343,
+      "Site": 0.3365,
+      "Structure": 0.4442,
+      "Vehicle": 0.4128
+    },
+    "fuzzy_precision": 0.0,
+    "fuzzy_recall": 0.0,
+    "fuzzy_f1": 0.0,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 3,
+    "reference_edge_count": 46,
+    "continuous_precision": 0.3278,
+    "continuous_recall": 0.0214,
+    "continuous_f1": 0.0401,
+    "optimal_matching_score": 0.9835,
+    "taxonomy_precision": 0.0,
+    "taxonomy_recall": 0.0,
+    "taxonomy_f1": 0.0,
+    "taxonomy_induced_edges": 3,
+    "taxonomy_reference_edges": 46,
+    "graph_precision": 0.4718,
+    "graph_recall": 0.3629,
+    "graph_f1": 0.4102,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.7718,
+    "wu_palmer_matched_pairs": 13,
+    "depth_distribution_induced": {
+      "0": 17,
+      "1": 3
+    },
+    "depth_distribution_reference": {
+      "0": 9,
+      "1": 5,
+      "2": 10,
+      "3": 1,
+      "4": 1
+    },
+    "auc_roc": 0.8735,
+    "pr_auc": 0.054,
+    "mrr": 0.3417,
+    "recall_at_1": 0.0,
+    "recall_at_3": 0.6,
+    "gt_matches": 6,
+    "gt_source": "llm_judge",
+    "auc_classes_matched": 5,
+    "auc_classes_total": 26,
+    "auc_per_class": {
+      "Address": {
+        "matched": true,
+        "matched_induced": "Record",
+        "match_sim": 0.3286,
+        "rank": 4
+      },
+      "Animal": {
+        "matched": false,
+        "best_induced": "Party",
+        "best_sim": 0.3622
+      },
+      "BankAccount": {
+        "matched": true,
+        "matched_induced": "Asset",
+        "match_sim": 0.3475,
+        "rank": 2
+      },
+      "BusinessProcess": {
+        "matched": false,
+        "best_induced": "AppraisalProcess",
+        "best_sim": 0.5028
+      },
+      "Coverage": {
+        "matched": true,
+        "matched_induced": "BuildingFeature",
+        "match_sim": 0.2637,
+        "rank": 8
+      },
+      "CreditCard": {
+        "matched": false,
+        "best_induced": "Amount",
+        "best_sim": 0.34
+      },
+      "Damage": {
+        "matched": true,
+        "matched_induced": "Value",
+        "match_sim": 0.4139,
+        "rank": 2
+      },
+      "DataProcessing": {
+        "matched": false,
+        "best_induced": "Record",
+        "best_sim": 0.2849
+      },
+      "DrivingLicense": {
+        "matched": false,
+        "best_induced": "Record",
+        "best_sim": 0.2233
+      },
+      "Education": {
+        "matched": false,
+        "best_induced": "Policy",
+        "best_sim": 0.411
+      },
+      "Employee": {
+        "matched": false,
+        "best_induced": "Policy",
+        "best_sim": 0.3075
+      },
+      "Finances": {
+        "matched": false,
+        "best_induced": "Asset",
+        "best_sim": 0.4884
+      },
+      "Identification": {
+        "matched": true,
+        "matched_induced": "Party",
+        "match_sim": 0.3664,
+        "rank": 3
+      },
+      "Object": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 0.4932
+      },
+      "Organization": {
+        "matched": false,
+        "best_induced": "Party",
+        "best_sim": 0.3637
+      },
+      "Person": {
+        "matched": false,
+        "best_induced": "Party",
+        "best_sim": 0.3627
+      },
+      "Preference": {
+        "matched": false,
+        "best_induced": "Policy",
+        "best_sim": 0.3722
+      },
+      "Product": {
+        "matched": false,
+        "best_induced": "Asset",
+        "best_sim": 0.4894
+      },
+      "Profession": {
+        "matched": false,
+        "best_induced": "Asset",
+        "best_sim": 0.4313
+      },
+      "Property": {
+        "matched": false,
+        "best_induced": "Property",
+        "best_sim": 1.0
+      },
+      "Revenue": {
+        "matched": false,
+        "best_induced": "Amount",
+        "best_sim": 0.4751
+      },
+      "Risk": {
+        "matched": false,
+        "best_induced": "Policy",
+        "best_sim": 0.4332
+      },
+      "SecurityMeasure": {
+        "matched": false,
+        "best_induced": "Policy",
+        "best_sim": 0.3343
+      },
+      "Site": {
+        "matched": false,
+        "best_induced": "Party",
+        "best_sim": 0.3365
+      },
+      "Structure": {
+        "matched": false,
+        "best_induced": "BuildingFeature",
+        "best_sim": 0.4442
+      },
+      "Vehicle": {
+        "matched": false,
+        "best_induced": "Asset",
+        "best_sim": 0.4128
+      }
+    },
+    "confusion_matrix": [
+      {
+        "reference": "Address",
+        "best_match": "Amount",
+        "best_similarity": 0.343,
+        "top3_matches": [
+          {
+            "induced": "Amount",
+            "similarity": 0.343
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.338
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.329
+          }
+        ]
+      },
+      {
+        "reference": "Animal",
+        "best_match": "Party",
+        "best_similarity": 0.3622,
+        "top3_matches": [
+          {
+            "induced": "Party",
+            "similarity": 0.3622
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3541
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3289
+          }
+        ]
+      },
+      {
+        "reference": "BankAccount",
+        "best_match": "Amount",
+        "best_similarity": 0.4142,
+        "top3_matches": [
+          {
+            "induced": "Amount",
+            "similarity": 0.4142
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3475
+          },
+          {
+            "induced": "Record",
+            "similarity": 0.2917
+          }
+        ]
+      },
+      {
+        "reference": "BusinessProcess",
+        "best_match": "AppraisalProcess",
+        "best_similarity": 0.5028,
+        "top3_matches": [
+          {
+            "induced": "AppraisalProcess",
+            "similarity": 0.5028
+          },
+          {
+            "induced": "ClaimEvent",
+            "similarity": 0.2887
+          },
+          {
+            "induced": "TemporalEvent",
+            "similarity": 0.2771
+          }
+        ]
+      },
+      {
+        "reference": "Coverage",
+        "best_match": "CoverageLimit",
+        "best_similarity": 0.7452,
+        "top3_matches": [
+          {
+            "induced": "CoverageLimit",
+            "similarity": 0.7452
+          },
+          {
+            "induced": "Policy",
+            "similarity": 0.3931
+          },
+          {
+            "induced": "Record",
+            "similarity": 0.3694
+          }
+        ]
+      },
+      {
+        "reference": "CreditCard",
+        "best_match": "Amount",
+        "best_similarity": 0.34,
+        "top3_matches": [
+          {
+            "induced": "Amount",
+            "similarity": 0.34
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3285
+          },
+          {
+            "induced": "Record",
+            "similarity": 0.3248
+          }
+        ]
+      },
+      {
+        "reference": "Damage",
+        "best_match": "Asset",
+        "best_similarity": 0.4176,
+        "top3_matches": [
+          {
+            "induced": "Asset",
+            "similarity": 0.4176
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.4139
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3674
+          }
+        ]
+      },
+      {
+        "reference": "DataProcessing",
+        "best_match": "Record",
+        "best_similarity": 0.2849,
+        "top3_matches": [
+          {
+            "induced": "Record",
+            "similarity": 0.2849
+          },
+          {
+            "induced": "TemporalEvent",
+            "similarity": 0.2768
+          },
+          {
+            "induced": "AppraisalProcess",
+            "similarity": 0.2584
+          }
+        ]
+      },
+      {
+        "reference": "DrivingLicense",
+        "best_match": "Record",
+        "best_similarity": 0.2233,
+        "top3_matches": [
+          {
+            "induced": "Record",
+            "similarity": 0.2233
+          },
+          {
+            "induced": "CoverageLimit",
+            "similarity": 0.2163
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.1964
+          }
+        ]
+      },
+      {
+        "reference": "Education",
+        "best_match": "Policy",
+        "best_similarity": 0.411,
+        "top3_matches": [
+          {
+            "induced": "Policy",
+            "similarity": 0.411
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3855
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.3132
+          }
+        ]
+      },
+      {
+        "reference": "Employee",
+        "best_match": "Policy",
+        "best_similarity": 0.3075,
+        "top3_matches": [
+          {
+            "induced": "Policy",
+            "similarity": 0.3075
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.2813
+          },
+          {
+            "induced": "Party",
+            "similarity": 0.261
+          }
+        ]
+      },
+      {
+        "reference": "Finances",
+        "best_match": "Asset",
+        "best_similarity": 0.4884,
+        "top3_matches": [
+          {
+            "induced": "Asset",
+            "similarity": 0.4884
+          },
+          {
+            "induced": "Amount",
+            "similarity": 0.3758
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3451
+          }
+        ]
+      },
+      {
+        "reference": "Identification",
+        "best_match": "Asset",
+        "best_similarity": 0.4001,
+        "top3_matches": [
+          {
+            "induced": "Asset",
+            "similarity": 0.4001
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.3903
+          },
+          {
+            "induced": "Party",
+            "similarity": 0.3664
+          }
+        ]
+      },
+      {
+        "reference": "Object",
+        "best_match": "Property",
+        "best_similarity": 0.4932,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 0.4932
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.4403
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3927
+          }
+        ]
+      },
+      {
+        "reference": "Organization",
+        "best_match": "Party",
+        "best_similarity": 0.3637,
+        "top3_matches": [
+          {
+            "induced": "Party",
+            "similarity": 0.3637
+          },
+          {
+            "induced": "Policy",
+            "similarity": 0.3502
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3277
+          }
+        ]
+      },
+      {
+        "reference": "Person",
+        "best_match": "Party",
+        "best_similarity": 0.3627,
+        "top3_matches": [
+          {
+            "induced": "Party",
+            "similarity": 0.3627
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.34
+          },
+          {
+            "induced": "Hazard",
+            "similarity": 0.3335
+          }
+        ]
+      },
+      {
+        "reference": "Preference",
+        "best_match": "Policy",
+        "best_similarity": 0.3722,
+        "top3_matches": [
+          {
+            "induced": "Policy",
+            "similarity": 0.3722
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3532
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.3447
+          }
+        ]
+      },
+      {
+        "reference": "Product",
+        "best_match": "Asset",
+        "best_similarity": 0.4894,
+        "top3_matches": [
+          {
+            "induced": "Asset",
+            "similarity": 0.4894
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.4106
+          },
+          {
+            "induced": "Amount",
+            "similarity": 0.3989
+          }
+        ]
+      },
+      {
+        "reference": "Profession",
+        "best_match": "Asset",
+        "best_similarity": 0.4313,
+        "top3_matches": [
+          {
+            "induced": "Asset",
+            "similarity": 0.4313
+          },
+          {
+            "induced": "Policy",
+            "similarity": 0.3726
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3674
+          }
+        ]
+      },
+      {
+        "reference": "Property",
+        "best_match": "Property",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.5244
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.5059
+          }
+        ]
+      },
+      {
+        "reference": "Revenue",
+        "best_match": "Amount",
+        "best_similarity": 0.4751,
+        "top3_matches": [
+          {
+            "induced": "Amount",
+            "similarity": 0.4751
+          },
+          {
+            "induced": "Value",
+            "similarity": 0.4503
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.4193
+          }
+        ]
+      },
+      {
+        "reference": "Risk",
+        "best_match": "Policy",
+        "best_similarity": 0.4332,
+        "top3_matches": [
+          {
+            "induced": "Policy",
+            "similarity": 0.4332
+          },
+          {
+            "induced": "Hazard",
+            "similarity": 0.4277
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.4089
+          }
+        ]
+      },
+      {
+        "reference": "SecurityMeasure",
+        "best_match": "Policy",
+        "best_similarity": 0.3343,
+        "top3_matches": [
+          {
+            "induced": "Policy",
+            "similarity": 0.3343
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.2968
+          },
+          {
+            "induced": "PolicyDocument",
+            "similarity": 0.258
+          }
+        ]
+      },
+      {
+        "reference": "Site",
+        "best_match": "Party",
+        "best_similarity": 0.3365,
+        "top3_matches": [
+          {
+            "induced": "Party",
+            "similarity": 0.3365
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.306
+          },
+          {
+            "induced": "Amount",
+            "similarity": 0.2813
+          }
+        ]
+      },
+      {
+        "reference": "Structure",
+        "best_match": "BuildingFeature",
+        "best_similarity": 0.4442,
+        "top3_matches": [
+          {
+            "induced": "BuildingFeature",
+            "similarity": 0.4442
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3906
+          },
+          {
+            "induced": "Asset",
+            "similarity": 0.3662
+          }
+        ]
+      },
+      {
+        "reference": "Vehicle",
+        "best_match": "Asset",
+        "best_similarity": 0.4128,
+        "top3_matches": [
+          {
+            "induced": "Asset",
+            "similarity": 0.4128
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3989
+          },
+          {
+            "induced": "Party",
+            "similarity": 0.3469
+          }
+        ]
+      }
+    ],
+    "intrinsic": {
+      "class_coverage": 0.0311,
+      "entities_labeled": 186,
+      "entities_total": 5979,
+      "n_classes": 9,
+      "n_hierarchy_edges": 3,
+      "avg_class_size": 20.7,
+      "class_distribution": {
+        "Asset": 38,
+        "BuildingFeature": 57,
+        "DeductibleTerms": 2,
+        "Hazard": 4,
+        "Party": 1,
+        "Record": 3,
+        "Temporal": 2,
+        "TemporalEvent": 50,
+        "Value": 29
+      },
+      "class_balance_entropy": 0.7302,
+      "hierarchy_max_depth": 1,
+      "hierarchy_roots": 1,
+      "class_coherence": 0.6102,
+      "coherence_n_classes": 8
+    }
+  }
+}

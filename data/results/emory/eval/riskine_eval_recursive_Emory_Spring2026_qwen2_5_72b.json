@@ -1,0 +1,992 @@
+{
+  "suffix": "recursive_Emory_Spring2026_qwen2_5_72b",
+  "precision": 0.5714,
+  "recall": 0.3077,
+  "f1": 0.4,
+  "induced_label_count": 14,
+  "riskine_class_count": 26,
+  "riskine_covered_count": 8,
+  "alignment_table": [
+    {
+      "induced": "Organization",
+      "riskine": "Organization",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Claim",
+      "riskine": "Coverage",
+      "cosine": 0.9178,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "InsurancePolicy",
+      "riskine": "Product",
+      "cosine": 0.8944,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "CoverageType",
+      "riskine": "Coverage",
+      "cosine": 0.9468,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "SurveyResponse",
+      "riskine": "Coverage",
+      "cosine": 0.8548,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "RiskFactor",
+      "riskine": "Address",
+      "cosine": 0.7138,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "Claimant",
+      "riskine": "Address",
+      "cosine": 0.8194,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "MaintenanceProcedure",
+      "riskine": "BusinessProcess",
+      "cosine": 0.841,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "AuthorizationRequirement",
+      "riskine": "BusinessProcess",
+      "cosine": 0.7271,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "DeductibleAmount",
+      "riskine": "Coverage",
+      "cosine": 0.7918,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "FinancialTransaction",
+      "riskine": "BankAccount",
+      "cosine": 0.8313,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "InsuredItem",
+      "riskine": "Animal",
+      "cosine": 0.7982,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "RepairFacility",
+      "riskine": "Address",
+      "cosine": 0.8053,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "WarrantyProvider",
+      "riskine": "Coverage",
+      "cosine": 0.8672,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    }
+  ],
+  "unmatched_induced": [],
+  "unmatched_riskine": [
+    "CreditCard",
+    "Damage",
+    "DataProcessing",
+    "DrivingLicense",
+    "Education",
+    "Finances",
+    "Identification",
+    "Object",
+    "Person",
+    "Preference",
+    "Profession",
+    "Property",
+    "Revenue",
+    "Risk",
+    "SecurityMeasure",
+    "Site",
+    "Structure",
+    "Vehicle"
+  ],
+  "entity_assignment_precision": 0.3571,
+  "entity_assignment_recall": 0.2308,
+  "entity_assignment_f1": 0.2804,
+  "entity_assignment_riskine_covered": [
+    "Coverage",
+    "Damage",
+    "DrivingLicense",
+    "Finances",
+    "Organization",
+    "Risk"
+  ],
+  "entity_assignment_table": [
+    {
+      "induced": "Organization",
+      "members_sample": "Organization: [Agency Name, Assurant, Inc., Fuel Tank Sending Unit, Idaho Insurance Guarantee Association, Oklahoma Insurance Guaranty Association...]",
+      "riskine": "Organization",
+      "cosine": 0.4733,
+      "score": 0.5
+    },
+    {
+      "induced": "Claim",
+      "members_sample": "Claim: [After 60 Days or Claim Incurred Within First 60 Days, Amazon Device Protection Claims, Breakdown Caused by Collision, Fire, Theft, Vandalism, Riot, Terrorist Acts, War, Explosion, Lightning, Earthquake, Hurricane, Tropical Storm, Volcanic Eruption, Windstorm, Hail, Water, Freezing, or Flood]",
+      "riskine": "Damage",
+      "cosine": 0.4228,
+      "score": 0.5
+    },
+    {
+      "induced": "InsurancePolicy",
+      "members_sample": "InsurancePolicy: [21 Countries, Fuel Tank and Hard Lines, Heater Control Valve, Indiana Insurance Law, Iowa Insurance Commissioner...]",
+      "riskine": "Coverage",
+      "cosine": 0.4321,
+      "score": 0.5
+    },
+    {
+      "induced": "CoverageType",
+      "members_sample": "CoverageType: [COVERAGE DETAILS, Coverage Continuation, Coverage Liability, Coverage Property, Legal Defenses...]",
+      "riskine": "Coverage",
+      "cosine": 0.6595,
+      "score": 1.0
+    },
+    {
+      "induced": "SurveyResponse",
+      "members_sample": "SurveyResponse: [7 of 10 Global Telecom Brands, APEX Platform for Automotive Sector Support, Analog Instrument Display(s), AppleCare Customers, Battery Charge Controller...]",
+      "riskine": null,
+      "cosine": 0.3786,
+      "score": 0.0
+    },
+    {
+      "induced": "RiskFactor",
+      "members_sample": "RiskFactor: [Act or Omission Increasing Risk, Breakdowns within Continental USA, Alaska, Hawaii, and Canada, Criminal Conviction Increasing Risk, Cruise Control, Lienholder Priority...]",
+      "riskine": "Risk",
+      "cosine": 0.5411,
+      "score": 0.5
+    },
+    {
+      "induced": "Claimant",
+      "members_sample": "Claimant: [Assurant, Engine Coolant, Heater-A/C Blower Motor, Lienholder, Lienholder and You...]",
+      "riskine": null,
+      "cosine": 0.3788,
+      "score": 0.0
+    },
+    {
+      "induced": "MaintenanceProcedure",
+      "members_sample": "MaintenanceProcedure: [60 Days Replaced with 90 Days, Air Conditioning Refrigerant, Brake Pads and Shoes, Breakdown Caused by Contamination, Overheating, Lack of Coolant, Lack of Lubricants, Improper Fluids, Lack of Oil Viscosity, Sludge, or Restricted Oil Flow, Breakdown of Your Vehicle...]",
+      "riskine": null,
+      "cosine": 0.2869,
+      "score": 0.0
+    },
+    {
+      "induced": "AuthorizationRequirement",
+      "members_sample": "AuthorizationRequirement: [4.8/5, Administrator, Administrator in Enforcing Rights, Administrator to Examine Vehicle, Administrator\u2019s Office Reopens...]",
+      "riskine": "DrivingLicense",
+      "cosine": 0.4437,
+      "score": 0.5
+    },
+    {
+      "induced": "DeductibleAmount",
+      "members_sample": "DeductibleAmount: [10% penalty per month if not paid within 45 days, Actual Expenses for Rental Vehicle, Breakdown Caused by Odometer Misrepresentation, Breakdown Less Than 100 Miles From Home, Cancellation By Lienholder...]",
+      "riskine": null,
+      "cosine": 0.386,
+      "score": 0.0
+    },
+    {
+      "induced": "FinancialTransaction",
+      "members_sample": "FinancialTransaction: [Account Name, Additional Commercial Lodging Entertainment Expenses, Amazon Portal, Amount You paid for this Service Contract shown on the Information Schedule, Anti-Theft Systems...]",
+      "riskine": "Finances",
+      "cosine": 0.4749,
+      "score": 0.5
+    },
+    {
+      "induced": "InsuredItem",
+      "members_sample": "InsuredItem: [Assurant Mobile Device Insurance, Convertible Top Motor, County and State of Residence, Device Make and Model, Hybrid/Electric Vehicle Batteries...]",
+      "riskine": "Coverage",
+      "cosine": 0.4604,
+      "score": 0.5
+    },
+    {
+      "induced": "RepairFacility",
+      "members_sample": "RepairFacility: [Abuse, Misuse or Lack of Customary Maintenance, Accidental Damage, Accidents Outside Rental, Actuator(s), After Manufacturer Warranty Expiry...]",
+      "riskine": "Damage",
+      "cosine": 0.4491,
+      "score": 0.5
+    },
+    {
+      "induced": "WarrantyProvider",
+      "members_sample": "WarrantyProvider: [Automotive Retailer Warranties, Automotive Warranty Services of Florida, Inc., Commercial Use Reference in Service Warranty Contracts, Covered by Manufacturer\u2019s Warranty, Distributor Cap and Rotor...]",
+      "riskine": null,
+      "cosine": 0.411,
+      "score": 0.0
+    }
+  ],
+  "entity_assignment_evidenced_classes": [
+    "Coverage",
+    "Damage",
+    "DrivingLicense",
+    "Finances",
+    "Organization",
+    "Product",
+    "Risk"
+  ],
+  "entity_assignment_evidenced_count": 7,
+  "entity_assignment_recall_present": 0.8571,
+  "entity_assignment_f1_present": 0.5042,
+  "standard_metrics": {
+    "bertscore_precision": 0.5119,
+    "bertscore_recall": 0.4567,
+    "bertscore_f1": 0.4828,
+    "per_reference_recall": {
+      "Address": 0.3189,
+      "Animal": 0.3134,
+      "BankAccount": 0.5843,
+      "BusinessProcess": 0.4428,
+      "Coverage": 0.7804,
+      "CreditCard": 0.4743,
+      "Damage": 0.4047,
+      "DataProcessing": 0.2683,
+      "DrivingLicense": 0.2098,
+      "Education": 0.4084,
+      "Employee": 0.4725,
+      "Finances": 0.663,
+      "Identification": 0.423,
+      "Object": 0.3525,
+      "Organization": 1.0,
+      "Person": 0.4749,
+      "Preference": 0.2765,
+      "Product": 0.5204,
+      "Profession": 0.4291,
+      "Property": 0.364,
+      "Revenue": 0.4042,
+      "Risk": 0.6998,
+      "SecurityMeasure": 0.3812,
+      "Site": 0.3162,
+      "Structure": 0.5445,
+      "Vehicle": 0.348
+    },
+    "fuzzy_precision": 0.2,
+    "fuzzy_recall": 0.0435,
+    "fuzzy_f1": 0.0714,
+    "fuzzy_threshold": 0.436,
+    "induced_edge_count": 10,
+    "reference_edge_count": 46,
+    "continuous_precision": 0.3223,
+    "continuous_recall": 0.0701,
+    "continuous_f1": 0.1151,
+    "optimal_matching_score": 3.2225,
+    "taxonomy_precision": 0.2,
+    "taxonomy_recall": 0.0435,
+    "taxonomy_f1": 0.0714,
+    "taxonomy_induced_edges": 10,
+    "taxonomy_reference_edges": 46,
+    "graph_precision": 0.569,
+    "graph_recall": 0.3064,
+    "graph_f1": 0.3983,
+    "sgc_hops": 2,
+    "avg_wu_palmer": 0.6758,
+    "wu_palmer_matched_pairs": 11,
+    "depth_distribution_induced": {
+      "0": 4,
+      "1": 6,
+      "2": 4
+    },
+    "depth_distribution_reference": {
+      "0": 9,
+      "1": 5,
+      "2": 10,
+      "3": 1,
+      "4": 1
+    },
+    "auc_roc": 0.7071,
+    "pr_auc": 0.27,
+    "mrr": 0.3749,
+    "recall_at_1": 0.2857,
+    "recall_at_3": 0.2857,
+    "gt_matches": 14,
+    "gt_source": "llm_judge",
+    "auc_classes_matched": 7,
+    "auc_classes_total": 26,
+    "auc_per_class": {
+      "Address": {
+        "matched": true,
+        "matched_induced": "RiskFactor",
+        "match_sim": 0.085,
+        "rank": 12
+      },
+      "Animal": {
+        "matched": true,
+        "matched_induced": "InsuredItem",
+        "match_sim": 0.1748,
+        "rank": 5
+      },
+      "BankAccount": {
+        "matched": true,
+        "matched_induced": "FinancialTransaction",
+        "match_sim": 0.5843,
+        "rank": 1
+      },
+      "BusinessProcess": {
+        "matched": true,
+        "matched_induced": "AuthorizationRequirement",
+        "match_sim": 0.1449,
+        "rank": 11
+      },
+      "Coverage": {
+        "matched": true,
+        "matched_induced": "SurveyResponse",
+        "match_sim": 0.2965,
+        "rank": 8
+      },
+      "CreditCard": {
+        "matched": false,
+        "best_induced": "FinancialTransaction",
+        "best_sim": 0.4743
+      },
+      "Damage": {
+        "matched": false,
+        "best_induced": "Claim",
+        "best_sim": 0.4047
+      },
+      "DataProcessing": {
+        "matched": false,
+        "best_induced": "MaintenanceProcedure",
+        "best_sim": 0.2683
+      },
+      "DrivingLicense": {
+        "matched": false,
+        "best_induced": "CoverageType",
+        "best_sim": 0.2098
+      },
+      "Education": {
+        "matched": false,
+        "best_induced": "Organization",
+        "best_sim": 0.4084
+      },
+      "Employee": {
+        "matched": false,
+        "best_induced": "Organization",
+        "best_sim": 0.4725
+      },
+      "Finances": {
+        "matched": false,
+        "best_induced": "FinancialTransaction",
+        "best_sim": 0.663
+      },
+      "Identification": {
+        "matched": false,
+        "best_induced": "Claimant",
+        "best_sim": 0.423
+      },
+      "Object": {
+        "matched": false,
+        "best_induced": "Organization",
+        "best_sim": 0.3525
+      },
+      "Organization": {
+        "matched": true,
+        "matched_induced": "Organization",
+        "match_sim": 1.0,
+        "rank": 1
+      },
+      "Person": {
+        "matched": false,
+        "best_induced": "Claimant",
+        "best_sim": 0.4749
+      },
+      "Preference": {
+        "matched": false,
+        "best_induced": "SurveyResponse",
+        "best_sim": 0.2765
+      },
+      "Product": {
+        "matched": true,
+        "matched_induced": "InsurancePolicy",
+        "match_sim": 0.2172,
+        "rank": 8
+      },
+      "Profession": {
+        "matched": false,
+        "best_induced": "Organization",
+        "best_sim": 0.4291
+      },
+      "Property": {
+        "matched": false,
+        "best_induced": "InsuredItem",
+        "best_sim": 0.364
+      },
+      "Revenue": {
+        "matched": false,
+        "best_induced": "FinancialTransaction",
+        "best_sim": 0.4042
+      },
+      "Risk": {
+        "matched": false,
+        "best_induced": "RiskFactor",
+        "best_sim": 0.6998
+      },
+      "SecurityMeasure": {
+        "matched": false,
+        "best_induced": "AuthorizationRequirement",
+        "best_sim": 0.3812
+      },
+      "Site": {
+        "matched": false,
+        "best_induced": "RepairFacility",
+        "best_sim": 0.3162
+      },
+      "Structure": {
+        "matched": false,
+        "best_induced": "Organization",
+        "best_sim": 0.5445
+      },
+      "Vehicle": {
+        "matched": false,
+        "best_induced": "Claimant",
+        "best_sim": 0.348
+      }
+    },
+    "confusion_matrix": [
+      {
+        "reference": "Address",
+        "best_match": "RepairFacility",
+        "best_similarity": 0.3189,
+        "top3_matches": [
+          {
+            "induced": "RepairFacility",
+            "similarity": 0.3189
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.2672
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2452
+          }
+        ]
+      },
+      {
+        "reference": "Animal",
+        "best_match": "Organization",
+        "best_similarity": 0.3134,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.3134
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.2965
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2832
+          }
+        ]
+      },
+      {
+        "reference": "BankAccount",
+        "best_match": "FinancialTransaction",
+        "best_similarity": 0.5843,
+        "top3_matches": [
+          {
+            "induced": "FinancialTransaction",
+            "similarity": 0.5843
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.2647
+          },
+          {
+            "induced": "AuthorizationRequirement",
+            "similarity": 0.2643
+          }
+        ]
+      },
+      {
+        "reference": "BusinessProcess",
+        "best_match": "FinancialTransaction",
+        "best_similarity": 0.4428,
+        "top3_matches": [
+          {
+            "induced": "FinancialTransaction",
+            "similarity": 0.4428
+          },
+          {
+            "induced": "MaintenanceProcedure",
+            "similarity": 0.3836
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.3293
+          }
+        ]
+      },
+      {
+        "reference": "Coverage",
+        "best_match": "CoverageType",
+        "best_similarity": 0.7804,
+        "top3_matches": [
+          {
+            "induced": "CoverageType",
+            "similarity": 0.7804
+          },
+          {
+            "induced": "InsurancePolicy",
+            "similarity": 0.5117
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.4188
+          }
+        ]
+      },
+      {
+        "reference": "CreditCard",
+        "best_match": "FinancialTransaction",
+        "best_similarity": 0.4743,
+        "top3_matches": [
+          {
+            "induced": "FinancialTransaction",
+            "similarity": 0.4743
+          },
+          {
+            "induced": "WarrantyProvider",
+            "similarity": 0.377
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3156
+          }
+        ]
+      },
+      {
+        "reference": "Damage",
+        "best_match": "Claim",
+        "best_similarity": 0.4047,
+        "top3_matches": [
+          {
+            "induced": "Claim",
+            "similarity": 0.4047
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3299
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.3163
+          }
+        ]
+      },
+      {
+        "reference": "DataProcessing",
+        "best_match": "MaintenanceProcedure",
+        "best_similarity": 0.2683,
+        "top3_matches": [
+          {
+            "induced": "MaintenanceProcedure",
+            "similarity": 0.2683
+          },
+          {
+            "induced": "SurveyResponse",
+            "similarity": 0.2383
+          },
+          {
+            "induced": "FinancialTransaction",
+            "similarity": 0.2374
+          }
+        ]
+      },
+      {
+        "reference": "DrivingLicense",
+        "best_match": "CoverageType",
+        "best_similarity": 0.2098,
+        "top3_matches": [
+          {
+            "induced": "CoverageType",
+            "similarity": 0.2098
+          },
+          {
+            "induced": "AuthorizationRequirement",
+            "similarity": 0.2082
+          },
+          {
+            "induced": "InsurancePolicy",
+            "similarity": 0.2076
+          }
+        ]
+      },
+      {
+        "reference": "Education",
+        "best_match": "Organization",
+        "best_similarity": 0.4084,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.4084
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.3046
+          },
+          {
+            "induced": "InsurancePolicy",
+            "similarity": 0.2369
+          }
+        ]
+      },
+      {
+        "reference": "Employee",
+        "best_match": "Organization",
+        "best_similarity": 0.4725,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.4725
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.4434
+          },
+          {
+            "induced": "AuthorizationRequirement",
+            "similarity": 0.2948
+          }
+        ]
+      },
+      {
+        "reference": "Finances",
+        "best_match": "FinancialTransaction",
+        "best_similarity": 0.663,
+        "top3_matches": [
+          {
+            "induced": "FinancialTransaction",
+            "similarity": 0.663
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.3798
+          },
+          {
+            "induced": "InsurancePolicy",
+            "similarity": 0.2652
+          }
+        ]
+      },
+      {
+        "reference": "Identification",
+        "best_match": "Claimant",
+        "best_similarity": 0.423,
+        "top3_matches": [
+          {
+            "induced": "Claimant",
+            "similarity": 0.423
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.3253
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3149
+          }
+        ]
+      },
+      {
+        "reference": "Object",
+        "best_match": "Organization",
+        "best_similarity": 0.3525,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.3525
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3013
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.2901
+          }
+        ]
+      },
+      {
+        "reference": "Organization",
+        "best_match": "Organization",
+        "best_similarity": 1.0,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 1.0
+          },
+          {
+            "induced": "RepairFacility",
+            "similarity": 0.2748
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.2469
+          }
+        ]
+      },
+      {
+        "reference": "Person",
+        "best_match": "Claimant",
+        "best_similarity": 0.4749,
+        "top3_matches": [
+          {
+            "induced": "Claimant",
+            "similarity": 0.4749
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.247
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2356
+          }
+        ]
+      },
+      {
+        "reference": "Preference",
+        "best_match": "SurveyResponse",
+        "best_similarity": 0.2765,
+        "top3_matches": [
+          {
+            "induced": "SurveyResponse",
+            "similarity": 0.2765
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.2211
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2104
+          }
+        ]
+      },
+      {
+        "reference": "Product",
+        "best_match": "Claim",
+        "best_similarity": 0.5204,
+        "top3_matches": [
+          {
+            "induced": "Claim",
+            "similarity": 0.5204
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3793
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.3722
+          }
+        ]
+      },
+      {
+        "reference": "Profession",
+        "best_match": "Organization",
+        "best_similarity": 0.4291,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.4291
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.375
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2636
+          }
+        ]
+      },
+      {
+        "reference": "Property",
+        "best_match": "InsuredItem",
+        "best_similarity": 0.364,
+        "top3_matches": [
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.364
+          },
+          {
+            "induced": "Claimant",
+            "similarity": 0.3509
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.3182
+          }
+        ]
+      },
+      {
+        "reference": "Revenue",
+        "best_match": "FinancialTransaction",
+        "best_similarity": 0.4042,
+        "top3_matches": [
+          {
+            "induced": "FinancialTransaction",
+            "similarity": 0.4042
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.3722
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.3407
+          }
+        ]
+      },
+      {
+        "reference": "Risk",
+        "best_match": "RiskFactor",
+        "best_similarity": 0.6998,
+        "top3_matches": [
+          {
+            "induced": "RiskFactor",
+            "similarity": 0.6998
+          },
+          {
+            "induced": "InsurancePolicy",
+            "similarity": 0.4527
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3606
+          }
+        ]
+      },
+      {
+        "reference": "SecurityMeasure",
+        "best_match": "AuthorizationRequirement",
+        "best_similarity": 0.3812,
+        "top3_matches": [
+          {
+            "induced": "AuthorizationRequirement",
+            "similarity": 0.3812
+          },
+          {
+            "induced": "InsurancePolicy",
+            "similarity": 0.2834
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.2646
+          }
+        ]
+      },
+      {
+        "reference": "Site",
+        "best_match": "RepairFacility",
+        "best_similarity": 0.3162,
+        "top3_matches": [
+          {
+            "induced": "RepairFacility",
+            "similarity": 0.3162
+          },
+          {
+            "induced": "Organization",
+            "similarity": 0.2917
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2698
+          }
+        ]
+      },
+      {
+        "reference": "Structure",
+        "best_match": "Organization",
+        "best_similarity": 0.5445,
+        "top3_matches": [
+          {
+            "induced": "Organization",
+            "similarity": 0.5445
+          },
+          {
+            "induced": "SurveyResponse",
+            "similarity": 0.2379
+          },
+          {
+            "induced": "RepairFacility",
+            "similarity": 0.2348
+          }
+        ]
+      },
+      {
+        "reference": "Vehicle",
+        "best_match": "Claimant",
+        "best_similarity": 0.348,
+        "top3_matches": [
+          {
+            "induced": "Claimant",
+            "similarity": 0.348
+          },
+          {
+            "induced": "InsuredItem",
+            "similarity": 0.3343
+          },
+          {
+            "induced": "Claim",
+            "similarity": 0.2931
+          }
+        ]
+      }
+    ],
+    "intrinsic": {
+      "class_coverage": 0.3054,
+      "entities_labeled": 1801,
+      "entities_total": 5898,
+      "n_classes": 14,
+      "n_hierarchy_edges": 10,
+      "avg_class_size": 128.6,
+      "class_distribution": {
+        "AuthorizationRequirement": 339,
+        "Claim": 620,
+        "Claimant": 240,
+        "CoverageType": 21,
+        "DeductibleAmount": 26,
+        "FinancialTransaction": 65,
+        "InsurancePolicy": 160,
+        "InsuredItem": 115,
+        "MaintenanceProcedure": 23,
+        "Organization": 7,
+        "RepairFacility": 117,
+        "RiskFactor": 10,
+        "SurveyResponse": 34,
+        "WarrantyProvider": 24
+      },
+      "class_balance_entropy": 0.754,
+      "hierarchy_max_depth": 2,
+      "hierarchy_roots": 2,
+      "class_coherence": 0.4104,
+      "coherence_n_classes": 14
+    }
+  }
+}

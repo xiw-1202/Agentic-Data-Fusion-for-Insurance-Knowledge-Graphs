@@ -1,0 +1,872 @@
+{
+  "suffix": "Emory_Spring2026_qwen2_5_72b",
+  "model": "qwen2.5:72b",
+  "judge_model": "qwen2.5:72b",
+  "triple_precision": {
+    "precision": 0.9111,
+    "accuracy": 0.82,
+    "sample_size": 100,
+    "correct": 82,
+    "incorrect": 8,
+    "uncertain": 10,
+    "llm_triples_total": 566,
+    "structured_triples_total": 21560,
+    "sampled_triples": [
+      {
+        "subject": "Claim Management",
+        "relation": "CAN_BE_CANCELED_AT",
+        "object": "mytmoclaim.com",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Tmobileclaimsample",
+        "relation": "HAS_FIELD",
+        "object": "Shipped Manufacturer",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "Samsung Protection Portal",
+        "relation": "HAS_URL",
+        "object": "sppmobileclaims.com",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorentersurvey",
+        "relation": "HAS_FIELD",
+        "object": "policy no",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorentersurvey",
+        "relation": "HAS_FIELD",
+        "object": "Claim Number",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Tmobileclaimsample",
+        "relation": "HAS_FIELD",
+        "object": "Speed to Repair Buckets",
+        "source_type": "llm",
+        "verdict": "UNCERTAIN"
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "EXCLUDED_FROM",
+        "object": "Brake Rotors and Drums",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "EXCLUDED_FROM",
+        "object": "Cruise Control",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Arbitration Process",
+        "relation": "HAS_STEP",
+        "object": "Select Umpire",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Geicorentersurvey",
+        "relation": "HAS_FIELD",
+        "object": "survey id",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "COVERS",
+        "object": "Hydraulic or Electric Regenerative Braking System",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Amazon Portal",
+        "relation": "COVERS",
+        "object": "Amazon Device Protection Claims",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "EXCLUDED_FROM",
+        "object": "Constant Velocity Boots",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Customer",
+        "relation": "MUST_VISIT",
+        "object": "Administrator\u2019s Self-Service Claim Portal",
+        "source_type": "llm",
+        "verdict": "INCORRECT"
+      },
+      {
+        "subject": "Insured",
+        "relation": "DENIES_COVERAGE_IF_NOT_FOLLOWED",
+        "object": "Uncovered Diagnosis Charges",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Vehicle Service Contract",
+        "relation": "HAS_TERM",
+        "object": "Term Months",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "MAY_BE_CANCELED_BY",
+        "object": "Us",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Claim Process",
+        "relation": "PRECEDES",
+        "object": "Payment of Covered Costs",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Emergency Roadside Assistance",
+        "relation": "EXCLUDED_FROM",
+        "object": "Replacement Keys",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      },
+      {
+        "subject": "Assurant Mobile Device Insurance",
+        "relation": "HAS_SUPPORT_RESOURCE",
+        "object": "Phone Directory for Contacting Assurant",
+        "source_type": "llm",
+        "verdict": "CORRECT"
+      }
+    ]
+  },
+  "fact_recall": {
+    "fact_recall": 0.7322,
+    "total_facts": 239,
+    "found_facts": 175,
+    "chunks_sampled": 30,
+    "method": "G-BERTScore (fact-vs-linearized-triple, cosine)",
+    "match_threshold": 0.65,
+    "chunk_results": [
+      {
+        "chunk_id": 6,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.77,
+          0.827,
+          0.859,
+          0.618,
+          0.673,
+          0.628,
+          0.613,
+          0.526
+        ]
+      },
+      {
+        "chunk_id": 6,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 6,
+        "recall": 0.75,
+        "best_match_sims": [
+          0.735,
+          0.7,
+          0.856,
+          0.799,
+          0.606,
+          0.463,
+          0.663,
+          0.676
+        ]
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.943,
+          0.9,
+          0.801,
+          0.678,
+          0.883,
+          0.89,
+          0.783,
+          0.831
+        ]
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.923,
+          0.9,
+          0.838,
+          0.815,
+          0.674,
+          0.883,
+          0.785,
+          0.814
+        ]
+      },
+      {
+        "chunk_id": 8,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.774,
+          0.81,
+          0.709,
+          0.868,
+          0.67,
+          0.676,
+          0.814,
+          0.821
+        ]
+      },
+      {
+        "chunk_id": 2,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.854,
+          0.562,
+          0.634,
+          0.797,
+          0.646,
+          0.597,
+          0.658,
+          0.725
+        ]
+      },
+      {
+        "chunk_id": 15,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.853,
+          0.717,
+          0.643,
+          0.64,
+          0.724,
+          0.584,
+          0.632,
+          0.704
+        ]
+      },
+      {
+        "chunk_id": 20,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.924,
+          0.9,
+          0.779,
+          0.874,
+          0.639,
+          0.751,
+          0.814,
+          0.73
+        ]
+      },
+      {
+        "chunk_id": 44,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.856,
+          0.638,
+          0.652,
+          0.812,
+          0.646,
+          0.577,
+          0.496,
+          0.735
+        ]
+      },
+      {
+        "chunk_id": 0,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.859,
+          0.908,
+          0.984,
+          0.917,
+          0.896,
+          0.698,
+          0.74,
+          0.723
+        ]
+      },
+      {
+        "chunk_id": 37,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625,
+        "best_match_sims": [
+          0.85,
+          0.658,
+          0.659,
+          0.803,
+          0.691,
+          0.647,
+          0.543,
+          0.631
+        ]
+      },
+      {
+        "chunk_id": 27,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375,
+        "best_match_sims": [
+          0.846,
+          0.495,
+          0.655,
+          0.811,
+          0.646,
+          0.575,
+          0.568,
+          0.639
+        ]
+      },
+      {
+        "chunk_id": 12,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 4,
+        "recall": 0.5,
+        "best_match_sims": [
+          0.79,
+          0.889,
+          0.609,
+          0.517,
+          0.513,
+          0.876,
+          0.686,
+          0.494
+        ]
+      },
+      {
+        "chunk_id": 0,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25,
+        "best_match_sims": [
+          0.599,
+          0.584,
+          0.687,
+          0.535,
+          0.617,
+          0.57,
+          0.734,
+          0.46
+        ]
+      },
+      {
+        "chunk_id": 1,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.924,
+          0.9,
+          0.615,
+          0.721,
+          0.712,
+          0.787,
+          0.729,
+          0.831
+        ]
+      },
+      {
+        "chunk_id": 12,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.782,
+          0.851,
+          0.882,
+          0.601,
+          0.767,
+          0.763,
+          0.897,
+          0.71
+        ]
+      },
+      {
+        "chunk_id": 26,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.754,
+          0.801,
+          0.781,
+          0.903,
+          0.792,
+          0.908,
+          0.85,
+          0.729
+        ]
+      },
+      {
+        "chunk_id": 17,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.843,
+          0.9,
+          0.833,
+          0.785,
+          0.883,
+          0.67,
+          0.783,
+          0.814
+        ]
+      },
+      {
+        "chunk_id": 14,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625,
+        "best_match_sims": [
+          0.975,
+          0.549,
+          0.518,
+          0.454,
+          0.731,
+          0.674,
+          0.727,
+          0.735
+        ]
+      },
+      {
+        "chunk_id": 31,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.798,
+          0.858,
+          0.936,
+          0.563,
+          0.988,
+          0.776,
+          0.726,
+          0.733
+        ]
+      },
+      {
+        "chunk_id": 10,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.784,
+          0.851,
+          0.923,
+          0.62,
+          0.672,
+          0.786,
+          0.849,
+          0.731
+        ]
+      },
+      {
+        "chunk_id": 5,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.756,
+          0.9,
+          0.813,
+          0.803,
+          0.75,
+          0.75,
+          0.8,
+          0.862
+        ]
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.836,
+          0.927,
+          0.929,
+          0.732,
+          0.856,
+          0.687,
+          0.658,
+          0.701
+        ]
+      },
+      {
+        "chunk_id": 19,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.741,
+          0.9,
+          0.823,
+          0.713,
+          0.75,
+          0.791,
+          0.833,
+          0.586
+        ]
+      },
+      {
+        "chunk_id": 43,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 7,
+        "recall": 0.875,
+        "best_match_sims": [
+          0.854,
+          0.669,
+          0.673,
+          0.808,
+          0.719,
+          0.663,
+          0.639,
+          0.706
+        ]
+      },
+      {
+        "chunk_id": 23,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 5,
+        "recall": 0.625,
+        "best_match_sims": [
+          0.87,
+          0.792,
+          0.694,
+          0.834,
+          0.613,
+          0.767,
+          0.45,
+          0.644
+        ]
+      },
+      {
+        "chunk_id": 19,
+        "facts_extracted": 7,
+        "facts_found_in_kg": 3,
+        "recall": 0.429,
+        "best_match_sims": [
+          0.799,
+          0.47,
+          0.703,
+          0.586,
+          0.51,
+          0.339,
+          0.86
+        ]
+      },
+      {
+        "chunk_id": 33,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 3,
+        "recall": 0.375,
+        "best_match_sims": [
+          0.855,
+          0.56,
+          0.65,
+          0.802,
+          0.646,
+          0.579,
+          0.51,
+          0.686
+        ]
+      },
+      {
+        "chunk_id": 32,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 2,
+        "recall": 0.25,
+        "best_match_sims": [
+          0.848,
+          0.591,
+          0.646,
+          0.805,
+          0.574,
+          0.562,
+          0.494,
+          0.649
+        ]
+      },
+      {
+        "chunk_id": 11,
+        "facts_extracted": 8,
+        "facts_found_in_kg": 8,
+        "recall": 1.0,
+        "best_match_sims": [
+          0.947,
+          0.9,
+          0.826,
+          0.761,
+          0.674,
+          0.67,
+          0.87,
+          0.783
+        ]
+      }
+    ]
+  },
+  "source_grounding": {
+    "grounding_rate": 0.8,
+    "total_checked": 50,
+    "supported": 39,
+    "partially_supported": 2,
+    "not_supported": 0,
+    "no_source_found": 9,
+    "sampled_results": [
+      {
+        "subject": "Vehicle Service Contract",
+        "relation": "IS_ADMINISTERED_BY",
+        "object": "Automotive Warranty Services of Florida, Inc.",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "claim filing time csat",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Assurant Mobile Device Insurance",
+        "relation": "HAS_CLAIM_FILING_PORTAL",
+        "object": "CPR Cell Phone Repair",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Coverage Liability",
+        "relation": "HAS_INSURED_ITEM",
+        "object": "covliab ains2",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Emergency Roadside Assistance",
+        "relation": "EXCLUDED_FROM",
+        "object": "Replacement Keys",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 14
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "reimbursement ces",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Towing Coverage",
+        "relation": "EXCLUDED_FROM",
+        "object": "Unlicensed Service Station or Garage",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Device Protection Enrollment",
+        "relation": "REQUIRES_AUTHORIZATION",
+        "object": "Visual Mechanical Inspection",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "MAY_BE_CANCELED_BY",
+        "object": "Lienholder",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Arbitration Demand",
+        "relation": "MUST_NOTIFY",
+        "object": "Other Party",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Vehicle Service Contract",
+        "relation": "HAS_CONDITION",
+        "object": "Manufacturer\u2019s Warranty Voidance",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "PHP Coverage Documents",
+        "relation": "EFFECTIVE_AFTER",
+        "object": "Enrollment",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "Service Contract Cancellation By Insured",
+        "relation": "HAS_NOTICE_PERIOD",
+        "object": "30 days",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 23
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "COVERS",
+        "object": "Heated Back Glass",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Cancellation By Lienholder",
+        "relation": "IS_DELETED",
+        "object": "Entirety",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 31
+      },
+      {
+        "subject": "Tmobilesurveysample",
+        "relation": "HAS_FIELD",
+        "object": "repair csat",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      },
+      {
+        "subject": "Towing Coverage",
+        "relation": "EXCLUDED_FROM",
+        "object": "Unmaintained Roads",
+        "source_type": "llm",
+        "grounded": "NO_SOURCE",
+        "chunk_id": null
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "COVERS",
+        "object": "Hydraulic or Electric Regenerative Braking System",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 12
+      },
+      {
+        "subject": "SERVICE CONTRACT",
+        "relation": "HAS_REFUND_POLICY",
+        "object": "Refund Calculation",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 24
+      },
+      {
+        "subject": "Personal Liability Coverage",
+        "relation": "IS_PART_OF",
+        "object": "Renters Insurance Policy",
+        "source_type": "llm",
+        "grounded": "SUPPORTED",
+        "chunk_id": 0
+      }
+    ]
+  },
+  "graph_statistics": {
+    "node_count": 4111,
+    "edge_count": 22126,
+    "density": 0.00131,
+    "avg_degree": 10.76,
+    "median_degree": 2.0,
+    "max_degree": 1056,
+    "isolated_nodes": 0,
+    "relation_types": 313,
+    "entity_types": 59,
+    "top_5_relations": [
+      [
+        "IS_A",
+        1064
+      ],
+      [
+        "BELONGS_TO",
+        760
+      ],
+      [
+        "HAS_GATEWAY_SURVEY_NAME",
+        656
+      ],
+      [
+        "HAS_GATEWAY_SURVEY_ID",
+        482
+      ],
+      [
+        "HAS_ORGANIZATION_NAME",
+        449
+      ]
+    ],
+    "top_5_entity_types": [
+      [
+        "Numeric",
+        1512
+      ],
+      [
+        "ClaimRecord",
+        586
+      ],
+      [
+        "Text",
+        424
+      ],
+      [
+        "SurveyRecord",
+        253
+      ],
+      [
+        "Person",
+        226
+      ]
+    ],
+    "triples_per_entity": 5.38
+  }
+}

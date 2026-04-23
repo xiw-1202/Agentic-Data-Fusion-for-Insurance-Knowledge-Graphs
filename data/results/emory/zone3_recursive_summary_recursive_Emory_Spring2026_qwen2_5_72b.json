@@ -1,0 +1,307 @@
+{
+  "mode": "recursive_induction",
+  "model": "qwen2.5:72b",
+  "suffix": "recursive_Emory_Spring2026_qwen2_5_72b",
+  "seed": 42,
+  "elapsed_seconds": 197.1,
+  "entity_count": 4111,
+  "concept_count": 740,
+  "classes_final": [
+    "AuthorizationRequirement",
+    "Claim",
+    "Claimant",
+    "CoverageType",
+    "DeductibleAmount",
+    "FinancialTransaction",
+    "InsurancePolicy",
+    "InsuredItem",
+    "MaintenanceProcedure",
+    "Organization",
+    "RepairFacility",
+    "RiskFactor",
+    "SurveyResponse",
+    "WarrantyProvider"
+  ],
+  "class_count": 14,
+  "max_depth": 2,
+  "class_distribution": {
+    "Claim": 620,
+    "AuthorizationRequirement": 339,
+    "Claimant": 240,
+    "InsurancePolicy": 160,
+    "RepairFacility": 117,
+    "InsuredItem": 115,
+    "FinancialTransaction": 65,
+    "SurveyResponse": 34,
+    "DeductibleAmount": 26,
+    "WarrantyProvider": 24,
+    "MaintenanceProcedure": 23,
+    "CoverageType": 21,
+    "RiskFactor": 10,
+    "Organization": 7
+  },
+  "other_count": 2310,
+  "other_fraction": 0.5619,
+  "hierarchy": [
+    {
+      "child": "Claim",
+      "parent": "InsurancePolicy"
+    },
+    {
+      "child": "Claimant",
+      "parent": "Claim"
+    },
+    {
+      "child": "DeductibleAmount",
+      "parent": "InsurancePolicy"
+    },
+    {
+      "child": "RepairFacility",
+      "parent": "Claim"
+    },
+    {
+      "child": "MaintenanceProcedure",
+      "parent": "InsuredItem"
+    },
+    {
+      "child": "AuthorizationRequirement",
+      "parent": "Claim"
+    },
+    {
+      "child": "WarrantyProvider",
+      "parent": "Organization"
+    },
+    {
+      "child": "FinancialTransaction",
+      "parent": "InsurancePolicy"
+    },
+    {
+      "child": "InsuredItem",
+      "parent": "InsurancePolicy"
+    },
+    {
+      "child": "RiskFactor",
+      "parent": "InsurancePolicy"
+    }
+  ],
+  "associations_count": 37,
+  "llm_calls": 5,
+  "neo4j_stats": {
+    "entities_labeled": 1801,
+    "ontology_classes": 14,
+    "instance_of_edges": 1801,
+    "subclass_of_edges": 10,
+    "associated_with_edges": 37,
+    "class_names": [
+      "AuthorizationRequirement",
+      "Claim",
+      "Claimant",
+      "CoverageType",
+      "DeductibleAmount",
+      "FinancialTransaction",
+      "InsurancePolicy",
+      "InsuredItem",
+      "MaintenanceProcedure",
+      "Organization",
+      "RepairFacility",
+      "RiskFactor",
+      "SurveyResponse",
+      "WarrantyProvider"
+    ],
+    "class_distribution": {
+      "InsurancePolicy": 160,
+      "Claim": 620,
+      "CoverageType": 21,
+      "Organization": 7,
+      "SurveyResponse": 34,
+      "Claimant": 240,
+      "DeductibleAmount": 26,
+      "RepairFacility": 117,
+      "MaintenanceProcedure": 23,
+      "AuthorizationRequirement": 339,
+      "WarrantyProvider": 24,
+      "FinancialTransaction": 65,
+      "InsuredItem": 115,
+      "RiskFactor": 10
+    },
+    "method": "SV-LOI"
+  },
+  "taxonomy_detail": {
+    "InsurancePolicy": {
+      "depth": 0,
+      "size": 13,
+      "parent": null,
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 13,
+        "description": "Represents an insurance policy, including its number, type, and associated details.",
+        "source_evidence": "All source files (e.g., synthetic_data_sample_geicorenterssurveysample.csv, synthetic_data_sample_geicorenterscancelsurvey.csv)"
+      }
+    },
+    "Claim": {
+      "depth": 1,
+      "size": 34,
+      "parent": "InsurancePolicy",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 34,
+        "description": "Represents a claim made under an insurance policy, including its status, type, and associated dates.",
+        "source_evidence": "synthetic_data_sample_geicorentersclaims.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "CoverageType": {
+      "depth": 0,
+      "size": 21,
+      "parent": null,
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 21,
+        "description": "Describes the type of coverage provided by an insurance policy, including property, liability, and endorsements.",
+        "source_evidence": "synthetic_data_sample_geicorenterspoliciesdetails.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "Organization": {
+      "depth": 0,
+      "size": 7,
+      "parent": null,
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 7,
+        "description": "Represents an organization involved in the insurance process, such as the insurer or agency.",
+        "source_evidence": "All source files (e.g., synthetic_data_sample_geicorenterssurveysample.csv, synthetic_data_sample_tmobilechatsurveysample.csv)"
+      }
+    },
+    "SurveyResponse": {
+      "depth": 0,
+      "size": 34,
+      "parent": null,
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 34,
+        "description": "Captures responses to surveys conducted by insurance companies, including customer feedback and satisfaction scores.",
+        "source_evidence": "synthetic_data_sample_geicorenterssurveysample.csv, synthetic_data_sample_tmobilechatsurveysample.csv"
+      }
+    },
+    "Claimant": {
+      "depth": 2,
+      "size": 14,
+      "parent": "Claim",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 14,
+        "description": "Represents the individual or entity making a claim under an insurance policy.",
+        "source_evidence": "synthetic_data_sample_geicorentersclaims.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "DeductibleAmount": {
+      "depth": 1,
+      "size": 26,
+      "parent": "InsurancePolicy",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 26,
+        "description": "Specifies the amount that must be paid by the insured before the insurer covers any losses.",
+        "source_evidence": "synthetic_data_sample_geicorenterspoliciesdetails.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "RepairFacility": {
+      "depth": 2,
+      "size": 117,
+      "parent": "Claim",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 117,
+        "description": "Represents a facility where repairs are conducted for claims involving physical damage.",
+        "source_evidence": "synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "MaintenanceProcedure": {
+      "depth": 2,
+      "size": 23,
+      "parent": "InsuredItem",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 23,
+        "description": "Describes the maintenance procedures required to keep an insured item in good condition.",
+        "source_evidence": "Auto_Service_form_masked.pdf"
+      }
+    },
+    "AuthorizationRequirement": {
+      "depth": 2,
+      "size": 339,
+      "parent": "Claim",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 339,
+        "description": "Specifies the requirements for obtaining authorization before beginning repairs covered by a service contract.",
+        "source_evidence": "Auto_Service_form_masked.pdf"
+      }
+    },
+    "WarrantyProvider": {
+      "depth": 1,
+      "size": 24,
+      "parent": "Organization",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 24,
+        "description": "Represents the entity providing a warranty or service contract, including their responsibilities and terms.",
+        "source_evidence": "Auto_Service_form_masked.pdf"
+      }
+    },
+    "FinancialTransaction": {
+      "depth": 1,
+      "size": 63,
+      "parent": "InsurancePolicy",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 63,
+        "description": "Captures financial transactions related to insurance policies, claims, and premiums.",
+        "source_evidence": "synthetic_data_sample_geicorentersclaims.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "InsuredItem": {
+      "depth": 1,
+      "size": 15,
+      "parent": "InsurancePolicy",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 15,
+        "description": "Represents the item or property that is insured under a policy, such as a vehicle or home.",
+        "source_evidence": "synthetic_data_sample_geicorenterspoliciesdetails.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    },
+    "RiskFactor": {
+      "depth": 1,
+      "size": 10,
+      "parent": "InsurancePolicy",
+      "children": [],
+      "split_method": "fingerprint",
+      "metrics": {
+        "size": 10,
+        "description": "Identifies factors that influence the risk assessment for an insurance policy, such as location or property type.",
+        "source_evidence": "synthetic_data_sample_geicorenterspoliciesdetails.csv, synthetic_data_sample_tmobileclaimsample.csv"
+      }
+    }
+  },
+  "normalization_map": {},
+  "ablation": {
+    "skip_name_signal": false,
+    "skip_provenance": false,
+    "skip_type_signal": false,
+    "skip_llm_validation": false,
+    "max_depth": 4
+  }
+}

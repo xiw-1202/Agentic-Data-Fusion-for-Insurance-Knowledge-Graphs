@@ -1,0 +1,72 @@
+[
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "accounts",
+    "bridge_column": "ACCOUNT",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "modified_by",
+    "bridge_column": "BI_MODIFIED_BY",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "created_on",
+    "bridge_column": "BI_CREATED_DT",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "managed_by",
+    "bridge_column": "MCO",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "created_by",
+    "bridge_column": "BI_CREATED_BY",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "account_name",
+    "bridge_column": "ACCT_NAME",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "insured",
+    "bridge_column": "INSURED",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "policy_number",
+    "bridge_column": "POLICY_NO",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "line_of_business",
+    "bridge_column": "LOB",
+    "confidence": 1.0
+  },
+  {
+    "source_class": "SurveyData",
+    "target_class": "DataGroups",
+    "relationship_name": "modified_on",
+    "bridge_column": "BI_MODIFIED_DT",
+    "confidence": 1.0
+  }
+]
