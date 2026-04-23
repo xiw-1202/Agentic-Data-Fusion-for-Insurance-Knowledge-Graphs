@@ -1,11 +1,11 @@
 {
   "suffix": "Emory_Spring2026_qwen2_5_72b",
-  "precision": 0.5625,
-  "recall": 0.1923,
-  "f1": 0.2866,
-  "induced_label_count": 8,
+  "precision": 0.75,
+  "recall": 0.3462,
+  "f1": 0.4737,
+  "induced_label_count": 10,
   "riskine_class_count": 26,
-  "riskine_covered_count": 5,
+  "riskine_covered_count": 9,
   "alignment_table": [
     {
       "induced": "Organization",
@@ -16,10 +16,17 @@
     },
     {
       "induced": "Policy",
-      "riskine": null,
-      "cosine": null,
-      "verdict": "NO_CANDIDATE",
-      "score": 0.0
+      "riskine": "Product",
+      "cosine": 0.9067,
+      "verdict": "MATCH",
+      "score": 1.0
+    },
+    {
+      "induced": "Person",
+      "riskine": "Person",
+      "cosine": 1.0,
+      "verdict": "MATCH",
+      "score": 1.0
     },
     {
       "induced": "Coverage",
@@ -29,209 +36,220 @@
       "score": 1.0
     },
     {
-      "induced": "Claim",
-      "riskine": null,
-      "cosine": null,
-      "verdict": "NO_CANDIDATE",
-      "score": 0.0
-    },
-    {
-      "induced": "Damage",
-      "riskine": "Damage",
+      "induced": "Property",
+      "riskine": "Property",
       "cosine": 1.0,
       "verdict": "MATCH",
       "score": 1.0
     },
     {
-      "induced": "Risk",
-      "riskine": "Risk",
-      "cosine": 1.0,
+      "induced": "Claim",
+      "riskine": "Coverage",
+      "cosine": 0.9247,
       "verdict": "PARTIAL",
       "score": 0.5
     },
     {
-      "induced": "Address",
-      "riskine": "Address",
-      "cosine": 1.0,
-      "verdict": "MATCH",
-      "score": 1.0
+      "induced": "Procedure",
+      "riskine": "BusinessProcess",
+      "cosine": 0.8834,
+      "verdict": "PARTIAL",
+      "score": 0.5
     },
     {
-      "induced": "ServiceContract",
-      "riskine": null,
-      "cosine": null,
-      "verdict": "NO_CANDIDATE",
-      "score": 0.0
+      "induced": "ServiceOffering",
+      "riskine": "BusinessProcess",
+      "cosine": 0.8177,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "RiskFactor",
+      "riskine": "Address",
+      "cosine": 0.7653,
+      "verdict": "PARTIAL",
+      "score": 0.5
+    },
+    {
+      "induced": "ConditionalCoverage",
+      "riskine": "Coverage",
+      "cosine": 0.9382,
+      "verdict": "PARTIAL",
+      "score": 0.5
     }
   ],
-  "unmatched_induced": [
-    "Policy",
-    "Claim",
-    "ServiceContract"
-  ],
+  "unmatched_induced": [],
   "unmatched_riskine": [
     "Animal",
     "BankAccount",
-    "BusinessProcess",
     "CreditCard",
+    "Damage",
     "DataProcessing",
-    "DrivingLicense",
     "Education",
-    "Employee",
     "Finances",
     "Identification",
     "Object",
-    "Person",
     "Preference",
-    "Product",
     "Profession",
-    "Property",
     "Revenue",
+    "Risk",
     "SecurityMeasure",
     "Site",
     "Structure",
     "Vehicle"
   ],
-  "entity_assignment_precision": 0.625,
-  "entity_assignment_recall": 0.2308,
-  "entity_assignment_f1": 0.3371,
+  "entity_assignment_precision": 0.35,
+  "entity_assignment_recall": 0.1923,
+  "entity_assignment_f1": 0.2482,
   "entity_assignment_riskine_covered": [
-    "Address",
     "Coverage",
-    "Damage",
-    "DrivingLicense",
-    "Organization",
-    "Product"
+    "Identification",
+    "Product",
+    "Risk",
+    "Vehicle"
   ],
   "entity_assignment_table": [
     {
       "induced": "Organization",
-      "members_sample": "Organization: [organization id, organization name, operator id, acct name, mco...]",
-      "riskine": "Organization",
-      "cosine": 0.6977,
-      "score": 1.0
+      "members_sample": "Organization: [7 of 10 Global Telecom Brands, Account Name, Administrator, Agency Name, AppleCare Customers...]",
+      "riskine": null,
+      "cosine": 0.3459,
+      "score": 0.0
     },
     {
       "induced": "Policy",
-      "members_sample": "Policy: [Contract #, Policy Number, policy no, a policy billing setup, a reviewed policy docs...]",
+      "members_sample": "Policy: [Assurant Mobile Device Insurance]",
       "riskine": "Product",
-      "cosine": 0.5636,
+      "cosine": 0.4373,
+      "score": 0.5
+    },
+    {
+      "induced": "Person",
+      "members_sample": "Person: [Authorized User, Customer, Insured, Lienholder if Any, Otherwise You, Lienholder if any, otherwise Insured...]",
+      "riskine": "Identification",
+      "cosine": 0.4674,
       "score": 0.5
     },
     {
       "induced": "Coverage",
-      "members_sample": "Coverage",
+      "members_sample": "Coverage: [Accidental Damage, Aftermarket Accessories or Equipment, Air Conditioning Refrigerant, Amazon Device Protection Claims, Anti-Theft Systems...]",
       "riskine": "Coverage",
-      "cosine": 1.0,
-      "score": 1.0
+      "cosine": 0.504,
+      "score": 0.5
+    },
+    {
+      "induced": "Property",
+      "members_sample": "Property: [Actual Expenses for Rental Vehicle, Actuator(s), Analog Instrument Display(s), Appliances, Arbitration Location...]",
+      "riskine": "Vehicle",
+      "cosine": 0.4378,
+      "score": 0.5
     },
     {
       "induced": "Claim",
-      "members_sample": "Claim",
-      "riskine": "Product",
-      "cosine": 0.5204,
+      "members_sample": "Claim: [Auth to Repair Buckets, Auth to Repair Time, Auth to Ship Buckets, Auth to Ship Time]",
+      "riskine": null,
+      "cosine": 0.3149,
+      "score": 0.0
+    },
+    {
+      "induced": "Procedure",
+      "members_sample": "Procedure: [(Unknown), AIZMOB_ADV_EXCH, AIZMOB_ADV_EXCH (A), AIZMOB_ADV_EXCH (B), AIZMOB_ADV_EXCH (C)...]",
+      "riskine": null,
+      "cosine": 0.3421,
+      "score": 0.0
+    },
+    {
+      "induced": "ServiceOffering",
+      "members_sample": "ServiceOffering: [APEX Platform for Automotive Sector Support, Administrator\u2019s Self-Service Claim Portal, Amazon Portal, Assurant Mobile Protection Programs, Authorized Repair Network...]",
+      "riskine": null,
+      "cosine": 0.2735,
+      "score": 0.0
+    },
+    {
+      "induced": "RiskFactor",
+      "members_sample": "RiskFactor: [10% penalty per month if not paid within 45 days, Accidents Outside Rental, Act or Omission Increasing Risk, After 60 Days or Claim Incurred Within First 60 Days, Any Reason...]",
+      "riskine": "Risk",
+      "cosine": 0.4702,
       "score": 0.5
     },
     {
-      "induced": "Damage",
-      "members_sample": "Damage: [Theft, Cause of Loss, Total Losses, Device Damage Type, Multiple Disablements...]",
-      "riskine": "Damage",
-      "cosine": 0.5216,
-      "score": 0.5
-    },
-    {
-      "induced": "Risk",
-      "members_sample": "Risk: [Residence in New York, Not Otherwise Covered, Material Misrepresentation or Fraud, Odometer Tampering, Salvage Title...]",
-      "riskine": "DrivingLicense",
-      "cosine": 0.4855,
-      "score": 0.5
-    },
-    {
-      "induced": "Address",
-      "members_sample": "Address: [Claimant State, DCC Location, Repair Location, Address, City, State, Zip, 175 West Jackson Blvd., Chicago, Illinois 60604...]",
-      "riskine": "Address",
-      "cosine": 0.4325,
-      "score": 0.5
-    },
-    {
-      "induced": "ServiceContract",
-      "members_sample": "ServiceContract: [Vehicle Service Contract, AK, HI, Geicorentersurvey, what was your policy servicing issue...]",
+      "induced": "ConditionalCoverage",
+      "members_sample": "ConditionalCoverage: [Abuse, Misuse or Lack of Customary Maintenance, Additional Commercial Lodging Entertainment Expenses, Alabama State Amendments, Alaska State Amendments, Amount You must pay for covered repairs per visit shown on the Information Schedule...]",
       "riskine": "Coverage",
-      "cosine": 0.4377,
-      "score": 0.5
+      "cosine": 0.6291,
+      "score": 1.0
     }
   ],
   "entity_assignment_evidenced_classes": [
-    "Address",
     "Coverage",
     "Damage",
-    "DrivingLicense",
-    "Employee",
     "Identification",
-    "Organization",
-    "Preference",
     "Product",
-    "Profession"
+    "Property",
+    "Risk",
+    "Vehicle"
   ],
-  "entity_assignment_evidenced_count": 10,
-  "entity_assignment_recall_present": 0.6,
-  "entity_assignment_f1_present": 0.6122,
+  "entity_assignment_evidenced_count": 7,
+  "entity_assignment_recall_present": 0.7143,
+  "entity_assignment_f1_present": 0.4698,
   "standard_metrics": {
-    "bertscore_precision": 0.7885,
-    "bertscore_recall": 0.5028,
-    "bertscore_f1": 0.6141,
+    "bertscore_precision": 0.6949,
+    "bertscore_recall": 0.5104,
+    "bertscore_f1": 0.5885,
     "per_reference_recall": {
-      "Address": 1.0,
-      "Animal": 0.3134,
-      "BankAccount": 0.3943,
-      "BusinessProcess": 0.3546,
+      "Address": 0.3662,
+      "Animal": 0.3891,
+      "BankAccount": 0.3279,
+      "BusinessProcess": 0.4743,
       "Coverage": 1.0,
-      "CreditCard": 0.3375,
-      "Damage": 1.0,
-      "DataProcessing": 0.2248,
+      "CreditCard": 0.3328,
+      "Damage": 0.4047,
+      "DataProcessing": 0.3847,
       "DrivingLicense": 0.2432,
       "Education": 0.411,
-      "Employee": 0.4725,
+      "Employee": 0.52,
       "Finances": 0.3798,
-      "Identification": 0.4197,
-      "Object": 0.3525,
+      "Identification": 0.4813,
+      "Object": 0.5323,
       "Organization": 1.0,
-      "Person": 0.3406,
+      "Person": 1.0,
       "Preference": 0.3722,
       "Product": 0.5204,
-      "Profession": 0.4291,
-      "Property": 0.3681,
-      "Revenue": 0.3722,
-      "Risk": 1.0,
-      "SecurityMeasure": 0.3951,
-      "Site": 0.4835,
+      "Profession": 0.4516,
+      "Property": 1.0,
+      "Revenue": 0.3763,
+      "Risk": 0.6998,
+      "SecurityMeasure": 0.3343,
+      "Site": 0.325,
       "Structure": 0.5445,
-      "Vehicle": 0.3444
+      "Vehicle": 0.3989
     },
-    "fuzzy_precision": 0.1111,
-    "fuzzy_recall": 0.0652,
-    "fuzzy_f1": 0.0822,
+    "fuzzy_precision": 0.0,
+    "fuzzy_recall": 0.0,
+    "fuzzy_f1": 0.0,
     "fuzzy_threshold": 0.436,
-    "induced_edge_count": 18,
+    "induced_edge_count": 4,
     "reference_edge_count": 46,
-    "continuous_precision": 0.3766,
-    "continuous_recall": 0.1474,
-    "continuous_f1": 0.2118,
-    "optimal_matching_score": 6.7783,
-    "taxonomy_precision": 0.1111,
-    "taxonomy_recall": 0.0652,
-    "taxonomy_f1": 0.0822,
-    "taxonomy_induced_edges": 18,
+    "continuous_precision": 0.3746,
+    "continuous_recall": 0.0326,
+    "continuous_f1": 0.0599,
+    "optimal_matching_score": 1.4983,
+    "taxonomy_precision": 0.0,
+    "taxonomy_recall": 0.0,
+    "taxonomy_f1": 0.0,
+    "taxonomy_induced_edges": 4,
     "taxonomy_reference_edges": 46,
-    "graph_precision": 0.8229,
-    "graph_recall": 0.2532,
-    "graph_f1": 0.3872,
+    "graph_precision": 0.6457,
+    "graph_recall": 0.2732,
+    "graph_f1": 0.3839,
     "sgc_hops": 2,
-    "avg_wu_palmer": 0.725,
-    "wu_palmer_matched_pairs": 8,
+    "avg_wu_palmer": 0.7024,
+    "wu_palmer_matched_pairs": 10,
     "depth_distribution_induced": {
-      "0": 3,
-      "1": 5
+      "0": 7,
+      "1": 1,
+      "2": 2,
+      "3": 1
     },
     "depth_distribution_reference": {
       "0": 9,
@@ -240,36 +258,37 @@
       "3": 1,
       "4": 1
     },
-    "auc_roc": 1.0,
-    "pr_auc": 1.0,
-    "mrr": 1.0,
-    "recall_at_1": 1.0,
-    "recall_at_3": 1.0,
-    "gt_matches": 5,
+    "auc_roc": 0.8699,
+    "pr_auc": 0.6186,
+    "mrr": 0.7762,
+    "recall_at_1": 0.7143,
+    "recall_at_3": 0.8571,
+    "gt_matches": 10,
     "gt_source": "llm_judge",
-    "auc_classes_matched": 5,
+    "auc_classes_matched": 7,
     "auc_classes_total": 26,
     "auc_per_class": {
       "Address": {
         "matched": true,
-        "matched_induced": "Address",
-        "match_sim": 1.0,
-        "rank": 1
+        "matched_induced": "RiskFactor",
+        "match_sim": 0.085,
+        "rank": 10
       },
       "Animal": {
         "matched": false,
-        "best_induced": "Organization",
-        "best_sim": 0.3134
+        "best_induced": "Person",
+        "best_sim": 0.3891
       },
       "BankAccount": {
         "matched": false,
-        "best_induced": "Address",
-        "best_sim": 0.3943
+        "best_induced": "ServiceOffering",
+        "best_sim": 0.3279
       },
       "BusinessProcess": {
-        "matched": false,
-        "best_induced": "ServiceContract",
-        "best_sim": 0.3546
+        "matched": true,
+        "matched_induced": "Procedure",
+        "match_sim": 0.4743,
+        "rank": 1
       },
       "Coverage": {
         "matched": true,
@@ -279,19 +298,18 @@
       },
       "CreditCard": {
         "matched": false,
-        "best_induced": "Address",
-        "best_sim": 0.3375
+        "best_induced": "ServiceOffering",
+        "best_sim": 0.3328
       },
       "Damage": {
-        "matched": true,
-        "matched_induced": "Damage",
-        "match_sim": 1.0,
-        "rank": 1
+        "matched": false,
+        "best_induced": "Claim",
+        "best_sim": 0.4047
       },
       "DataProcessing": {
         "matched": false,
-        "best_induced": "Organization",
-        "best_sim": 0.2248
+        "best_induced": "Procedure",
+        "best_sim": 0.3847
       },
       "DrivingLicense": {
         "matched": false,
@@ -305,8 +323,8 @@
       },
       "Employee": {
         "matched": false,
-        "best_induced": "Organization",
-        "best_sim": 0.4725
+        "best_induced": "Person",
+        "best_sim": 0.52
       },
       "Finances": {
         "matched": false,
@@ -315,13 +333,13 @@
       },
       "Identification": {
         "matched": false,
-        "best_induced": "Address",
-        "best_sim": 0.4197
+        "best_induced": "Person",
+        "best_sim": 0.4813
       },
       "Object": {
         "matched": false,
-        "best_induced": "Organization",
-        "best_sim": 0.3525
+        "best_induced": "Person",
+        "best_sim": 0.5323
       },
       "Organization": {
         "matched": true,
@@ -330,9 +348,10 @@
         "rank": 1
       },
       "Person": {
-        "matched": false,
-        "best_induced": "Address",
-        "best_sim": 0.3406
+        "matched": true,
+        "matched_induced": "Person",
+        "match_sim": 1.0,
+        "rank": 1
       },
       "Preference": {
         "matched": false,
@@ -340,40 +359,41 @@
         "best_sim": 0.3722
       },
       "Product": {
-        "matched": false,
-        "best_induced": "Claim",
-        "best_sim": 0.5204
+        "matched": true,
+        "matched_induced": "Policy",
+        "match_sim": 0.3655,
+        "rank": 3
       },
       "Profession": {
         "matched": false,
-        "best_induced": "Organization",
-        "best_sim": 0.4291
+        "best_induced": "Person",
+        "best_sim": 0.4516
       },
       "Property": {
-        "matched": false,
-        "best_induced": "Policy",
-        "best_sim": 0.3681
-      },
-      "Revenue": {
-        "matched": false,
-        "best_induced": "Organization",
-        "best_sim": 0.3722
-      },
-      "Risk": {
         "matched": true,
-        "matched_induced": "Risk",
+        "matched_induced": "Property",
         "match_sim": 1.0,
         "rank": 1
       },
+      "Revenue": {
+        "matched": false,
+        "best_induced": "ServiceOffering",
+        "best_sim": 0.3763
+      },
+      "Risk": {
+        "matched": false,
+        "best_induced": "RiskFactor",
+        "best_sim": 0.6998
+      },
       "SecurityMeasure": {
         "matched": false,
-        "best_induced": "Risk",
-        "best_sim": 0.3951
+        "best_induced": "Policy",
+        "best_sim": 0.3343
       },
       "Site": {
         "matched": false,
-        "best_induced": "Address",
-        "best_sim": 0.4835
+        "best_induced": "Document",
+        "best_sim": 0.325
       },
       "Structure": {
         "matched": false,
@@ -382,84 +402,84 @@
       },
       "Vehicle": {
         "matched": false,
-        "best_induced": "Damage",
-        "best_sim": 0.3444
+        "best_induced": "Property",
+        "best_sim": 0.3989
       }
     },
     "confusion_matrix": [
       {
         "reference": "Address",
-        "best_match": "Address",
-        "best_similarity": 1.0,
+        "best_match": "ServiceOffering",
+        "best_similarity": 0.3662,
         "top3_matches": [
           {
-            "induced": "Address",
-            "similarity": 1.0
+            "induced": "ServiceOffering",
+            "similarity": 0.3662
           },
           {
-            "induced": "Policy",
-            "similarity": 0.2791
+            "induced": "Document",
+            "similarity": 0.3482
           },
           {
-            "induced": "Damage",
-            "similarity": 0.2682
+            "induced": "Person",
+            "similarity": 0.3406
           }
         ]
       },
       {
         "reference": "Animal",
-        "best_match": "Organization",
-        "best_similarity": 0.3134,
+        "best_match": "Person",
+        "best_similarity": 0.3891,
         "top3_matches": [
           {
-            "induced": "Organization",
-            "similarity": 0.3134
+            "induced": "Person",
+            "similarity": 0.3891
           },
           {
-            "induced": "Damage",
-            "similarity": 0.3134
+            "induced": "Property",
+            "similarity": 0.3289
           },
           {
-            "induced": "Claim",
-            "similarity": 0.2832
+            "induced": "Document",
+            "similarity": 0.3146
           }
         ]
       },
       {
         "reference": "BankAccount",
-        "best_match": "Address",
-        "best_similarity": 0.3943,
+        "best_match": "ServiceOffering",
+        "best_similarity": 0.3279,
         "top3_matches": [
           {
-            "induced": "Address",
-            "similarity": 0.3943
+            "induced": "ServiceOffering",
+            "similarity": 0.3279
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.2323
           },
           {
             "induced": "Claim",
             "similarity": 0.2298
-          },
-          {
-            "induced": "Organization",
-            "similarity": 0.2071
           }
         ]
       },
       {
         "reference": "BusinessProcess",
-        "best_match": "ServiceContract",
-        "best_similarity": 0.3546,
+        "best_match": "Procedure",
+        "best_similarity": 0.4743,
         "top3_matches": [
           {
-            "induced": "ServiceContract",
-            "similarity": 0.3546
+            "induced": "Procedure",
+            "similarity": 0.4743
+          },
+          {
+            "induced": "ServiceOffering",
+            "similarity": 0.4082
           },
           {
             "induced": "Organization",
             "similarity": 0.3293
-          },
-          {
-            "induced": "Policy",
-            "similarity": 0.258
           }
         ]
       },
@@ -473,69 +493,69 @@
             "similarity": 1.0
           },
           {
-            "induced": "Policy",
-            "similarity": 0.3931
+            "induced": "ConditionalCoverage",
+            "similarity": 0.7168
           },
           {
-            "induced": "Claim",
-            "similarity": 0.3413
+            "induced": "Policy",
+            "similarity": 0.3931
           }
         ]
       },
       {
         "reference": "CreditCard",
-        "best_match": "Address",
-        "best_similarity": 0.3375,
+        "best_match": "ServiceOffering",
+        "best_similarity": 0.3328,
         "top3_matches": [
           {
-            "induced": "Address",
-            "similarity": 0.3375
+            "induced": "ServiceOffering",
+            "similarity": 0.3328
           },
           {
-            "induced": "ServiceContract",
-            "similarity": 0.2573
+            "induced": "Document",
+            "similarity": 0.2929
           },
           {
-            "induced": "Risk",
-            "similarity": 0.2475
+            "induced": "Claim",
+            "similarity": 0.2467
           }
         ]
       },
       {
         "reference": "Damage",
-        "best_match": "Damage",
-        "best_similarity": 1.0,
+        "best_match": "Claim",
+        "best_similarity": 0.4047,
         "top3_matches": [
-          {
-            "induced": "Damage",
-            "similarity": 1.0
-          },
-          {
-            "induced": "Risk",
-            "similarity": 0.4061
-          },
           {
             "induced": "Claim",
             "similarity": 0.4047
+          },
+          {
+            "induced": "Property",
+            "similarity": 0.3674
+          },
+          {
+            "induced": "Coverage",
+            "similarity": 0.3108
           }
         ]
       },
       {
         "reference": "DataProcessing",
-        "best_match": "Organization",
-        "best_similarity": 0.2248,
+        "best_match": "Procedure",
+        "best_similarity": 0.3847,
         "top3_matches": [
+          {
+            "induced": "Procedure",
+            "similarity": 0.3847
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.276
+          },
           {
             "induced": "Organization",
             "similarity": 0.2248
-          },
-          {
-            "induced": "Coverage",
-            "similarity": 0.2188
-          },
-          {
-            "induced": "Policy",
-            "similarity": 0.1954
           }
         ]
       },
@@ -549,12 +569,12 @@
             "similarity": 0.2432
           },
           {
-            "induced": "Risk",
-            "similarity": 0.2015
+            "induced": "Document",
+            "similarity": 0.2222
           },
           {
-            "induced": "Address",
-            "similarity": 0.1868
+            "induced": "Procedure",
+            "similarity": 0.2004
           }
         ]
       },
@@ -572,23 +592,23 @@
             "similarity": 0.4084
           },
           {
-            "induced": "Risk",
-            "similarity": 0.3577
+            "induced": "Claim",
+            "similarity": 0.3046
           }
         ]
       },
       {
         "reference": "Employee",
-        "best_match": "Organization",
-        "best_similarity": 0.4725,
+        "best_match": "Person",
+        "best_similarity": 0.52,
         "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 0.52
+          },
           {
             "induced": "Organization",
             "similarity": 0.4725
-          },
-          {
-            "induced": "ServiceContract",
-            "similarity": 0.3196
           },
           {
             "induced": "Policy",
@@ -606,50 +626,50 @@
             "similarity": 0.3798
           },
           {
-            "induced": "Risk",
-            "similarity": 0.3052
+            "induced": "Property",
+            "similarity": 0.3451
           },
           {
-            "induced": "Policy",
-            "similarity": 0.2788
+            "induced": "ServiceOffering",
+            "similarity": 0.2976
           }
         ]
       },
       {
         "reference": "Identification",
-        "best_match": "Address",
-        "best_similarity": 0.4197,
+        "best_match": "Person",
+        "best_similarity": 0.4813,
         "top3_matches": [
           {
-            "induced": "Address",
-            "similarity": 0.4197
+            "induced": "Person",
+            "similarity": 0.4813
           },
           {
-            "induced": "Claim",
-            "similarity": 0.3253
+            "induced": "Document",
+            "similarity": 0.3551
           },
           {
-            "induced": "Organization",
-            "similarity": 0.3091
+            "induced": "Property",
+            "similarity": 0.3465
           }
         ]
       },
       {
         "reference": "Object",
-        "best_match": "Organization",
-        "best_similarity": 0.3525,
+        "best_match": "Person",
+        "best_similarity": 0.5323,
         "top3_matches": [
           {
-            "induced": "Organization",
-            "similarity": 0.3525
+            "induced": "Person",
+            "similarity": 0.5323
           },
           {
-            "induced": "Address",
-            "similarity": 0.3492
+            "induced": "Property",
+            "similarity": 0.4932
           },
           {
-            "induced": "Damage",
-            "similarity": 0.3405
+            "induced": "Document",
+            "similarity": 0.3861
           }
         ]
       },
@@ -667,27 +687,27 @@
             "similarity": 0.3502
           },
           {
-            "induced": "ServiceContract",
-            "similarity": 0.255
+            "induced": "ServiceOffering",
+            "similarity": 0.3482
           }
         ]
       },
       {
         "reference": "Person",
-        "best_match": "Address",
-        "best_similarity": 0.3406,
+        "best_match": "Person",
+        "best_similarity": 1.0,
         "top3_matches": [
           {
-            "induced": "Address",
-            "similarity": 0.3406
+            "induced": "Person",
+            "similarity": 1.0
           },
           {
-            "induced": "Claim",
-            "similarity": 0.2356
+            "induced": "Property",
+            "similarity": 0.34
           },
           {
-            "induced": "Organization",
-            "similarity": 0.2318
+            "induced": "Document",
+            "similarity": 0.284
           }
         ]
       },
@@ -701,12 +721,12 @@
             "similarity": 0.3722
           },
           {
-            "induced": "Risk",
-            "similarity": 0.3024
+            "induced": "Property",
+            "similarity": 0.3532
           },
           {
-            "induced": "Damage",
-            "similarity": 0.2226
+            "induced": "Organization",
+            "similarity": 0.2211
           }
         ]
       },
@@ -720,8 +740,8 @@
             "similarity": 0.5204
           },
           {
-            "induced": "Damage",
-            "similarity": 0.4545
+            "induced": "Property",
+            "similarity": 0.4106
           },
           {
             "induced": "Policy",
@@ -731,9 +751,13 @@
       },
       {
         "reference": "Profession",
-        "best_match": "Organization",
-        "best_similarity": 0.4291,
+        "best_match": "Person",
+        "best_similarity": 0.4516,
         "top3_matches": [
+          {
+            "induced": "Person",
+            "similarity": 0.4516
+          },
           {
             "induced": "Organization",
             "similarity": 0.4291
@@ -741,44 +765,40 @@
           {
             "induced": "Policy",
             "similarity": 0.3726
-          },
-          {
-            "induced": "Risk",
-            "similarity": 0.2842
           }
         ]
       },
       {
         "reference": "Property",
-        "best_match": "Policy",
-        "best_similarity": 0.3681,
+        "best_match": "Property",
+        "best_similarity": 1.0,
         "top3_matches": [
+          {
+            "induced": "Property",
+            "similarity": 1.0
+          },
+          {
+            "induced": "Document",
+            "similarity": 0.3911
+          },
           {
             "induced": "Policy",
             "similarity": 0.3681
-          },
-          {
-            "induced": "Damage",
-            "similarity": 0.3674
-          },
-          {
-            "induced": "Address",
-            "similarity": 0.338
           }
         ]
       },
       {
         "reference": "Revenue",
-        "best_match": "Organization",
-        "best_similarity": 0.3722,
+        "best_match": "ServiceOffering",
+        "best_similarity": 0.3763,
         "top3_matches": [
+          {
+            "induced": "ServiceOffering",
+            "similarity": 0.3763
+          },
           {
             "induced": "Organization",
             "similarity": 0.3722
-          },
-          {
-            "induced": "Damage",
-            "similarity": 0.3549
           },
           {
             "induced": "Claim",
@@ -788,32 +808,28 @@
       },
       {
         "reference": "Risk",
-        "best_match": "Risk",
-        "best_similarity": 1.0,
+        "best_match": "RiskFactor",
+        "best_similarity": 0.6998,
         "top3_matches": [
           {
-            "induced": "Risk",
-            "similarity": 1.0
+            "induced": "RiskFactor",
+            "similarity": 0.6998
           },
           {
             "induced": "Policy",
             "similarity": 0.4332
           },
           {
-            "induced": "Damage",
-            "similarity": 0.4061
+            "induced": "Property",
+            "similarity": 0.3306
           }
         ]
       },
       {
         "reference": "SecurityMeasure",
-        "best_match": "Risk",
-        "best_similarity": 0.3951,
+        "best_match": "Policy",
+        "best_similarity": 0.3343,
         "top3_matches": [
-          {
-            "induced": "Risk",
-            "similarity": 0.3951
-          },
           {
             "induced": "Policy",
             "similarity": 0.3343
@@ -821,25 +837,29 @@
           {
             "induced": "Coverage",
             "similarity": 0.3339
+          },
+          {
+            "induced": "ServiceOffering",
+            "similarity": 0.277
           }
         ]
       },
       {
         "reference": "Site",
-        "best_match": "Address",
-        "best_similarity": 0.4835,
+        "best_match": "Document",
+        "best_similarity": 0.325,
         "top3_matches": [
           {
-            "induced": "Address",
-            "similarity": 0.4835
+            "induced": "Document",
+            "similarity": 0.325
+          },
+          {
+            "induced": "ServiceOffering",
+            "similarity": 0.3008
           },
           {
             "induced": "Organization",
             "similarity": 0.2917
-          },
-          {
-            "induced": "Policy",
-            "similarity": 0.2737
           }
         ]
       },
@@ -853,57 +873,59 @@
             "similarity": 0.5445
           },
           {
-            "induced": "Damage",
-            "similarity": 0.3389
+            "induced": "Property",
+            "similarity": 0.3906
           },
           {
-            "induced": "Address",
-            "similarity": 0.2929
+            "induced": "Document",
+            "similarity": 0.3862
           }
         ]
       },
       {
         "reference": "Vehicle",
-        "best_match": "Damage",
-        "best_similarity": 0.3444,
+        "best_match": "Property",
+        "best_similarity": 0.3989,
         "top3_matches": [
           {
-            "induced": "Damage",
-            "similarity": 0.3444
+            "induced": "Property",
+            "similarity": 0.3989
           },
           {
-            "induced": "Address",
-            "similarity": 0.2939
+            "induced": "Person",
+            "similarity": 0.3971
           },
           {
-            "induced": "Claim",
-            "similarity": 0.2931
+            "induced": "Document",
+            "similarity": 0.3882
           }
         ]
       }
     ],
     "intrinsic": {
-      "class_coverage": 0.1768,
-      "entities_labeled": 1565,
-      "entities_total": 8850,
-      "n_classes": 8,
-      "n_hierarchy_edges": 18,
-      "avg_class_size": 195.6,
+      "class_coverage": 0.2794,
+      "entities_labeled": 1648,
+      "entities_total": 5898,
+      "n_classes": 10,
+      "n_hierarchy_edges": 4,
+      "avg_class_size": 164.8,
       "class_distribution": {
-        "Address": 13,
-        "Claim": 445,
-        "Coverage": 613,
-        "Damage": 33,
-        "Organization": 60,
-        "Policy": 110,
-        "Risk": 35,
-        "ServiceContract": 256
+        "Claim": 667,
+        "ConditionalCoverage": 43,
+        "Coverage": 116,
+        "Organization": 49,
+        "Person": 237,
+        "Policy": 152,
+        "Procedure": 98,
+        "Property": 155,
+        "RiskFactor": 42,
+        "ServiceOffering": 89
       },
-      "class_balance_entropy": 0.7399,
-      "hierarchy_max_depth": 1,
-      "hierarchy_roots": 3,
-      "class_coherence": 0.4162,
-      "coherence_n_classes": 8
+      "class_balance_entropy": 0.8219,
+      "hierarchy_max_depth": 3,
+      "hierarchy_roots": 1,
+      "class_coherence": 0.4611,
+      "coherence_n_classes": 10
     }
   }
 }

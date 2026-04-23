@@ -73,3 +73,12 @@ docs/refine-logs/FINAL_PROPOSAL.md
 # Node modules (presentation/)
 presentation/node_modules/
 node_modules/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk

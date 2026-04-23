@@ -1,0 +1,250 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\title{SEAF-KG: Structurally-Enhanced Agentic Fusion\\for Insurance Knowledge Graphs}
+\author{Xiaofei Wang\\
+CS584 AI Capstone --- Emory University, Spring 2026\\
+Advisor: Prof.\ Eugene Agichtein\\
+Industry Mentor: Dr.\ Yingying Kang (Assurant)}
+\date{April 14, 2026}
+
+\begin{document}
+\maketitle
+
+% ------------------------------------------------------------------
+\section{Pipeline Overview}
+
+SEAF-KG is a 4-zone pipeline that automatically builds a knowledge graph with an induced domain ontology from heterogeneous insurance data:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Zone 1 --- Ingestion}: PDFs $\rightarrow$ text chunks; CSVs $\rightarrow$ structured records with schema detection.
+    \item \textbf{Zone 2 --- Extraction}: Dual-path approach --- LLM extraction for PDFs (Qwen 2.5 72B), deterministic structured mapper for CSVs. Followed by entity resolution and data-driven property collapse.
+    \item \textbf{Zone 3 --- SV-LOI Ontology Induction}: Novel 7-stage method that fuses LLM semantic typing with graph-structural verification to induce domain ontology classes.
+    \item \textbf{Zone 4 --- Storage}: Neo4j graph database with INSTANCE\_OF, SUBCLASS\_OF, and ASSOCIATED\_WITH edges.
+\end{enumerate}
+
+% ------------------------------------------------------------------
+\section{Dataset}
+
+We evaluate on the Emory Spring 2026 dataset provided by Assurant, spanning three insurance lines:
+
+\begin{table}[h]
+\centering
+\caption{Data sources}
+\begin{tabular}{llrl}
+\toprule
+\textbf{Source} & \textbf{Type} & \textbf{Rows} & \textbf{Domain} \\
+\midrule
+GEICO renters policies details & CSV & 100 & Home/Renters \\
+GEICO renters claims & CSV & 100 & Home/Renters \\
+GEICO renters survey (3 files) & CSV & 300 & Home/Renters \\
+T-Mobile survey sample & CSV & 100 & Mobile/Device \\
+T-Mobile claim sample & CSV & 100 & Mobile/Device \\
+T-Mobile chat survey & CSV & 100 & Mobile/Device \\
+Auto Service form & PDF & --- & Auto \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reference ontology: \textbf{Riskine} (open-source insurance ontology, 26 classes, 46 edges).
+
+% ------------------------------------------------------------------
+\section{Evaluation}
+
+\subsection{Zone 2: Extraction Quality}
+
+\begin{table}[h]
+\centering
+\caption{Extraction quality metrics}
+\begin{tabular}{lrl}
+\toprule
+\textbf{Metric} & \textbf{Score} & \textbf{Description} \\
+\midrule
+Triple Precision & 91.1\% & Factual correctness of extracted triples \\
+Fact Recall & 73.2\% & Fraction of source facts captured in KG \\
+Source Grounding & 80.0\% & Triples traceable to source document \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Triple Precision.}
+An LLM judge evaluates a sample of 100 extracted triples as Correct, Incorrect, or Uncertain. We scored 82 correct, 10 uncertain, 8 incorrect. Example:
+\begin{itemize}[nosep]
+    \item \textit{Correct}: \texttt{SERVICE CONTRACT --COVERS--> Heated Back Glass}
+    \item \textit{Incorrect}: \texttt{Claim Management --CAN\_BE\_CANCELED\_AT--> mytmoclaim.com}
+\end{itemize}
+
+\paragraph{Fact Recall.}
+For 30 sampled source chunks, we extract 8 key facts per chunk and check whether matching triples exist in the KG using BERTScore cosine similarity ($>0.65$ threshold). Result: 175 of 239 facts found (73.2\%).
+
+\paragraph{Source Grounding.}
+For 50 sampled triples, we verify the source document supports the claim. 39 fully supported, 2 partially supported, 9 had no source found.
+
+% ------------------------------------------------------------------
+\subsection{Zone 3: Ontology Quality}
+
+All metrics compare against the Riskine reference ontology (26 classes, 46 edges).
+
+\begin{table}[h]
+\centering
+\caption{Ontology quality metrics}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Metric} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+Riskine Class Alignment & 0.750 & 0.385 & 0.508 \\
+BERTScore & 0.726 & 0.564 & 0.635 \\
+Graph F1 (SGC, 2-hop) & 0.745 & 0.373 & 0.497 \\
+Entity Assignment (full 26-class) & 0.208 & 0.192 & 0.200 \\
+Entity Assignment (present 8-class) & 0.208 & 0.625 & 0.312 \\
+\midrule
+Wu-Palmer Similarity & \multicolumn{3}{c}{0.747 (13 pairs)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{BERTScore F1 (0.635).}
+Measures semantic similarity between our induced class names and Riskine reference classes using BERT embeddings. For each induced class $c_i$, we compute cosine similarity against every reference class $r_j$ and find the best match. Precision averages the best match per induced class; recall averages the best match per reference class:
+\[
+P = \frac{1}{|C|}\sum_{i} \max_j \text{cos}(c_i, r_j), \quad R = \frac{1}{|R|}\sum_{j} \max_i \text{cos}(c_i, r_j)
+\]
+This captures whether we discovered the right concepts even with different names. Example matches:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llcl}
+\toprule
+\textbf{Induced} & \textbf{Riskine} & \textbf{Cosine} & \textbf{Verdict} \\
+\midrule
+Organization & Organization & 1.00 & Match \\
+Policy & Product & 0.90 & Match \\
+Person & Person & 1.00 & Match \\
+Coverage & Coverage & 1.00 & Match \\
+Property & Property & 1.00 & Match \\
+Service & BusinessProcess & 0.86 & Partial \\
+Risk & Address & 0.80 & Partial \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Graph F1 (0.497).}
+Structural comparison using Soft Graph Correspondence (SGC) with 2-hop neighborhoods. For each class node, we compare its local graph topology against the reference. Our precision is high (74.5\%) --- the edges we created are correct. Recall is lower (37.3\%) because Riskine has 46 edges and we induced 8 SUBCLASS\_OF + 38 ASSOCIATED\_WITH, many of which don't overlap with Riskine's specific edge patterns.
+
+\paragraph{Wu-Palmer Similarity (0.747).}
+Measures taxonomy distance in a shared class hierarchy:
+\[
+\text{WP}(c_1, c_2) = \frac{2 \cdot \text{depth}(\text{LCA}(c_1, c_2))}{\text{depth}(c_1) + \text{depth}(c_2)}
+\]
+where LCA is the lowest common ancestor. Range: 0.0 (unrelated) to 1.0 (same node). Our score of 0.747 over 13 matched pairs indicates reasonable structural alignment with the reference hierarchy.
+
+\paragraph{Entity Assignment F1 (0.200 full / 0.312 present).}
+For each induced class, we embed all member entities, compute the class centroid, and find the nearest Riskine class by cosine distance.
+\begin{itemize}[nosep]
+    \item \textbf{Full 26-class} (F1=0.200): measured against all 26 Riskine classes, including those absent from our data (BankAccount, DrivingLicense, etc.). Structurally low recall.
+    \item \textbf{Present 8-class} (F1=0.312): only against classes with evidence in the data. Better reflects actual alignment.
+\end{itemize}
+
+Example assignments: Coverage $\rightarrow$ Coverage (cos=0.67, score=1.0), Risk $\rightarrow$ Risk (cos=0.45, score=0.5), Person $\rightarrow$ Identification (cos=0.45, partial).
+
+% ------------------------------------------------------------------
+\subsection{Why Entity Assignment F1 Is Low}
+
+The full 26-class Entity Assignment F1 (0.200) deserves explanation. Riskine defines 26 classes, but our dataset only contains evidence for 7--8 of them. The remaining 17--18 classes (e.g., BankAccount, CreditCard, DrivingLicense, Education, Animal, Vehicle) simply do not appear in GEICO renters, T-Mobile device, or auto service data. This means recall against the full 26-class reference is structurally capped --- we cannot match classes that have no entities in the data.
+
+Additionally, 55\% of entities remain classified as ``Other.'' These are primarily measure values (NPS scores, resolution times, coverage amounts) that are correctly preserved as queryable nodes but do not belong to any ontology class. Every comparable ontology induction system (OLLM, AutoSchemaKG, KGGen) excludes literal values from ontology evaluation entirely. Our Entity Assignment metric includes them in the denominator, further depressing the score.
+
+When restricted to the 8 Riskine classes that have evidence in our data (Coverage, Damage, Identification, Property, Risk, Product, Object, Employee), the present-class F1 rises to 0.312, with recall jumping from 0.192 to 0.625 --- indicating the pipeline correctly identifies most classes that the data supports.
+
+% ------------------------------------------------------------------
+\subsection{Intrinsic Quality (Reference-Free)}
+
+\begin{table}[h]
+\centering
+\caption{Intrinsic ontology quality}
+\begin{tabular}{lrl}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Description} \\
+\midrule
+Class coverage & 32.6\% & 1,794 of 5,496 entities assigned to a class \\
+Class balance & 0.797 & Distribution evenness (1.0 = perfectly balanced) \\
+Class coherence & 0.430 & Avg intra-class cosine similarity \\
+Connectivity & 91.6\% & Classified entities with cross-class neighbors \\
+Completeness & 100\% & All classes have inter-class connections \\
+Backbone coverage & 100\% & All record entities linked to concept entities \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ------------------------------------------------------------------
+\subsection{Query Validation}
+
+We validated the KG against raw CSV data using analytical queries:
+
+\begin{table}[h]
+\centering
+\caption{KG query results vs.\ ground truth}
+\begin{tabular}{lp{3cm}p{3cm}r}
+\toprule
+\textbf{Query} & \textbf{KG Result} & \textbf{Ground Truth} & \textbf{Acc.} \\
+\midrule
+Longest resolution time & 61,606 hours & 61,606 hours & 100\% \\
+Device types by count & Cell Phone: 274 & Cell Phone: 287 & 96\% \\
+NPS by claim channel & 108 records & 116 records & 93\% \\
+Loss type frequency & 3/4 exact & 4 types & 96\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ------------------------------------------------------------------
+\subsection{Induced Ontology}
+
+13 classes induced, with 8 SUBCLASS\_OF (IS-A) and 38 ASSOCIATED\_WITH (HAS-A) edges:
+
+\begin{table}[h]
+\centering
+\caption{Induced ontology classes}
+\begin{tabular}{lr|lr}
+\toprule
+\textbf{Class} & \textbf{Members} & \textbf{Class} & \textbf{Members} \\
+\midrule
+Claim & 656 & Property & 107 \\
+Survey & 260 & Risk & 91 \\
+Organization & 243 & Process & 47 \\
+Person & 236 & Damage & 43 \\
+Coverage & 166 & Activity & 27 \\
+Document & 165 & Service & 26 \\
+Policy & 158 & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ------------------------------------------------------------------
+\section{Knowledge Graph Summary}
+
+\begin{table}[h]
+\centering
+\caption{Final knowledge graph statistics}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total entities & 5,509 \\
+Total relationships & 27,341 \\
+Relationship types & 331 \\
+Ontology classes & 13 \\
+SUBCLASS\_OF edges & 8 \\
+ASSOCIATED\_WITH edges & 38 \\
+Decomposed sub-nodes & 389 \\
+Data sources & 9 \\
+Duplication rate & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

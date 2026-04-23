@@ -3,152 +3,378 @@
   "model": "qwen2.5:72b",
   "suffix": "Emory_Spring2026_qwen2_5_72b",
   "seed": 42,
-  "elapsed_seconds": 829.52,
-  "entity_count": 8850,
+  "domain": "Insurance (Auto, Warranty, Claims Management)",
+  "elapsed_seconds": 1625.45,
+  "entity_count": 4111,
   "class_vocab_discovered": [
     "Coverage",
-    "Organization",
-    "Address",
-    "Damage",
-    "Risk",
-    "Policy",
     "Claim",
-    "ServiceContract",
-    "VehiclePart",
+    "Policy",
+    "Person",
+    "Organization",
+    "RiskFactor",
     "Procedure",
+    "Document",
+    "Property",
+    "ServiceOffering",
+    "Exclusion",
     "Other"
   ],
   "classes_final": [
-    "Address",
     "Claim",
+    "ConditionalCoverage",
     "Coverage",
-    "Damage",
+    "Document",
     "Organization",
+    "Person",
     "Policy",
-    "Risk",
-    "ServiceContract"
+    "Procedure",
+    "Property",
+    "RiskFactor",
+    "ServiceOffering"
   ],
   "class_distribution": {
-    "ServiceContract": 256,
-    "Damage": 33,
-    "Organization": 60,
-    "Risk": 35,
-    "Claim": 445,
-    "Coverage": 613,
-    "Policy": 110,
-    "Address": 13
+    "Document": 225,
+    "Organization": 49,
+    "Procedure": 98,
+    "Person": 237,
+    "Property": 155,
+    "RiskFactor": 42,
+    "Claim": 667,
+    "Coverage": 116,
+    "Policy": 152,
+    "ServiceOffering": 89,
+    "ConditionalCoverage": 43
   },
-  "flagged_count": 141,
+  "flagged_count": 120,
   "hierarchy": [
     {
-      "child": "Coverage",
-      "parent": "Policy"
-    },
-    {
       "child": "Claim",
-      "parent": "Coverage"
+      "parent": "Policy",
+      "type": "SUBCLASS_OF"
     },
     {
       "child": "Policy",
-      "parent": "Coverage"
-    },
-    {
-      "child": "ServiceContract",
-      "parent": "Organization"
-    },
-    {
-      "child": "ServiceContract",
-      "parent": "Risk"
-    },
-    {
-      "child": "Policy",
-      "parent": "ServiceContract"
-    },
-    {
-      "child": "ServiceContract",
-      "parent": "Damage"
+      "parent": "Coverage",
+      "type": "SUBCLASS_OF"
     },
     {
       "child": "Coverage",
-      "parent": "Damage"
+      "parent": "Property",
+      "type": "SUBCLASS_OF"
     },
     {
-      "child": "Claim",
-      "parent": "Organization"
+      "child": "ConditionalCoverage",
+      "parent": "Coverage",
+      "type": "SUBCLASS_OF"
+    }
+  ],
+  "associations": [
+    {
+      "source": "Document",
+      "target": "Procedure",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "ServiceContract",
-      "parent": "Coverage"
+      "source": "Person",
+      "target": "Procedure",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "Organization",
-      "parent": "Policy"
+      "source": "Person",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "Coverage",
-      "parent": "Risk"
+      "source": "Claim",
+      "target": "Document",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "ServiceContract",
-      "parent": "Claim"
+      "source": "Claim",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "ServiceContract",
-      "parent": "Address"
+      "source": "Claim",
+      "target": "Person",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "Organization",
-      "parent": "Risk"
+      "source": "ServiceOffering",
+      "target": "Procedure",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "Claim",
-      "parent": "Address"
+      "source": "Claim",
+      "target": "Procedure",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "Claim",
-      "parent": "Damage"
+      "source": "Document",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
     },
     {
-      "child": "Policy",
-      "parent": "Risk"
+      "source": "Document",
+      "target": "Person",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Document",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Document",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Person",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Property",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "Coverage",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "Person",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "Document",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "Claim",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "Property",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Procedure",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Procedure",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Procedure",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Procedure",
+      "target": "ConditionalCoverage",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Coverage",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ServiceOffering",
+      "target": "ConditionalCoverage",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Coverage",
+      "target": "ConditionalCoverage",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Claim",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Coverage",
+      "target": "Procedure",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "ServiceOffering",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Organization",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Person",
+      "target": "ConditionalCoverage",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Coverage",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
     }
   ],
   "neo4j_stats": {
-    "entities_labeled": 1565,
-    "ontology_classes": 8,
-    "subclass_of_edges": 18,
+    "entities_labeled": 1873,
+    "ontology_classes": 11,
+    "instance_of_edges": 1873,
+    "subclass_of_edges": 4,
+    "associated_with_edges": 35,
     "class_names": [
-      "Address",
       "Claim",
+      "ConditionalCoverage",
       "Coverage",
-      "Damage",
+      "Document",
       "Organization",
+      "Person",
       "Policy",
-      "Risk",
-      "ServiceContract"
+      "Procedure",
+      "Property",
+      "RiskFactor",
+      "ServiceOffering"
     ],
     "class_distribution": {
-      "ServiceContract": 256,
-      "Damage": 33,
-      "Organization": 60,
-      "Risk": 35,
-      "Claim": 445,
-      "Coverage": 613,
-      "Policy": 110,
-      "Address": 13
+      "Document": 225,
+      "Organization": 49,
+      "Procedure": 98,
+      "Person": 237,
+      "Property": 155,
+      "RiskFactor": 42,
+      "Claim": 667,
+      "Coverage": 116,
+      "Policy": 152,
+      "ServiceOffering": 89,
+      "ConditionalCoverage": 43
     },
     "method": "SV-LOI"
   },
+  "decomposition_count": 798,
   "ablation": {
     "skip_verify": false,
     "skip_arbitrate": false,
-    "skip_consolidate": false
+    "skip_consolidate": false,
+    "skip_sohd": false
+  },
+  "sohd_stats": {
+    "classes_tested": 8,
+    "classes_split": 1,
+    "new_subclasses": 1,
+    "new_isa_edges": 1,
+    "heterogeneity_scores": {
+      "Document": {
+        "silhouette": -1.0,
+        "split": false,
+        "n": 222
+      },
+      "Coverage": {
+        "silhouette": 0.661,
+        "k": 4,
+        "split": true,
+        "subclusters": [
+          {
+            "name": "ConditionalCoverage",
+            "size": 43,
+            "js": 1.0
+          }
+        ],
+        "n": 156
+      },
+      "ConditionalCoverage": {
+        "silhouette": -1.0,
+        "split": false,
+        "n": 43
+      },
+      "Property": {
+        "silhouette": -1.0,
+        "split": false,
+        "n": 54
+      },
+      "Procedure": {
+        "silhouette": 0.089,
+        "split": false,
+        "n": 82
+      },
+      "ServiceOffering": {
+        "silhouette": -1.0,
+        "split": false,
+        "n": 89
+      },
+      "Organization": {
+        "silhouette": -1.0,
+        "split": false,
+        "n": 42
+      },
+      "RiskFactor": {
+        "silhouette": 0.181,
+        "split": false,
+        "n": 40
+      }
+    }
   },
   "provenance_stats": {
-    "total_entities": 8850,
-    "flagged": 136,
-    "arbitrated": 66,
+    "total_entities": 4111,
+    "flagged": 94,
+    "arbitrated": 52,
     "consolidated": 0,
-    "type_changed_by_verification": 1323
+    "type_changed_by_verification": 988,
+    "low_confidence_count": 2238,
+    "confidence_distribution": {
+      "high_1.0": 1780,
+      "good_0.8": 0,
+      "medium_0.7": 42,
+      "low_0.5": 51,
+      "very_low_0.3": 2238
+    }
+  },
+  "intrinsic_quality": {
+    "connectivity": 0.929,
+    "completeness": 1.0,
+    "balance": 0.6439,
+    "other_fraction": 0.5444,
+    "backbone_coverage": 1.0,
+    "record_entities_total": 1059,
+    "record_entities_linked": 1059
+  },
+  "backbone": {
+    "overall_connectivity": 0.9327,
+    "disconnected_classes": []
+  },
+  "taxonomy_edges": 4,
+  "taxonomy_edges_detail": {
+    "llm_pairwise": 3,
+    "subsumption": 0,
+    "sohd": 1
   }
 }
