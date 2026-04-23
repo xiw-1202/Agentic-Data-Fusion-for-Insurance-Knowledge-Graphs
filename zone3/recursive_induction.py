@@ -1016,7 +1016,7 @@ def _try_structural_split(
     from sklearn.cluster import AgglomerativeClustering
     from sklearn.metrics import silhouette_score
     from sklearn.metrics.pairwise import cosine_distances
-    from zone3.sv_loi import (
+    from zone3._svloi.sohd import (
         _build_class_relation_profiles,
         _js_divergence,
         _top_distinguishing_relations,
