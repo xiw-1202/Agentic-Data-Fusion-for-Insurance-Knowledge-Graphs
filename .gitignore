@@ -69,3 +69,7 @@ docs/midterm_speaker_script.md
 docs/refine-logs/EXPERIMENT_PLAN.md
 docs/refine-logs/EXPERIMENT_TRACKER.md
 docs/refine-logs/FINAL_PROPOSAL.md
+
+# Node modules (presentation/)
+presentation/node_modules/
+node_modules/
