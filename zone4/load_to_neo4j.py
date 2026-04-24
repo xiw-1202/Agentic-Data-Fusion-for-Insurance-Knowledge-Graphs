@@ -162,7 +162,7 @@ def _write_instance_of(graph: Neo4jGraph, provenance: dict) -> int:
             continue
         rows.append({"id": entity_id, "cls": _sanitize_label(cls)})
 
-    print(f"[4/4] Writing INSTANCE_OF for {len(rows)} entities...")
+    print(f"[4/5] Writing INSTANCE_OF for {len(rows)} entities...")
     for i in range(0, len(rows), BATCH_SIZE):
         batch = rows[i : i + BATCH_SIZE]
         graph.query(
@@ -175,6 +175,45 @@ def _write_instance_of(graph: Neo4jGraph, provenance: dict) -> int:
             params={"batch": batch},
         )
     return len(rows)
+
+
+def _propagate_to_untyped(graph: Neo4jGraph) -> int:
+    """Propagate class labels to :Entity nodes that didn't receive an
+    INSTANCE_OF edge from SV-LOI provenance.
+
+    These are typically raw structured-triple objects (distinct date/amount/
+    channel literals) that SV-LOI never included in its canonical set. We
+    assign each one the class of its most-common connected neighbor that
+    already has a class. One hop, undirected, majority vote.
+    """
+    untyped = graph.query(
+        """
+        MATCH (e:Entity)
+        WHERE NOT (e)-[:INSTANCE_OF]->(:Class)
+        RETURN count(e) AS n
+        """
+    )[0]["n"]
+
+    if untyped == 0:
+        print("[5/5] Propagating INSTANCE_OF to untyped entities... none to type")
+        return 0
+
+    result = graph.query(
+        """
+        MATCH (e:Entity)
+        WHERE NOT (e)-[:INSTANCE_OF]->(:Class)
+        MATCH (e)--(neighbor:Entity)-[:INSTANCE_OF]->(c:Class)
+        WITH e, c.name AS cls, count(*) AS votes
+        ORDER BY e, votes DESC
+        WITH e, head(collect(cls)) AS best
+        MATCH (bc:Class {name: best})
+        MERGE (e)-[:INSTANCE_OF]->(bc)
+        RETURN count(*) AS labeled
+        """
+    )
+    labeled = result[0]["labeled"] if result else 0
+    print(f"[5/5] Propagating INSTANCE_OF to untyped entities... {labeled}/{untyped} typed via neighbor vote")
+    return labeled
 
 
 def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
@@ -195,6 +234,7 @@ def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
     triples_written = _write_triples(graph, zone2.get("triples", []))
     class_stats = _write_classes(graph, svloi)
     instance_edges = _write_instance_of(graph, prov)
+    propagated_edges = _propagate_to_untyped(graph)
 
     node_count = graph.query("MATCH (n) RETURN count(n) AS c")[0]["c"]
     rel_count = graph.query("MATCH ()-[r]->() RETURN count(r) AS c")[0]["c"]
@@ -206,6 +246,7 @@ def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
         "subclass_of_edges": class_stats["subclass_edges"],
         "associated_with_edges": class_stats["associated_edges"],
         "instance_of_edges": instance_edges,
+        "instance_of_propagated": propagated_edges,
         "total_nodes": node_count,
         "total_relationships": rel_count,
     }
