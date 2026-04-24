@@ -72,7 +72,7 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 
 ¹ *The 40-query benchmark is flood-authored (NFIP terminology); low Emory score is a benchmark-scope limitation, not a pipeline defect.*
 
-² *The fact-recall gap reflects eval-method confound, not extraction quality: Emory's 30-chunk sample included 11 CSV-row chunks (avg recall 0.32) where the LLM extracts sentence-shaped "facts" that BERTScore can't match to the structured-path triples with hash-ID subjects. Flood's sample was 29 PDF + 1 CSV-schema chunks (all prose-shaped facts, avg recall 0.92). On matched prose-only comparisons the datasets score similarly.*
+² *The fact-recall gap is an eval-method confound, not a chunking or extraction difference. Both datasets are chunked identically (188 / 271 chunks, same schema+records 0–N pattern) and both had CSV-row chunks in the 30-chunk fact_recall sample (14 flood / 11 Emory). Flood's CSV rows describe domain concepts — `policy cost: 681`, `policy effective date: 2025-01-10` — whose LLM-extracted facts align well with KG triples under a BERTScore threshold of 0.65 (avg recall 0.955). Emory's CSV rows are survey/identity records dominated by opaque numeric IDs — `response id: 2457395650`, `survey gateway id: 16950` — whose facts match semantically correct KG triples (`SRV-xxx HAS_RESPONSE_ID 2457395650`) but fall below the BERTScore threshold (avg recall 0.318). The fix is in the eval (human-readable triple linearization, lower threshold for ID-heavy structured triples), not in the pipeline.*
 
 ### Classes induced
 
