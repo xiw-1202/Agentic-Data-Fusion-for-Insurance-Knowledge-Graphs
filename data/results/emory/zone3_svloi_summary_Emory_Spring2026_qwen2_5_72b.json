@@ -3,81 +3,75 @@
   "model": "qwen2.5:72b",
   "suffix": "Emory_Spring2026_qwen2_5_72b",
   "seed": 42,
-  "domain": "Insurance (Auto, Warranty, Claims Management)",
-  "elapsed_seconds": 1625.45,
-  "entity_count": 4111,
+  "domain": "Insurance (Auto, Property)",
+  "elapsed_seconds": 2546.76,
+  "entity_count": 3666,
   "class_vocab_discovered": [
     "Coverage",
-    "Claim",
     "Policy",
+    "Claim",
     "Person",
     "Organization",
+    "VehiclePart",
+    "ServiceProcedure",
     "RiskFactor",
-    "Procedure",
-    "Document",
-    "Property",
-    "ServiceOffering",
+    "LegalRight",
+    "Address",
+    "FinancialLimit",
     "Exclusion",
-    "Other"
+    "Property",
+    "Other",
+    "Survey",
+    "OrganizationSurvey",
+    "GatewaySurvey",
+    "SampleSurvey"
   ],
   "classes_final": [
     "Claim",
-    "ConditionalCoverage",
+    "ClientJourneySurvey",
     "Coverage",
-    "Document",
     "Organization",
     "Person",
     "Policy",
-    "Procedure",
-    "Property",
     "RiskFactor",
-    "ServiceOffering"
+    "ServiceProcedure",
+    "Survey",
+    "WarrantyServiceProcedure"
   ],
   "class_distribution": {
-    "Document": 225,
-    "Organization": 49,
-    "Procedure": 98,
-    "Person": 237,
-    "Property": 155,
-    "RiskFactor": 42,
-    "Claim": 667,
-    "Coverage": 116,
-    "Policy": 152,
-    "ServiceOffering": 89,
-    "ConditionalCoverage": 43
+    "Policy": 719,
+    "Claim": 1241,
+    "Organization": 26,
+    "Survey": 958,
+    "Person": 355,
+    "ServiceProcedure": 4,
+    "ClientJourneySurvey": 178,
+    "Coverage": 41,
+    "RiskFactor": 27,
+    "WarrantyServiceProcedure": 67
   },
-  "flagged_count": 120,
+  "flagged_count": 73,
   "hierarchy": [
     {
-      "child": "Claim",
+      "child": "Coverage",
       "parent": "Policy",
       "type": "SUBCLASS_OF"
     },
     {
-      "child": "Policy",
-      "parent": "Coverage",
+      "child": "ClientJourneySurvey",
+      "parent": "Survey",
       "type": "SUBCLASS_OF"
     },
     {
-      "child": "Coverage",
-      "parent": "Property",
-      "type": "SUBCLASS_OF"
-    },
-    {
-      "child": "ConditionalCoverage",
-      "parent": "Coverage",
+      "child": "WarrantyServiceProcedure",
+      "parent": "ServiceProcedure",
       "type": "SUBCLASS_OF"
     }
   ],
   "associations": [
     {
-      "source": "Document",
-      "target": "Procedure",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Person",
-      "target": "Procedure",
+      "source": "Claim",
+      "target": "Survey",
       "type": "ASSOCIATED_WITH"
     },
     {
@@ -86,201 +80,134 @@
       "type": "ASSOCIATED_WITH"
     },
     {
-      "source": "Claim",
-      "target": "Document",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Claim",
-      "target": "Organization",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Claim",
-      "target": "Person",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "Procedure",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Claim",
-      "target": "Procedure",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Document",
-      "target": "Organization",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Document",
-      "target": "Person",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Document",
-      "target": "RiskFactor",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
       "source": "Policy",
-      "target": "Document",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Policy",
-      "target": "Person",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Policy",
-      "target": "Property",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "Coverage",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "Organization",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "RiskFactor",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "Person",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "Document",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
       "target": "Claim",
       "type": "ASSOCIATED_WITH"
     },
     {
-      "source": "ServiceOffering",
-      "target": "Property",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Procedure",
-      "target": "RiskFactor",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Policy",
-      "target": "Organization",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Procedure",
-      "target": "Organization",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Policy",
-      "target": "Procedure",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Procedure",
-      "target": "ConditionalCoverage",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Coverage",
-      "target": "RiskFactor",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "ServiceOffering",
-      "target": "ConditionalCoverage",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Coverage",
-      "target": "ConditionalCoverage",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
       "source": "Claim",
-      "target": "RiskFactor",
+      "target": "Person",
       "type": "ASSOCIATED_WITH"
     },
     {
-      "source": "Coverage",
-      "target": "Procedure",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Policy",
-      "target": "ServiceOffering",
-      "type": "ASSOCIATED_WITH"
-    },
-    {
-      "source": "Organization",
-      "target": "RiskFactor",
+      "source": "ClientJourneySurvey",
+      "target": "Claim",
       "type": "ASSOCIATED_WITH"
     },
     {
       "source": "Person",
-      "target": "ConditionalCoverage",
+      "target": "Survey",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Claim",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ClientJourneySurvey",
+      "target": "Person",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Person",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "ClientJourneySurvey",
+      "target": "Policy",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Survey",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Survey",
+      "target": "Organization",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "WarrantyServiceProcedure",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "Coverage",
       "type": "ASSOCIATED_WITH"
     },
     {
       "source": "Coverage",
-      "target": "Organization",
+      "target": "WarrantyServiceProcedure",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Organization",
+      "target": "WarrantyServiceProcedure",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Coverage",
+      "target": "RiskFactor",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Claim",
+      "target": "Coverage",
+      "type": "ASSOCIATED_WITH"
+    },
+    {
+      "source": "Policy",
+      "target": "ServiceProcedure",
       "type": "ASSOCIATED_WITH"
     }
   ],
   "neo4j_stats": {
-    "entities_labeled": 1873,
-    "ontology_classes": 11,
-    "instance_of_edges": 1873,
-    "subclass_of_edges": 4,
-    "associated_with_edges": 35,
+    "entities_labeled": 3616,
+    "ontology_classes": 10,
+    "instance_of_edges": 3616,
+    "subclass_of_edges": 3,
+    "associated_with_edges": 21,
     "class_names": [
       "Claim",
-      "ConditionalCoverage",
+      "ClientJourneySurvey",
       "Coverage",
-      "Document",
       "Organization",
       "Person",
       "Policy",
-      "Procedure",
-      "Property",
       "RiskFactor",
-      "ServiceOffering"
+      "ServiceProcedure",
+      "Survey",
+      "WarrantyServiceProcedure"
     ],
     "class_distribution": {
-      "Document": 225,
-      "Organization": 49,
-      "Procedure": 98,
-      "Person": 237,
-      "Property": 155,
-      "RiskFactor": 42,
-      "Claim": 667,
-      "Coverage": 116,
-      "Policy": 152,
-      "ServiceOffering": 89,
-      "ConditionalCoverage": 43
+      "Policy": 719,
+      "Claim": 1241,
+      "Organization": 26,
+      "Survey": 958,
+      "Person": 355,
+      "ServiceProcedure": 4,
+      "ClientJourneySurvey": 178,
+      "Coverage": 41,
+      "RiskFactor": 27,
+      "WarrantyServiceProcedure": 67
     },
     "method": "SV-LOI"
   },
-  "decomposition_count": 798,
+  "decomposition_count": 1486,
   "ablation": {
     "skip_verify": false,
     "skip_arbitrate": false,
@@ -289,92 +216,101 @@
   },
   "sohd_stats": {
     "classes_tested": 8,
-    "classes_split": 1,
-    "new_subclasses": 1,
-    "new_isa_edges": 1,
+    "classes_split": 2,
+    "new_subclasses": 2,
+    "new_isa_edges": 2,
     "heterogeneity_scores": {
-      "Document": {
-        "silhouette": -1.0,
-        "split": false,
-        "n": 222
-      },
-      "Coverage": {
-        "silhouette": 0.661,
+      "Survey": {
+        "silhouette": 0.825,
         "k": 4,
         "split": true,
         "subclusters": [
           {
-            "name": "ConditionalCoverage",
-            "size": 43,
+            "name": "ClientJourneySurvey",
+            "size": 178,
+            "js": 0.83
+          }
+        ],
+        "n": 257
+      },
+      "ClientJourneySurvey": {
+        "silhouette": -1.0,
+        "split": false,
+        "n": 178
+      },
+      "Policy": {
+        "silhouette": 0.246,
+        "split": false,
+        "n": 76
+      },
+      "ServiceProcedure": {
+        "silhouette": 0.307,
+        "k": 2,
+        "split": true,
+        "subclusters": [
+          {
+            "name": "WarrantyServiceProcedure",
+            "size": 67,
             "js": 1.0
           }
         ],
-        "n": 156
+        "n": 69
       },
-      "ConditionalCoverage": {
+      "WarrantyServiceProcedure": {
         "silhouette": -1.0,
         "split": false,
-        "n": 43
+        "n": 67
       },
-      "Property": {
-        "silhouette": -1.0,
+      "Coverage": {
+        "silhouette": 0.206,
         "split": false,
-        "n": 54
+        "n": 39
       },
-      "Procedure": {
-        "silhouette": 0.089,
+      "RiskFactor": {
+        "silhouette": 0.432,
         "split": false,
-        "n": 82
-      },
-      "ServiceOffering": {
-        "silhouette": -1.0,
-        "split": false,
-        "n": 89
+        "n": 25,
+        "reason": "no subclusters passed JS threshold"
       },
       "Organization": {
         "silhouette": -1.0,
         "split": false,
-        "n": 42
-      },
-      "RiskFactor": {
-        "silhouette": 0.181,
-        "split": false,
-        "n": 40
+        "n": 23
       }
     }
   },
   "provenance_stats": {
-    "total_entities": 4111,
-    "flagged": 94,
-    "arbitrated": 52,
+    "total_entities": 3673,
+    "flagged": 70,
+    "arbitrated": 55,
     "consolidated": 0,
-    "type_changed_by_verification": 988,
-    "low_confidence_count": 2238,
+    "type_changed_by_verification": 3253,
+    "low_confidence_count": 57,
     "confidence_distribution": {
-      "high_1.0": 1780,
+      "high_1.0": 3546,
       "good_0.8": 0,
-      "medium_0.7": 42,
-      "low_0.5": 51,
-      "very_low_0.3": 2238
+      "medium_0.7": 15,
+      "low_0.5": 55,
+      "very_low_0.3": 57
     }
   },
   "intrinsic_quality": {
-    "connectivity": 0.929,
+    "connectivity": 0.7135,
     "completeness": 1.0,
-    "balance": 0.6439,
-    "other_fraction": 0.5444,
+    "balance": 0.6568,
+    "other_fraction": 0.0155,
     "backbone_coverage": 1.0,
-    "record_entities_total": 1059,
-    "record_entities_linked": 1059
+    "record_entities_total": 959,
+    "record_entities_linked": 959
   },
   "backbone": {
-    "overall_connectivity": 0.9327,
+    "overall_connectivity": 0.7188,
     "disconnected_classes": []
   },
   "taxonomy_edges": 4,
   "taxonomy_edges_detail": {
-    "llm_pairwise": 3,
+    "llm_pairwise": 2,
     "subsumption": 0,
-    "sohd": 1
+    "sohd": 2
   }
 }

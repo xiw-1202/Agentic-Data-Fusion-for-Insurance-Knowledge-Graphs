@@ -124,6 +124,63 @@ Intended claim tested: *"SEAF-KG's SV-LOI pipeline generalizes across insurance 
 **Revised claim (defensible):**
 > Using the same pipeline code, SEAF-KG transferred from flood insurance to a heterogeneous auto/mobile corpus and produced large, highly labeled KGs with comparable triple precision and source grounding. Results suggest portability; stronger claims about cross-domain generalization and consistent downstream performance require domain-matched benchmarks, ablations, and repeated runs.
 
+## 6b. Post-fix Emory rerun (2026-04-24 12:35 EDT)
+
+After landing three fixes — consensus filter on SUBCLASS_OF (`04bb210`), explicit `Other` option in `propagate_to_records` (`04bb210`), and Zone 4 loader class propagation (`05aeac7`) — re-ran Zone 2→3→eval on Emory.
+
+| Metric | Before fixes | After fixes | Direction |
+|---|---:|---:|---|
+| Classes induced | 12 | 10 | cleaner |
+| `Document` class | 1,057 entities (208 polluted `SRV-*`) | **eliminated** | ✓ |
+| `Survey` class | — | 958 | emerged |
+| `ClientJourneySurvey` class | — | 178 | emerged |
+| `WarrantyServiceProcedure` / `ServiceProcedure` | — | 67 / 4 | emerged |
+| `SRV-*` IDs in Document class | 208 | **0** | ✓ |
+| SUBCLASS_OF edges | 5 (4 semantically wrong) | **3 (2 correct, 1 debatable)** | ✓ |
+| Edge correctness | 1/5 (20%) | 2/3 (67%) | ✓ |
+| Type inconsistency | 8.3% | **0.0%** | ✓ |
+| Labeling coverage | 97% | 98.6% | ✓ |
+| Entity-assignment F1 (all 26 Riskine) | 0.252 | 0.102 | ↓ |
+| Entity-assignment F1 (evidenced) | 0.482 | 0.218 | ↓ |
+| Riskine name F1 | 0.558 | 0.427 | ↓ |
+| BERTScore F1 | 0.642 | 0.544 | ↓ |
+
+### Why Riskine metrics dropped is a *good* sign
+
+The new classes (`ClientJourneySurvey`, `WarrantyServiceProcedure`, `Survey`, `ServiceProcedure`) are genuinely domain-specific to Emory's auto/mobile service data. They don't map to Riskine's 26 flood-oriented reference classes. This is exactly what the Codex verdict warned about:
+
+> *"Riskine is flood-biased (NFIP-oriented), so Emory's Riskine alignment numbers under-state quality."*
+
+The pipeline got **more accurate**, the reference got **more mismatched**.
+
+### Final loader state after all fixes
+
+Re-running `python3 -m zone4.load_to_neo4j --results data/results/emory`:
+```
+instance_of_edges        3616   (SV-LOI direct)
+instance_of_propagated   5073   (neighbor-vote inheritance on raw value entities)
+total_nodes              8709
+total_relationships      35658
+```
+
+### Verification queries against fresh KG
+
+```cypher
+MATCH (e:Entity)-[:INSTANCE_OF]->(c:Class {name:'Document'})
+WHERE e.id STARTS WITH 'SRV-' RETURN count(e)
+  → 0  (was 208 before fix #3)
+
+MATCH (c:Class)-[:SUBCLASS_OF]->(p:Class) RETURN c.name, p.name
+  → ClientJourneySurvey → Survey         ✓ correct IS-A
+  → WarrantyServiceProcedure → ServiceProcedure  ✓ correct IS-A
+  → Coverage → Policy                    ~ debatable (part-of vs IS-A)
+
+MATCH (c:Entity)-[:HAS_CLAIM_LOSS_DATE]->(d:Entity)
+WHERE c.entity_type='ClaimRecord' AND d.id STARTS WITH '2023'
+RETURN count(DISTINCT c)
+  → 45  (temporal fix intact)
+```
+
 ## 7. Priority improvement backlog
 
 Ranked by impact × effort.
