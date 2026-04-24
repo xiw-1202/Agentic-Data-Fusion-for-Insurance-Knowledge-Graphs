@@ -20,15 +20,22 @@ source "$SCRATCH/project/scripts/_env.sh"
 
 _start_ollama
 
-# ===== Zone 1: Ingestion (always, for fresh reruns) =====
-echo ""
-echo "===== ZONE 1 — Ingestion ($DATA_DIR) ====="
-ZONE1_START=$(date +%s)
-python3 zone1/ingestion.py \
-    --data-dir "$DATA_DIR" \
-    --output "$CHUNKS_FILE" \
-    --model "$MODEL"
-echo "Zone 1 complete: $(($(date +%s) - ZONE1_START))s"
+# ===== Zone 1: Ingestion (skip when cached chunks already exist) =====
+# Set SKIP_ZONE1=1 to force skip; SKIP_ZONE1=0 to force re-ingest.
+# Default behavior: skip if $CHUNKS_FILE exists, run otherwise.
+if [ "${SKIP_ZONE1:-}" = "1" ] || { [ -z "${SKIP_ZONE1:-}" ] && [ -f "$CHUNKS_FILE" ]; }; then
+    echo ""
+    echo "===== ZONE 1 — SKIPPED (chunks exist at $CHUNKS_FILE) ====="
+else
+    echo ""
+    echo "===== ZONE 1 — Ingestion ($DATA_DIR) ====="
+    ZONE1_START=$(date +%s)
+    python3 zone1/ingestion.py \
+        --data-dir "$DATA_DIR" \
+        --output "$CHUNKS_FILE" \
+        --model "$MODEL"
+    echo "Zone 1 complete: $(($(date +%s) - ZONE1_START))s"
+fi
 
 # ===== Zone 2: Extraction =====
 echo ""
