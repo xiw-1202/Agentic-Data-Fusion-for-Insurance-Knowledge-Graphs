@@ -1115,18 +1115,29 @@ def propagate_to_records(
                 "Schema mapping task: assign a database record type to an ontology class.\n\n"
                 f"Record type: {etype}\n"
                 f"Typical relations: {rels_str}\n\n"
-                f"Available ontology classes: {', '.join(target_classes)}\n\n"
-                "Which ONE ontology class best describes what this record type IS?\n"
-                "Think about what the record represents as a real-world concept.\n"
-                + (f"\nNOTE: The record type name '{etype}' closely matches class '{name_match}'. "
-                   f"Prefer '{name_match}' unless the relations strongly contradict this.\n"
+                f"Available ontology classes: {', '.join(target_classes)}\n"
+                f"Plus: Other (use this when no class is a clear fit)\n\n"
+                "Which ONE option best describes what this record type IS?\n"
+                "Rules:\n"
+                "- Only pick a class if the record type is a CLEAR instance of it "
+                "(e.g., PolicyRecord → Policy, ClaimRecord → Claim).\n"
+                "- A survey is NOT a document, a service call is NOT a document, "
+                "a transaction is NOT a procedure. Be strict about semantic match.\n"
+                "- When unsure or no class clearly fits, answer 'Other'. "
+                "Losing records to Other is better than polluting a real class.\n"
+                + (f"\nNOTE: Record type name '{etype}' lexically matches class '{name_match}'. "
+                   f"Prefer '{name_match}' only if the relations also support it.\n"
                    if name_match else "")
-                + "\nAnswer with ONLY the class name, nothing else."
+                + "\nAnswer with ONLY the class name (or 'Other'), nothing else."
             )
 
             try:
                 response = llm.invoke(prompt)
                 answer = response.content.strip().strip('"').strip("'")
+                if answer.lower() == "other":
+                    type_to_class[etype] = "Other"
+                    print(f"  LLM: {etype} → Other (no clear fit)", flush=True)
+                    continue
                 matched = None
                 for c in target_classes:
                     if c.lower() == answer.lower():
@@ -1141,7 +1152,8 @@ def propagate_to_records(
                     type_to_class[etype] = matched
                     print(f"  LLM: {etype} → {matched}", flush=True)
                 else:
-                    print(f"  LLM: {etype} → '{answer}' (no match in vocab)",
+                    type_to_class[etype] = "Other"
+                    print(f"  LLM: {etype} → '{answer}' (no match in vocab → Other)",
                           flush=True)
             except Exception as exc:
                 print(f"  LLM error for {etype}: {exc}", flush=True)

@@ -364,30 +364,58 @@ def run_sv_loi(
     # Concept-only subsumption as structural validation (secondary signal)
     taxonomy_subsumption_edges = derive_taxonomy(assignments, entities, llm)
 
-    # Collect all candidate IS-A edges from all sources
-    all_candidate_isa: list[tuple[str, str]] = list(hierarchy)  # 5-way edges
-    all_candidate_isa.extend(taxonomy_llm_edges)
-    all_candidate_isa.extend(taxonomy_subsumption_edges)
-    all_candidate_isa.extend(sohd_edges)
+    # Collect IS-A edges from each source separately for consensus scoring.
+    # Trust tiers:
+    #   TRUSTED (alone is enough): 5-way (hierarchy) + SOHD — both apply
+    #   strict prompting or structural outlier evidence.
+    #   WEAK (needs corroboration): taxonomy_llm_edges, taxonomy_subsumption_edges —
+    #   each on its own produces false positives (e.g., "Coverage SUBCLASS_OF Policy"
+    #   which is a part-of relationship, not IS-A).
+    trusted_sources: list[set[tuple[str, str]]] = [set(hierarchy), set(sohd_edges)]
+    weak_sources: list[set[tuple[str, str]]] = [
+        set(taxonomy_llm_edges),
+        set(taxonomy_subsumption_edges),
+    ]
 
     # Global DAG enforcement across ALL sources:
     # 1. Filter out edges referencing unknown classes
-    # 2. Remove cycles (keep first edge, reject contradicting edge)
-    # 3. Enforce max depth 3
+    # 2. Apply consensus: keep if in ≥1 trusted source OR ≥2 weak sources agree
+    # 3. Remove cycles (keep first edge, reject contradicting edge)
+    # 4. Enforce max depth 3
     final_classes = set(c for c in assignments.values() if c != "Other")
     MAX_DEPTH = 4
 
-    # Filter unknown classes
-    valid_edges = [(c, p) for c, p in all_candidate_isa
-                   if c in final_classes and p in final_classes and c != p]
-    n_unknown = len(all_candidate_isa) - len(valid_edges)
+    all_candidate_isa = (set.union(*trusted_sources) | set.union(*weak_sources))
+    valid_edges_raw = [(c, p) for c, p in all_candidate_isa
+                       if c in final_classes and p in final_classes and c != p]
+    n_unknown = len(all_candidate_isa) - len(valid_edges_raw)
     if n_unknown > 0:
         _flush_print(f"  Filtered {n_unknown} edges referencing unknown classes")
 
-    # Deduplicate
+    # Consensus filter: accept if trusted OR ≥2 weak sources agree
+    accepted: list[tuple[str, str]] = []
+    rejected_weak: list[tuple[str, str]] = []
+    for edge in valid_edges_raw:
+        in_trusted = any(edge in src for src in trusted_sources)
+        weak_votes = sum(1 for src in weak_sources if edge in src)
+        if in_trusted or weak_votes >= 2:
+            accepted.append(edge)
+        else:
+            rejected_weak.append(edge)
+    if rejected_weak:
+        _flush_print(
+            f"  Consensus filter rejected {len(rejected_weak)} weakly-supported edges "
+            f"(≤1 weak vote, no trusted source):"
+        )
+        for c, p in rejected_weak[:8]:
+            _flush_print(f"    {c} → {p}")
+        if len(rejected_weak) > 8:
+            _flush_print(f"    ... and {len(rejected_weak) - 8} more")
+
+    # Deduplicate (now on accepted subset)
     seen: set[tuple[str, str]] = set()
     deduped: list[tuple[str, str]] = []
-    for edge in valid_edges:
+    for edge in accepted:
         if edge not in seen:
             deduped.append(edge)
             seen.add(edge)
