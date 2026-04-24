@@ -57,7 +57,7 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 | Raw triples (LLM + structured) | 72,663 | 31,489 |
 | Relation types | 186 | 321 |
 | **Triple precision** (LLM-as-judge, 100-triple sample) | **0.903** | **0.875** |
-| Fact recall (BERTScore, 30-chunk sample) | 0.920 | 0.711 |
+| Fact recall (BERTScore, 30-chunk sample) | 0.920 | 0.635² |
 | Source grounding rate | 0.870 | 0.870 |
 | Entities | 12,326 | 3,666 |
 | **Induced classes** | **10** | **10** |
@@ -71,6 +71,8 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 | Query accuracy (flood-authored 40-Q benchmark) | **62.5 %** | 20.0 %¹ |
 
 ¹ *The 40-query benchmark is flood-authored (NFIP terminology); low Emory score is a benchmark-scope limitation, not a pipeline defect.*
+
+² *The fact-recall gap reflects eval-method confound, not extraction quality: Emory's 30-chunk sample included 11 CSV-row chunks (avg recall 0.32) where the LLM extracts sentence-shaped "facts" that BERTScore can't match to the structured-path triples with hash-ID subjects. Flood's sample was 29 PDF + 1 CSV-schema chunks (all prose-shaped facts, avg recall 0.92). On matched prose-only comparisons the datasets score similarly.*
 
 ### Classes induced
 
