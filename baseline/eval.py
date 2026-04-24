@@ -428,10 +428,41 @@ def measure_type_consistency(graph: Neo4jGraph) -> dict:
     }
 
 
-def run_query_tasks(graph: Neo4jGraph) -> list[dict]:
-    """Run all evaluation tasks (20 PDF + 10 structured/cross-source) and record results."""
+try:
+    from baseline.eval_tasks_emory import EVAL_TASKS_EMORY
+except ImportError:
+    from eval_tasks_emory import EVAL_TASKS_EMORY  # when imported from baseline/
+
+# Backward-compat alias: the original EVAL_TASKS is the flood task set.
+EVAL_TASKS_FLOOD = EVAL_TASKS
+
+
+def _pick_tasks(suffix: str = "", dataset: str | None = None) -> list[dict]:
+    """Select flood or emory task list.
+
+    Explicit `dataset` wins. Otherwise auto-detect from `suffix`: anything
+    containing 'emory' → emory tasks, else flood tasks.
+    """
+    if dataset:
+        ds = dataset.lower()
+    else:
+        ds = "emory" if "emory" in (suffix or "").lower() else "flood"
+    return EVAL_TASKS_EMORY if ds == "emory" else EVAL_TASKS_FLOOD
+
+
+def run_query_tasks(
+    graph: Neo4jGraph,
+    tasks: list[dict] | None = None,
+) -> list[dict]:
+    """Run evaluation tasks and record per-task results.
+
+    Args:
+        graph: connected Neo4j graph
+        tasks: task list to run; default = EVAL_TASKS_FLOOD for backward compat
+    """
+    tasks = tasks if tasks is not None else EVAL_TASKS_FLOOD
     results = []
-    for task in EVAL_TASKS:
+    for task in tasks:
         try:
             rows = graph.query(task["cypher"])
             result_text = " ".join(str(r) for r in rows).lower()
@@ -468,6 +499,7 @@ def run_evaluation(
     model: str = config.OLLAMA_MODEL,
     use_all_classes: bool = False,
     results_dir: str | None = None,
+    dataset: str | None = None,
 ):
     """
     Run evaluation against the current Neo4j graph.
@@ -477,6 +509,8 @@ def run_evaluation(
         run_riskine:      if True, run step [5/5] Riskine alignment (slow, needs Ollama)
         model:            Ollama model name for LLM judge in Riskine step
         use_all_classes:  if True, use ALL 26 Riskine classes (not just 10 flood-relevant)
+        dataset:          'flood' or 'emory' to pick the query benchmark.
+                          Default: auto-detect from suffix.
     """
     rdir = results_dir or config.RESULTS_DIR
     os.makedirs(rdir, exist_ok=True)
@@ -533,9 +567,11 @@ def run_evaluation(
     if tc["examples"]:
         print(f"  Examples: {tc['examples']}")
 
-    # --- Query accuracy (20 tasks) ---
-    print(f"\n[4/4] Running {len(EVAL_TASKS)} evaluation tasks...")
-    task_results = run_query_tasks(graph)
+    # --- Query accuracy — dataset-appropriate task set ---
+    tasks = _pick_tasks(suffix=suffix, dataset=dataset)
+    chosen = "emory" if tasks is EVAL_TASKS_EMORY else "flood"
+    print(f"\n[4/4] Running {len(tasks)} {chosen}-dataset evaluation tasks...")
+    task_results = run_query_tasks(graph, tasks=tasks)
     metrics.tasks_total = len(task_results)
     metrics.tasks_with_results = sum(1 for t in task_results if t["has_results"])
     metrics.tasks_keyword_match = sum(1 for t in task_results if t["keyword_match"])
@@ -636,9 +672,12 @@ if __name__ == "__main__":
                         help="Use ALL 26 Riskine classes for evaluation (default: 10 flood-relevant)")
     parser.add_argument("--results-dir", default=None,
                         help="Output directory for results (default: config.RESULTS_DIR)")
+    parser.add_argument("--dataset", default=None, choices=[None, "flood", "emory"],
+                        help="Query benchmark to run: 'flood' or 'emory'. Default: auto-detect from --suffix.")
     args = parser.parse_args()
     run_evaluation(
         suffix=args.suffix, run_riskine=args.riskine,
         model=args.model, use_all_classes=getattr(args, 'all_classes', False),
         results_dir=args.results_dir,
+        dataset=args.dataset,
     )
