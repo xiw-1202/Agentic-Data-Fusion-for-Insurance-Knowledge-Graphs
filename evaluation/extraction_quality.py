@@ -331,15 +331,67 @@ Format: one line per triple, e.g. "1. CORRECT"
 # Metric 3: Fact Recall (MINE-1 style, embedding-based matching)
 # ---------------------------------------------------------------------------
 
+# Hash-ID prefixes used by the structured mapper, mapped to readable labels.
+_PREFIX_LABEL = {
+    "POL-": "policy",
+    "CLM-": "claim",
+    "PROP-": "property",
+    "PER-": "person",
+    "SRV-": "survey",
+    "REC-": "record",
+}
+_CARRIER_POLICY_NUM = re.compile(r"^(REN|RIN|RI)\s?\d{6,}$")
+
+
+def _humanize_id(entity_id: str, entity_type: str | None = None) -> str:
+    """Turn opaque hash-IDs into human-readable type words for G-BERTScore.
+
+    'CLM-4d4cbd06e76a' + 'ClaimRecord' → 'claim'
+    'SRV-7dad514cde25' + 'SurveyRecord' → 'survey'
+    'PER-abc123'       + 'Person'      → 'person'
+    'REN285325500'     + 'PolicyRecord' → 'policy'
+    'Cellular Phone'   + 'DeviceType'   → 'Cellular Phone' (unchanged)
+
+    The goal is to make the linearized triple readable by a sentence-level
+    embedder. 'CLM-4d4cbd06e76a has claim loss date 2023-05-08' has an
+    opaque subject that tanks cosine similarity against an LLM-extracted
+    fact like 'The claim was filed on 2023-05-08'. Substituting 'claim'
+    for the hash raises the similarity to where BERTScore can match.
+
+    Preference order:
+        1. entity_type name ending in 'Record' → strip 'Record', lowercase
+           (preserves custom types like 'PolicyRecord' → 'policy')
+        2. Known hash prefix → fixed label (PER- → 'person', etc.)
+        3. Carrier policy number pattern → 'policy'
+        4. Fall through: return entity_id unchanged
+    """
+    if not entity_id:
+        return ""
+    has_record_prefix = any(entity_id.startswith(p) for p in _PREFIX_LABEL)
+    if has_record_prefix or _CARRIER_POLICY_NUM.match(entity_id):
+        if entity_type and entity_type.lower().endswith("record"):
+            return entity_type[:-len("Record")].lower()
+        for pref, label in _PREFIX_LABEL.items():
+            if entity_id.startswith(pref):
+                return label
+        return "policy"  # carrier-policy-number fallthrough
+    return entity_id
+
+
 def _linearize_triple(t: dict) -> str:
     """Linearize a KG triple as a natural language sentence for G-BERTScore.
 
     (Policy, COVERS, Building) → "Policy covers Building"
+    (CLM-4d4c…, HAS_LOSS_TYPE, Physical Damage) → "claim has loss type Physical Damage"
     (Insured, MUST_NOTIFY, Insurer) → "Insured must notify Insurer"
+
+    Opaque hash-IDs and carrier policy numbers are humanized to their
+    entity_type (e.g. 'CLM-xxx' → 'claim') so BERTScore can align against
+    LLM-extracted fact sentences that use natural-language subject words.
     """
-    subj = t.get("subject", "")
+    subj = _humanize_id(t.get("subject", ""), t.get("subject_type"))
+    obj = _humanize_id(t.get("object", ""), t.get("object_type"))
     rel = t.get("relation", "").replace("_", " ").lower()
-    obj = t.get("object", "")
     return f"{subj} {rel} {obj}"
 
 
