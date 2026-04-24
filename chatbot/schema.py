@@ -5,7 +5,7 @@ from langchain_neo4j import Neo4jGraph
 
 
 SCHEMA_QUERY = """
-CALL {
+CALL () {
     MATCH (n) UNWIND labels(n) AS label
     RETURN 'labels' AS kind, label AS value, count(*) AS n
     UNION
