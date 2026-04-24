@@ -1,15 +1,19 @@
 """Text-to-Cypher QA chain backed by Claude + the Emory Neo4j KG.
 
-Two-stage: (1) Claude generates Cypher from the question using a cached
-schema+examples prefix; (2) Cypher executes read-only against Neo4j;
-(3) Claude formats the rows into a natural-language answer.
+Pipeline:
+  1. Claude generates Cypher from the question using a cached schema+examples prefix.
+  2. Cypher executes read-only against Neo4j (with guardrails).
+  3. Claude interprets the user's intent, summarizes the rows, and chooses a
+     visualization (table / bar / line / pie / graph / scalar / text).
+  4. The UI renders whatever Claude picked.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import anthropic
@@ -32,18 +36,65 @@ Rules:
 - ClaimRecord entities have entity_type = 'ClaimRecord'. Other record types include SurveyRecord, PolicyRecord.
 - Numeric values are stored as :Entity nodes; cast with toFloat(n.id) or toInteger(n.id) for aggregation.
 - Prefer MATCH + RETURN only. Never write CREATE/MERGE/DELETE/SET/REMOVE/CALL.
+- Return results in a shape useful for charting: when aggregating, return a
+  category column and a numeric column so the UI can plot a bar chart.
 - Add LIMIT where results could be large.
 - If a question cannot be answered from the schema, return the single line: -- UNANSWERABLE
 """
 
-ANSWER_SYSTEM = """You are an analyst explaining a Neo4j query result to a business user.
-Given the user's question, the Cypher query that was run, and the result rows, write
-a concise natural-language answer (2-4 sentences). Cite specific numbers from the rows.
-If rows are empty, say so plainly and suggest what the KG does contain.
+ANSWER_SYSTEM = """You are an analyst who interprets Neo4j query results for a business user.
+
+You receive:
+  - The user's original question
+  - The Cypher that was run
+  - The result rows (JSON)
+
+You must respond with a single JSON object (no prose around it) matching this schema:
+
+{
+  "intent": "<1 sentence on what the user is really trying to learn>",
+  "summary": "<2-4 sentences explaining the answer, citing specific numbers>",
+  "key_insight": "<1 sentence highlighting the most business-relevant takeaway>",
+  "viz": {
+    "type": "table" | "bar" | "line" | "pie" | "scalar" | "graph" | "text",
+    "title": "<chart title, if applicable>",
+    "x": "<column name for x-axis (bar/line/pie)>",
+    "y": "<column name for y-axis (bar/line)>",
+    "label": "<column name for slice label (pie)>",
+    "value": "<column name for slice value (pie) or scalar value>",
+    "source": "<column name for edge source (graph)>",
+    "target": "<column name for edge target (graph)>"
+  }
+}
+
+How to pick the viz.type:
+- "scalar"  : exactly one row with one numeric cell (e.g. a total count).
+- "bar"     : one categorical column + one numeric column, <50 rows.
+- "line"    : rows ordered by a date/time or sequential numeric x-axis.
+- "pie"     : proportions across <=7 categories that sum to a whole.
+- "graph"   : rows describe edges between named nodes (parent/child, source/target).
+- "table"   : multi-column detailed rows, or >50 rows, or the user asked to "list" / "show".
+- "text"    : no rows, or the question is conceptual and the summary alone answers it.
+
+Only fill fields relevant to the chosen viz.type. Return JSON only — no markdown fences.
 """
 
 CYPHER_MODEL = "claude-sonnet-4-6"
 ANSWER_MODEL = "claude-sonnet-4-6"
+
+VALID_VIZ = {"table", "bar", "line", "pie", "scalar", "graph", "text"}
+
+
+@dataclass
+class Viz:
+    type: str = "table"
+    title: str = ""
+    x: str = ""
+    y: str = ""
+    label: str = ""
+    value: str = ""
+    source: str = ""
+    target: str = ""
 
 
 @dataclass
@@ -51,9 +102,12 @@ class QAResult:
     question: str
     cypher: str
     rows: list[dict[str, Any]]
-    answer: str
-    guardrail_ok: bool
-    guardrail_reason: str
+    intent: str = ""
+    summary: str = ""
+    key_insight: str = ""
+    viz: Viz = field(default_factory=Viz)
+    guardrail_ok: bool = True
+    guardrail_reason: str = "ok"
 
 
 def _client() -> anthropic.Anthropic:
@@ -63,6 +117,16 @@ def _client() -> anthropic.Anthropic:
 def _extract_cypher(text: str) -> str:
     m = re.search(r"```(?:cypher)?\s*(.*?)```", text, flags=re.S | re.I)
     return (m.group(1) if m else text).strip()
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    m = re.search(r"\{.*\}", text, flags=re.S)
+    if not m:
+        raise ValueError(f"no JSON object found in response: {text[:200]}")
+    return json.loads(m.group(0))
 
 
 def build_schema_prefix(graph: Neo4jGraph) -> str:
@@ -91,29 +155,64 @@ def generate_cypher(
     return _extract_cypher(resp.content[0].text)
 
 
-def format_answer(
+def interpret_result(
     client: anthropic.Anthropic,
     question: str,
     cypher: str,
     rows: list[dict[str, Any]],
-) -> str:
+) -> dict[str, Any]:
     rows_snippet = rows[:30]
+    columns = list(rows[0].keys()) if rows else []
+    user_payload = (
+        f"Question: {question}\n\n"
+        f"Cypher:\n{cypher}\n\n"
+        f"Columns: {columns}\n"
+        f"Row count: {len(rows)}\n"
+        f"Rows (first 30):\n{json.dumps(rows_snippet, default=str)}"
+    )
     resp = client.messages.create(
         model=ANSWER_MODEL,
-        max_tokens=500,
+        max_tokens=800,
         system=ANSWER_SYSTEM,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"Question: {question}\n\n"
-                    f"Cypher:\n{cypher}\n\n"
-                    f"Rows (showing up to 30 of {len(rows)}):\n{rows_snippet}"
-                ),
-            }
-        ],
+        messages=[{"role": "user", "content": user_payload}],
     )
-    return resp.content[0].text.strip()
+    return _extract_json(resp.content[0].text)
+
+
+def _coerce_viz(raw: dict[str, Any], rows: list[dict[str, Any]]) -> Viz:
+    v = raw.get("viz") or {}
+    vtype = v.get("type", "table")
+    if vtype not in VALID_VIZ:
+        vtype = "table"
+
+    columns = list(rows[0].keys()) if rows else []
+
+    def pick(name: str) -> str:
+        val = v.get(name, "")
+        return val if val in columns else ""
+
+    viz = Viz(
+        type=vtype,
+        title=v.get("title", "") or "",
+        x=pick("x"),
+        y=pick("y"),
+        label=pick("label"),
+        value=pick("value"),
+        source=pick("source"),
+        target=pick("target"),
+    )
+
+    # Fallbacks if the LLM forgot fields
+    if viz.type == "bar" and not (viz.x and viz.y) and len(columns) >= 2:
+        viz.x, viz.y = columns[0], columns[1]
+    if viz.type == "pie" and not (viz.label and viz.value) and len(columns) >= 2:
+        viz.label, viz.value = columns[0], columns[1]
+    if viz.type == "graph" and not (viz.source and viz.target) and len(columns) >= 2:
+        viz.source, viz.target = columns[0], columns[1]
+    if viz.type == "scalar" and not viz.value and len(columns) >= 1:
+        viz.value = columns[0]
+
+    return viz
 
 
 def ask(
@@ -136,7 +235,8 @@ def ask(
             question=question,
             cypher=raw_cypher,
             rows=[],
-            answer="This question can't be answered from the current knowledge graph.",
+            summary="This question can't be answered from the current knowledge graph.",
+            viz=Viz(type="text"),
             guardrail_ok=True,
             guardrail_reason="llm-marked-unanswerable",
         )
@@ -147,19 +247,42 @@ def ask(
             question=question,
             cypher=raw_cypher,
             rows=[],
-            answer=f"Refused to execute: {reason}.",
+            summary=f"Refused to execute: {reason}.",
+            viz=Viz(type="text"),
             guardrail_ok=False,
             guardrail_reason=reason,
         )
 
     safe_cypher = clamp_limit(raw_cypher)
     rows = graph.query(safe_cypher)
-    answer = format_answer(client, question, safe_cypher, rows)
+
+    if not rows:
+        return QAResult(
+            question=question,
+            cypher=safe_cypher,
+            rows=[],
+            intent="",
+            summary="The query returned no rows. The KG may not contain data for that question.",
+            viz=Viz(type="text"),
+        )
+
+    try:
+        interpretation = interpret_result(client, question, safe_cypher, rows)
+    except (ValueError, json.JSONDecodeError) as e:
+        return QAResult(
+            question=question,
+            cypher=safe_cypher,
+            rows=rows,
+            summary=f"Query ran but answer interpretation failed: {e}. See raw rows below.",
+            viz=Viz(type="table"),
+        )
+
     return QAResult(
         question=question,
         cypher=safe_cypher,
         rows=rows,
-        answer=answer,
-        guardrail_ok=True,
-        guardrail_reason="ok",
+        intent=interpretation.get("intent", ""),
+        summary=interpretation.get("summary", ""),
+        key_insight=interpretation.get("key_insight", ""),
+        viz=_coerce_viz(interpretation, rows),
     )

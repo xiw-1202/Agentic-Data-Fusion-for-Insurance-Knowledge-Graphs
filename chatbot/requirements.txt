@@ -3,3 +3,5 @@ anthropic>=0.40
 langchain-neo4j>=0.1.1
 python-dotenv>=1.0
 pandas>=2.0
+plotly>=5.18
+streamlit-agraph>=0.0.45

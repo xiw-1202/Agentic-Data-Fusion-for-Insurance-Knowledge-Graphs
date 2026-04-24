@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import sys
 
-import pandas as pd
 import streamlit as st
 from langchain_neo4j import Neo4jGraph
 
@@ -18,14 +17,16 @@ import config
 
 from chatbot.examples import EXAMPLES
 from chatbot.qa_chain import ask, build_schema_prefix
+from chatbot.render import render
 
 
 st.set_page_config(page_title="SEAF-KG Chatbot", layout="wide")
 
 st.title("SEAF-KG — Emory Insurance KG Chatbot")
 st.caption(
-    "Ask questions in English. Claude generates Cypher against the induced "
-    "ontology, runs it on Neo4j, and explains the result."
+    "Ask questions in English. Claude reasons about your intent, writes Cypher "
+    "against the induced ontology, runs it on Neo4j, and picks the best way to "
+    "present the answer (table, bar, pie, graph, …)."
 )
 
 
@@ -81,20 +82,24 @@ question = st.text_input(
 )
 
 if st.button("Run", type="primary") and question:
-    with st.spinner("Claude is generating Cypher..."):
+    with st.spinner("Claude is generating Cypher and interpreting the result..."):
         result = ask(question, graph=graph, schema_prefix=schema_prefix)
 
-    st.subheader("Answer")
-    if not result.guardrail_ok:
-        st.error(result.answer)
-    else:
-        st.write(result.answer)
+    render(result)
 
-    with st.expander("Generated Cypher", expanded=True):
+    with st.expander("Generated Cypher", expanded=False):
         st.code(result.cypher, language="cypher")
 
-    if result.rows:
-        st.subheader(f"Rows ({len(result.rows)})")
-        st.dataframe(pd.DataFrame(result.rows), use_container_width=True)
-    else:
-        st.info("Query returned no rows.")
+    with st.expander("Chosen visualization"):
+        st.json(
+            {
+                "type": result.viz.type,
+                "title": result.viz.title,
+                "x": result.viz.x,
+                "y": result.viz.y,
+                "label": result.viz.label,
+                "value": result.viz.value,
+                "source": result.viz.source,
+                "target": result.viz.target,
+            }
+        )
