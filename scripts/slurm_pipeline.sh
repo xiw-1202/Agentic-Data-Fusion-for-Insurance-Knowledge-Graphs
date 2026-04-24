@@ -20,17 +20,15 @@ source "$SCRATCH/project/scripts/_env.sh"
 
 _start_ollama
 
-# ===== Zone 1: Ingestion (only for non-flood data) =====
-if [ "$DATA_DIR" != "data/flood" ]; then
-    echo ""
-    echo "===== ZONE 1 — Ingestion ($DATA_DIR) ====="
-    ZONE1_START=$(date +%s)
-    python3 zone1/ingestion.py \
-        --data-dir "$DATA_DIR" \
-        --output "$CHUNKS_FILE" \
-        --model "$MODEL"
-    echo "Zone 1 complete: $(($(date +%s) - ZONE1_START))s"
-fi
+# ===== Zone 1: Ingestion (always, for fresh reruns) =====
+echo ""
+echo "===== ZONE 1 — Ingestion ($DATA_DIR) ====="
+ZONE1_START=$(date +%s)
+python3 zone1/ingestion.py \
+    --data-dir "$DATA_DIR" \
+    --output "$CHUNKS_FILE" \
+    --model "$MODEL"
+echo "Zone 1 complete: $(($(date +%s) - ZONE1_START))s"
 
 # ===== Zone 2: Extraction =====
 echo ""
