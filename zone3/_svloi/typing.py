@@ -698,20 +698,33 @@ def type_value_entities(
     class_vocab: list[str],
     confidence_threshold: float = 0.50,
 ) -> dict[str, str]:
-    """Type value entities via relation-range induction (domain-agnostic).
+    """Type value entities (dates, numbers, codes, etc.) via relation induction.
 
-    Learns a relation_type → range_class mapping from already-typed entities,
-    then uses incoming relation types to type untyped value entities.
+    Two-signal, domain-agnostic typing:
 
-    This is the standard KG approach: type objects from the predicate's range,
-    not from the subject's class. Domain-agnostic because it learns from
-    graph regularities, not hardcoded patterns.
+    Signal A — relation → target-class (range induction):
+        For each relation, count how often its TARGET belongs to each class.
+        Effective when some targets are pre-typed (e.g., Coverage-valued fields).
+
+    Signal B — relation → source-class (referrer inheritance):
+        For each relation whose target is a value entity, count how often its
+        SOURCE belongs to each class. Effective for temporal/date/numeric
+        values where the target stays "Other" and Signal A produces nothing.
+        This is how dates, amounts, and other literal values inherit a domain
+        role from the record or concept that references them.
+
+    Signal B is essential for temporal values: HAS_POLICY_EFFECTIVE_DATE targets
+    Date entities whose target_class is always "Other", so Signal A cannot fire.
+    Signal B inspects the sources (Policy/Claim records) and routes the date to
+    the dominant source class.
 
     Algorithm:
-        1. Build a (relation_type × class) score matrix from typed entities
-        2. For each relation, compute P(class | relation) = range distribution
-        3. For each value entity, aggregate P(class | incoming_relation) across edges
-        4. Assign if confidence > threshold; otherwise stay "Other"
+        1a. Build rel → {target_class: count} (Signal A)
+        1b. Build rel → {source_class: count} only when target is a value (Signal B)
+        2. Derive P(class | relation) for both signals
+        3. For each value entity, aggregate evidence from Signal A first,
+           fall back to Signal B if no target-class evidence exists
+        4. Assign if dominant class fraction ≥ confidence_threshold
 
     Args:
         confidence_threshold: Min P(class|relation) to assign (default: 0.50)
@@ -721,55 +734,92 @@ def type_value_entities(
     entity_map = {e["id"]: e for e in entities}
     updated = dict(assignments)
 
-    # Step 1: Build relation → range-class score matrix from typed entities
-    # For each relation type, count how often its TARGET belongs to each class
+    # Step 1a: Signal A — relation → target-class distribution
     rel_range: dict[str, Counter] = defaultdict(Counter)
+    # Step 1b: Signal B — relation → source-class distribution
+    #          (only for relations whose target is a value entity)
+    rel_source_range: dict[str, Counter] = defaultdict(Counter)
+
     for e in entities:
         eid = e["id"]
         src_cls = assignments.get(eid, "Other")
         for rel in e.get("out_rels", []):
             rel_type = rel.get("rel", "")
             tgt_eid = rel.get("target", "")
+            if not rel_type:
+                continue
             tgt_cls = assignments.get(tgt_eid, "Other")
-            if tgt_cls != "Other" and rel_type:
+
+            # Signal A: target-class range
+            if tgt_cls != "Other":
                 rel_range[rel_type][tgt_cls] += 1
 
-    # Step 2: Compute P(class | relation) for each relation type
-    rel_to_class: dict[str, tuple[str, float]] = {}  # rel_type → (best_class, confidence)
+            # Signal B: source-class range for value-targeted relations
+            tgt_entity = entity_map.get(tgt_eid)
+            if (src_cls != "Other"
+                    and tgt_entity is not None
+                    and get_entity_lane(tgt_entity) == "value"):
+                rel_source_range[rel_type][src_cls] += 1
+
+    # Step 2: Compute P(class | relation) for each signal
+    rel_to_class: dict[str, tuple[str, float]] = {}
     for rel_type, class_counts in rel_range.items():
         total = sum(class_counts.values())
         if total < 2:
-            continue  # too little evidence
+            continue
         best_cls, best_count = class_counts.most_common(1)[0]
         confidence = best_count / total
         if confidence >= confidence_threshold and best_cls in class_vocab:
             rel_to_class[rel_type] = (best_cls, confidence)
 
-    if rel_to_class:
-        print(f"  Learned {len(rel_to_class)} relation→class mappings:", flush=True)
-        for rt, (cls, conf) in sorted(rel_to_class.items(), key=lambda x: -x[1][1])[:15]:
-            print(f"    {rt:<45} → {cls:<15} (conf={conf:.2f})", flush=True)
+    rel_to_source_class: dict[str, tuple[str, float]] = {}
+    for rel_type, class_counts in rel_source_range.items():
+        total = sum(class_counts.values())
+        if total < 2:
+            continue
+        best_cls, best_count = class_counts.most_common(1)[0]
+        confidence = best_count / total
+        if confidence >= confidence_threshold and best_cls in class_vocab:
+            rel_to_source_class[rel_type] = (best_cls, confidence)
 
-    # Step 3: Type value entities using their incoming relation's range class
+    if rel_to_class:
+        print(f"  Learned {len(rel_to_class)} target-class mappings (Signal A):", flush=True)
+        for rt, (cls, conf) in sorted(rel_to_class.items(), key=lambda x: -x[1][1])[:10]:
+            print(f"    {rt:<45} → {cls:<15} (conf={conf:.2f})", flush=True)
+    if rel_to_source_class:
+        print(f"  Learned {len(rel_to_source_class)} source-class mappings (Signal B, for value targets):", flush=True)
+        for rt, (cls, conf) in sorted(rel_to_source_class.items(), key=lambda x: -x[1][1])[:10]:
+            print(f"    {rt:<45} ← {cls:<15} (conf={conf:.2f})", flush=True)
+
+    # Step 3: Type value entities
     reclassified = 0
     class_gains: Counter = Counter()
+    via_source_signal = 0
 
     for e in entities:
         eid = e["id"]
         if get_entity_lane(e) != "value" or updated.get(eid) != "Other":
             continue
 
-        # Aggregate evidence from incoming relations
+        # Signal A: target-class evidence via incoming relations
         class_evidence: Counter = Counter()
         for rel_type, count in e.get("in_rel_counts", {}).items():
             if rel_type in rel_to_class:
                 cls, conf = rel_to_class[rel_type]
-                class_evidence[cls] += count * conf  # weight by confidence
+                class_evidence[cls] += count * conf
+
+        used_source_signal = False
+        # Signal B fallback: inherit from source-class if Signal A had nothing
+        if not class_evidence:
+            for rel_type, count in e.get("in_rel_counts", {}).items():
+                if rel_type in rel_to_source_class:
+                    cls, conf = rel_to_source_class[rel_type]
+                    class_evidence[cls] += count * conf
+            used_source_signal = bool(class_evidence)
 
         if not class_evidence:
             continue
 
-        # Assign to highest-evidence class
         best_cls, best_score = class_evidence.most_common(1)[0]
         total_evidence = sum(class_evidence.values())
         fraction = best_score / total_evidence if total_evidence > 0 else 0
@@ -778,15 +828,23 @@ def type_value_entities(
             updated[eid] = best_cls
             reclassified += 1
             class_gains[best_cls] += 1
+            if used_source_signal:
+                via_source_signal += 1
 
     if reclassified > 0:
-        print(f"  ✓ Reclassified {reclassified} value entities from Other:", flush=True)
+        print(f"  ✓ Reclassified {reclassified} value entities from Other "
+              f"({via_source_signal} via source-class fallback):", flush=True)
         for cls, cnt in class_gains.most_common():
             print(f"    → {cls}: +{cnt}", flush=True)
     else:
         print(f"  ✓ No value entities met the {confidence_threshold:.0%} threshold — all stay as Other", flush=True)
 
-    return updated, rel_to_class
+    # Merge both signals for downstream consumers (e.g., record decomposition).
+    # Signal A takes precedence; Signal B fills gaps for value-only predicates.
+    merged_rel_to_class: dict[str, tuple[str, float]] = dict(rel_to_source_class)
+    merged_rel_to_class.update(rel_to_class)
+
+    return updated, merged_rel_to_class
 
 
 def rebalance_mega_classes(
