@@ -1,0 +1,30 @@
+services:
+  neo4j-flood:
+    image: neo4j:5
+    container_name: seafkg-neo4j-flood
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/capstone2026
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - ./neo4j-data/flood:/data
+      - ./neo4j-data/flood-logs:/logs
+    restart: unless-stopped
+
+  neo4j-emory:
+    image: neo4j:5
+    container_name: seafkg-neo4j-emory
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/capstone2026
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - ./neo4j-data/emory:/data
+      - ./neo4j-data/emory-logs:/logs
+    restart: unless-stopped

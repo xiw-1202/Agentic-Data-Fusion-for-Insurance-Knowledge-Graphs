@@ -39,6 +39,9 @@ env/
 # Neo4j dumps (can be large)
 *.dump
 
+# Zone 4 local Docker volumes (Neo4j data)
+zone4/neo4j-data/
+
 # Logs
 *.log
 logs/
