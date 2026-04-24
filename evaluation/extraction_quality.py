@@ -344,38 +344,44 @@ _CARRIER_POLICY_NUM = re.compile(r"^(REN|RIN|RI)\s?\d{6,}$")
 
 
 def _humanize_id(entity_id: str, entity_type: str | None = None) -> str:
-    """Turn opaque hash-IDs into human-readable type words for G-BERTScore.
+    """Prepend a human-readable type word to opaque hash-IDs for G-BERTScore.
 
-    'CLM-4d4cbd06e76a' + 'ClaimRecord' → 'claim'
-    'SRV-7dad514cde25' + 'SurveyRecord' → 'survey'
-    'PER-abc123'       + 'Person'      → 'person'
-    'REN285325500'     + 'PolicyRecord' → 'policy'
+    'CLM-4d4cbd06e76a' + 'ClaimRecord' → 'claim CLM-4d4cbd06e76a'
+    'SRV-7dad514cde25' + 'SurveyRecord' → 'survey SRV-7dad514cde25'
+    'PER-abc123'       + 'Person'      → 'person PER-abc123'
+    'REN285325500'     + 'PolicyRecord' → 'policy REN285325500'
     'Cellular Phone'   + 'DeviceType'   → 'Cellular Phone' (unchanged)
 
     The goal is to make the linearized triple readable by a sentence-level
-    embedder. 'CLM-4d4cbd06e76a has claim loss date 2023-05-08' has an
+    embedder while preserving the actual identifier so the eval stays
+    traceable. 'CLM-4d4cbd06e76a has claim loss date 2023-05-08' has an
     opaque subject that tanks cosine similarity against an LLM-extracted
-    fact like 'The claim was filed on 2023-05-08'. Substituting 'claim'
-    for the hash raises the similarity to where BERTScore can match.
+    fact like 'The claim was filed on 2023-05-08'. Prepending 'claim'
+    gives BERTScore a semantic anchor without dropping the ID.
 
-    Preference order:
+    Preference order for the type word:
         1. entity_type name ending in 'Record' → strip 'Record', lowercase
            (preserves custom types like 'PolicyRecord' → 'policy')
         2. Known hash prefix → fixed label (PER- → 'person', etc.)
         3. Carrier policy number pattern → 'policy'
-        4. Fall through: return entity_id unchanged
+        4. No match: return entity_id unchanged
     """
     if not entity_id:
         return ""
     has_record_prefix = any(entity_id.startswith(p) for p in _PREFIX_LABEL)
-    if has_record_prefix or _CARRIER_POLICY_NUM.match(entity_id):
-        if entity_type and entity_type.lower().endswith("record"):
-            return entity_type[:-len("Record")].lower()
-        for pref, label in _PREFIX_LABEL.items():
+    if not (has_record_prefix or _CARRIER_POLICY_NUM.match(entity_id)):
+        return entity_id
+    if entity_type and entity_type.lower().endswith("record"):
+        label = entity_type[:-len("Record")].lower()
+    else:
+        label = None
+        for pref, lbl in _PREFIX_LABEL.items():
             if entity_id.startswith(pref):
-                return label
-        return "policy"  # carrier-policy-number fallthrough
-    return entity_id
+                label = lbl
+                break
+        if label is None:
+            label = "policy"  # carrier-policy-number fallthrough
+    return f"{label} {entity_id}"
 
 
 def _linearize_triple(t: dict) -> str:
