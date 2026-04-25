@@ -174,6 +174,17 @@ def _write_instance_of(graph: Neo4jGraph, provenance: dict) -> int:
             """,
             params={"batch": batch},
         )
+
+    # Also SET the class as a Neo4j label on each entity so that
+    # `CALL db.labels()` (used by riskine_eval) sees the induced classes.
+    # Neo4j doesn't support dynamic labels in plain Cypher, so iterate
+    # per class — cheap (≤20 classes typical).
+    distinct_classes = sorted({r["cls"] for r in rows})
+    for cname in distinct_classes:
+        graph.query(
+            f"MATCH (e:Entity)-[:INSTANCE_OF]->(:Class {{name:$n}}) SET e:`{cname}`",
+            params={"n": cname},
+        )
     return len(rows)
 
 
