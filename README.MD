@@ -51,7 +51,7 @@ Reference ontology [Riskine](https://github.com/riskine/ontology) is used **only
 
 Two independently-run datasets, **same pipeline binary**, `qwen2.5:72b` for extraction on 2× Quadro RTX 8000.
 
-**Evaluation methodology:** all LLM-as-judge metrics (triple precision, source grounding, Riskine class alignment) are scored by an **independent judge model — `gemma4:31b`** — *different* from the extraction model `qwen2.5:72b`. Using a different model for evaluation prevents self-evaluation bias, where a model rating its own output tends to inflate scores. Each dataset is also evaluated against its **own 40-question benchmark derived from the raw source files** (column names, PDF section titles, actual source values), not from KG inspection — see [`baseline/eval_tasks_flood.py`](baseline/eval_tasks_flood.py) and [`baseline/eval_tasks_emory.py`](baseline/eval_tasks_emory.py). The picker auto-routes via the suffix or an explicit `--dataset` flag.
+**Evaluation methodology:** all LLM-as-judge metrics (triple precision, source grounding, Riskine class alignment) are scored by an **independent judge model — `gemma4:31b`** — *different* from the extraction model `qwen2.5:72b`. Using a different model for evaluation prevents self-evaluation bias, where a model rating its own output tends to inflate scores.
 
 | Metric | Flood (NFIP + OpenFEMA) | Emory Spring 2026 (GEICO + T-Mobile + Auto) |
 |---|---:|---:|
@@ -70,7 +70,9 @@ Two independently-run datasets, **same pipeline binary**, `qwen2.5:72b` for extr
 | Name F1 vs Riskine | 0.492 | 0.427 |
 | BERTScore F1 vs Riskine | 0.615 | 0.544 |
 | Wu-Palmer taxonomy similarity | 0.621 | 0.667 |
-| Query accuracy (dataset-appropriate 40-Q benchmark) | **62.5 %** | **90.0 %** |
+| Query accuracy (dataset-appropriate 40-Q benchmark)¹ | **62.5 %** | **90.0 %** |
+
+¹ *Each dataset is evaluated against its own 40-question benchmark, **derived from the raw source files not from KG inspection** ([`baseline/eval_tasks_flood.py`](baseline/eval_tasks_flood.py) for NFIP / OpenFEMA / SFIP PDF; [`baseline/eval_tasks_emory.py`](baseline/eval_tasks_emory.py) for Auto Service PDF + T-Mobile + GEICO renters CSVs). Questions probe column names, PDF section titles, and actual source values — keywords come from the data, not from the KG. The picker auto-selects from the suffix or via an explicit `--dataset` flag. Emory's 4 misses (of 40, on the cluster run): Q14 payment-plan column preservation, Q16 claim-status keyword surfacing, Q34 auto-service-to-mobile concept sharing, Q40 county column capture.*
 
 ### Classes induced
 
