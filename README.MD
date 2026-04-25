@@ -58,9 +58,9 @@ Two independently-run datasets, **same pipeline binary**, `qwen2.5:72b` for extr
 | Chunks processed | 56 | 34 |
 | Raw triples (LLM + structured) | 72,663 | 31,489 |
 | Relation types | 186 | 321 |
-| **Triple precision** (gemma judge, 100-triple sample) | **0.903** | **0.745** |
-| Fact recall (BERTScore, 30-chunk sample) | 0.920 | 0.730 |
-| Source grounding rate | 0.870 | 0.800 |
+| **Triple precision** (gemma judge, 100-triple sample) | **0.780** | **0.745** |
+| Fact recall (BERTScore, 30-chunk sample) | 0.740 | 0.730 |
+| Source grounding rate | 0.680 | 0.800 |
 | Entities | 12,326 | 3,666 |
 | **Induced classes** | **10** | **10** |
 | **Labeling coverage** | **99.7 %** | **98.6 %** |
