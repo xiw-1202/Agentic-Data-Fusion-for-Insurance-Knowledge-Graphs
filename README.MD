@@ -67,10 +67,11 @@ Two independently-run datasets, **same pipeline binary**, `qwen2.5:72b` for extr
 | SUBCLASS_OF / ASSOCIATED_WITH edges | 4 / 27 | 3 / 21 |
 | **Type inconsistency** | 9.1 % | **0.0 %** |
 | Duplication rate | 0.0 % | 0.0 % |
-| Name F1 vs Riskine | 0.492 | 0.427 |
+| Name F1 vs Riskine | 0.440 | 0.427 |
 | BERTScore F1 vs Riskine | 0.615 | 0.544 |
 | Wu-Palmer taxonomy similarity | 0.621 | 0.667 |
-| Query accuracy (dataset-appropriate 40-Q benchmark)¹ | **62.5 %** | **90.0 %** |
+| Entity-assignment F1 vs Riskine (full 26 / evidenced) | 0.252 / 0.388 | 0.252 / 0.482 |
+| Query accuracy (dataset-appropriate 40-Q benchmark)¹ | **87.5 %** | **90.0 %** |
 
 ¹ *Each dataset is evaluated against its own 40-question benchmark, **derived from the raw source files not from KG inspection** ([`baseline/eval_tasks_flood.py`](baseline/eval_tasks_flood.py) for NFIP / OpenFEMA / SFIP PDF; [`baseline/eval_tasks_emory.py`](baseline/eval_tasks_emory.py) for Auto Service PDF + T-Mobile + GEICO renters CSVs). Questions probe column names, PDF section titles, and actual source values — keywords come from the data, not from the KG. The picker auto-selects from the suffix or via an explicit `--dataset` flag. Emory's 4 misses (of 40, on the cluster run): Q14 payment-plan column preservation, Q16 claim-status keyword surfacing, Q34 auto-service-to-mobile concept sharing, Q40 county column capture.*
 
