@@ -106,10 +106,10 @@ def _write_classes(graph: Neo4jGraph, svloi: dict) -> dict[str, int]:
     hierarchy = svloi.get("hierarchy", []) or []
     associations = svloi.get("associations", []) or []
 
-    print(f"[3/4] Writing {len(classes)} :Class nodes + ontology edges...")
+    print(f"[3/4] Writing {len(classes)} :OntologyClass nodes + ontology edges...")
     if classes:
         graph.query(
-            "UNWIND $names AS n MERGE (:Class {name: n})",
+            "UNWIND $names AS n MERGE (:OntologyClass {name: n})",
             params={"names": [_sanitize_label(c) for c in classes]},
         )
 
@@ -122,8 +122,8 @@ def _write_classes(graph: Neo4jGraph, svloi: dict) -> dict[str, int]:
         graph.query(
             """
             UNWIND $edges AS e
-            MATCH (c:Class {name: e.child})
-            MATCH (p:Class {name: e.parent})
+            MATCH (c:OntologyClass {name: e.child})
+            MATCH (p:OntologyClass {name: e.parent})
             MERGE (c)-[:SUBCLASS_OF]->(p)
             """,
             params={"edges": sub_edges},
@@ -138,8 +138,8 @@ def _write_classes(graph: Neo4jGraph, svloi: dict) -> dict[str, int]:
         graph.query(
             """
             UNWIND $edges AS e
-            MATCH (s:Class {name: e.src})
-            MATCH (t:Class {name: e.tgt})
+            MATCH (s:OntologyClass {name: e.src})
+            MATCH (t:OntologyClass {name: e.tgt})
             MERGE (s)-[:ASSOCIATED_WITH]->(t)
             """,
             params={"edges": assoc_edges},
@@ -169,7 +169,7 @@ def _write_instance_of(graph: Neo4jGraph, provenance: dict) -> int:
             """
             UNWIND $batch AS row
             MATCH (e:Entity {id: row.id})
-            MATCH (c:Class {name: row.cls})
+            MATCH (c:OntologyClass {name: row.cls})
             MERGE (e)-[:INSTANCE_OF]->(c)
             """,
             params={"batch": batch},
@@ -182,7 +182,7 @@ def _write_instance_of(graph: Neo4jGraph, provenance: dict) -> int:
     distinct_classes = sorted({r["cls"] for r in rows})
     for cname in distinct_classes:
         graph.query(
-            f"MATCH (e:Entity)-[:INSTANCE_OF]->(:Class {{name:$n}}) SET e:`{cname}`",
+            f"MATCH (e:Entity)-[:INSTANCE_OF]->(:OntologyClass {{name:$n}}) SET e:`{cname}`",
             params={"n": cname},
         )
     return len(rows)
@@ -200,7 +200,7 @@ def _propagate_to_untyped(graph: Neo4jGraph) -> int:
     untyped = graph.query(
         """
         MATCH (e:Entity)
-        WHERE NOT (e)-[:INSTANCE_OF]->(:Class)
+        WHERE NOT (e)-[:INSTANCE_OF]->(:OntologyClass)
         RETURN count(e) AS n
         """
     )[0]["n"]
@@ -212,12 +212,12 @@ def _propagate_to_untyped(graph: Neo4jGraph) -> int:
     result = graph.query(
         """
         MATCH (e:Entity)
-        WHERE NOT (e)-[:INSTANCE_OF]->(:Class)
-        MATCH (e)--(neighbor:Entity)-[:INSTANCE_OF]->(c:Class)
+        WHERE NOT (e)-[:INSTANCE_OF]->(:OntologyClass)
+        MATCH (e)--(neighbor:Entity)-[:INSTANCE_OF]->(c:OntologyClass)
         WITH e, c.name AS cls, count(*) AS votes
         ORDER BY e, votes DESC
         WITH e, head(collect(cls)) AS best
-        MATCH (bc:Class {name: best})
+        MATCH (bc:OntologyClass {name: best})
         MERGE (e)-[:INSTANCE_OF]->(bc)
         RETURN count(*) AS labeled
         """

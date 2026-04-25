@@ -19,18 +19,18 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
     """Return a compact schema summary for the LLM prompt.
 
     Lists all node labels and the top-N relation types by frequency, plus
-    the :Class ontology (names + SUBCLASS_OF edges).
+    the :OntologyClass ontology (names + SUBCLASS_OF edges).
     """
     rows = graph.query(SCHEMA_QUERY)
     labels = [r for r in rows if r["kind"] == "labels"]
     rels = [r for r in rows if r["kind"] == "rels"]
 
-    classes = graph.query("MATCH (c:Class) RETURN c.name AS name ORDER BY c.name")
+    classes = graph.query("MATCH (c:OntologyClass) RETURN c.name AS name ORDER BY c.name")
     class_names = [c["name"] for c in classes]
 
     hierarchy = graph.query(
         """
-        MATCH (c:Class)-[:SUBCLASS_OF]->(p:Class)
+        MATCH (c:OntologyClass)-[:SUBCLASS_OF]->(p:OntologyClass)
         RETURN c.name AS child, p.name AS parent
         """
     )
@@ -58,7 +58,7 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
         lines.append(f"  {et['t']} ({et['n']})")
 
     lines.append("")
-    lines.append("## Ontology classes (:Class)")
+    lines.append("## Ontology classes (:OntologyClass)")
     for cn in class_names:
         lines.append(f"  {cn}")
     if hierarchy:
@@ -74,8 +74,8 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
 
     lines.append("")
     lines.append("## Special edges")
-    lines.append("  (:Entity)-[:INSTANCE_OF]->(:Class)")
-    lines.append("  (:Class)-[:SUBCLASS_OF]->(:Class)")
-    lines.append("  (:Class)-[:ASSOCIATED_WITH]->(:Class)")
+    lines.append("  (:Entity)-[:INSTANCE_OF]->(:OntologyClass)")
+    lines.append("  (:OntologyClass)-[:SUBCLASS_OF]->(:OntologyClass)")
+    lines.append("  (:OntologyClass)-[:ASSOCIATED_WITH]->(:OntologyClass)")
 
     return "\n".join(lines)

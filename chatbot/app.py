@@ -55,7 +55,7 @@ with st.sidebar:
     counts = graph.query(
         """
         MATCH (e:Entity) WITH count(e) AS entities
-        MATCH (c:Class) WITH entities, count(c) AS classes
+        MATCH (c:OntologyClass) WITH entities, count(c) AS classes
         MATCH ()-[r]->() RETURN entities, classes, count(r) AS rels
         """
     )

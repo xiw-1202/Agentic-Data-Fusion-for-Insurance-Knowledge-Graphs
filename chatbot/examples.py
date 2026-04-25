@@ -54,7 +54,7 @@ ORDER BY avg_nps DESC
     {
         "question": "How many entities are classified into each ontology class?",
         "cypher": """
-MATCH (e:Entity)-[:INSTANCE_OF]->(c:Class)
+MATCH (e:Entity)-[:INSTANCE_OF]->(c:OntologyClass)
 RETURN c.name AS class_name, count(e) AS entity_count
 ORDER BY entity_count DESC
 """.strip(),
@@ -62,7 +62,7 @@ ORDER BY entity_count DESC
     {
         "question": "Show the ontology hierarchy.",
         "cypher": """
-MATCH (child:Class)-[:SUBCLASS_OF]->(parent:Class)
+MATCH (child:OntologyClass)-[:SUBCLASS_OF]->(parent:OntologyClass)
 RETURN child.name AS child, parent.name AS parent
 """.strip(),
     },
