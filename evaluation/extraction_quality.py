@@ -111,21 +111,53 @@ def _get_all_entity_ids(graph: Neo4jGraph) -> list[str]:
     return [r["id"] for r in rows if r.get("id")]
 
 
+_RECORD_ID_PREFIXES = ("POL-", "CLM-", "PROP-", "PER-", "SRV-", "REC-")
+
+
+def _looks_like_record_id(eid: str) -> bool:
+    """Detect entity IDs synthesized by the structured mapper or record decomposition.
+
+    Examples that should return True (NOT real LLM-extracted text):
+        'POL-240ca0ce6f34'
+        'POL-240ca0ce6f34:survey'   (Zone 3 record-decomposition pattern)
+        'CLM-94ca7cc26d29'
+    Examples that should return False (real concepts/values):
+        'SERVICE CONTRACT'
+        'Coverage A'
+        '2023-05-08'
+    """
+    if not eid:
+        return False
+    return eid.startswith(_RECORD_ID_PREFIXES) or ":" in eid
+
+
 def _get_all_triples(graph: Neo4jGraph) -> list[dict]:
     rows = graph.query("""
         MATCH (s:Entity)-[r]->(o:Entity)
         RETURN s.id AS subject, type(r) AS relation, o.id AS object,
                s.source_type AS s_source, o.source_type AS o_source
     """)
-    return [
-        {
+    triples: list[dict] = []
+    for r in rows:
+        if not (r.get("subject") and r.get("object")):
+            continue
+        # Tag with source_type. If both endpoints are structured-record IDs,
+        # treat the triple as 'structured' regardless of node-level source_type
+        # (which is often NULL after Zone 3 decomposition synthesizes new IDs).
+        s_src = r.get("s_source")
+        o_src = r.get("o_source")
+        synthesized = _looks_like_record_id(r["subject"]) or _looks_like_record_id(r["object"])
+        if s_src == "structured" or o_src == "structured" or synthesized:
+            source_type = "structured"
+        else:
+            source_type = s_src or "llm"
+        triples.append({
             "subject": r["subject"],
             "relation": r["relation"],
             "object": r["object"],
-            "source_type": r.get("s_source") or "llm",
-        }
-        for r in rows if r.get("subject") and r.get("object")
-    ]
+            "source_type": source_type,
+        })
+    return triples
 
 
 def _load_chunks(chunks_file: str | None = None) -> list[dict]:
