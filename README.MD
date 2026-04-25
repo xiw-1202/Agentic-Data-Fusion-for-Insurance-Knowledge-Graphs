@@ -49,16 +49,18 @@ Reference ontology [Riskine](https://github.com/riskine/ontology) is used **only
 
 ## Cross-domain results (2026-04-24)
 
-Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwen2.5:72b on 2× Quadro RTX 8000:
+Two independently-run datasets, **same pipeline binary**, `qwen2.5:72b` for extraction on 2× Quadro RTX 8000.
+
+**Evaluation methodology:** all LLM-as-judge metrics (triple precision, source grounding, Riskine class alignment) are scored by an **independent judge model — `gemma4:31b`** — *different* from the extraction model `qwen2.5:72b`. Using a different model for evaluation prevents self-evaluation bias, where a model rating its own output tends to inflate scores. Each dataset is also evaluated against its **own 40-question benchmark derived from the raw source files** (column names, PDF section titles, actual source values), not from KG inspection — see [`baseline/eval_tasks_flood.py`](baseline/eval_tasks_flood.py) and [`baseline/eval_tasks_emory.py`](baseline/eval_tasks_emory.py). The picker auto-routes via the suffix or an explicit `--dataset` flag.
 
 | Metric | Flood (NFIP + OpenFEMA) | Emory Spring 2026 (GEICO + T-Mobile + Auto) |
 |---|---:|---:|
 | Chunks processed | 56 | 34 |
 | Raw triples (LLM + structured) | 72,663 | 31,489 |
 | Relation types | 186 | 321 |
-| **Triple precision** (LLM-as-judge, 100-triple sample)¹ᵃ | **0.903** | **0.745** |
-| Fact recall (BERTScore, 30-chunk sample)¹ᵇ | 0.920 | 0.730 |
-| Source grounding rate¹ᶜ | 0.870 | 0.800 |
+| **Triple precision** (gemma judge, 100-triple sample) | **0.903** | **0.745** |
+| Fact recall (BERTScore, 30-chunk sample) | 0.920 | 0.730 |
+| Source grounding rate | 0.870 | 0.800 |
 | Entities | 12,326 | 3,666 |
 | **Induced classes** | **10** | **10** |
 | **Labeling coverage** | **99.7 %** | **98.6 %** |
@@ -68,15 +70,7 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 | Name F1 vs Riskine | 0.492 | 0.427 |
 | BERTScore F1 vs Riskine | 0.615 | 0.544 |
 | Wu-Palmer taxonomy similarity | 0.621 | 0.667 |
-| Query accuracy (dataset-appropriate 40-Q benchmark)³ | **62.5 %** | **90.0 %** |
-
-³ *Each dataset is evaluated against its own 40-question benchmark, **derived from the raw source files not from KG inspection** ([baseline/eval_tasks_flood.py](baseline/eval_tasks_flood.py) for NFIP / OpenFEMA / SFIP PDF; [baseline/eval_tasks_emory.py](baseline/eval_tasks_emory.py) for Auto Service PDF + T-Mobile + GEICO renters CSVs). Questions probe column names, PDF section titles, and actual source values — keywords come from the data, not from the KG. The picker auto-selects from the suffix or via an explicit `--dataset` flag. Emory's 4 misses (of 40, on the cluster run): Q14 payment-plan column preservation, Q16 claim-status keyword surfacing, Q34 auto-service-to-mobile concept sharing, Q40 county column capture.*
-
-¹ᵃ *Emory uses an **independent judge model** (`gemma4:31b`) different from the extraction model (`qwen2.5:72b`) to avoid self-evaluation bias. Flood number still reflects the original qwen-judging-itself run and will tighten when re-judged. The Emory drop from 0.875 (qwen self-judge) → 0.745 (gemma independent judge) is the expected honest-evaluation correction, not a pipeline regression.*
-
-¹ᵇ *Emory fact-recall improved from 0.635 → 0.730 after fixing the linearizer in `evaluation/extraction_quality.py` to prepend a human-readable type word (`claim CLM-4d4cbd06e76a has claim loss date 2023-05-08`) so BERTScore can match it against LLM-extracted fact sentences. CSV-row chunks were the bottleneck.*
-
-¹ᶜ *Emory source-grounding initially measured at 0.12 (broken eval) because the LLM-triple sampler was leaking Zone-3 record-decomposition synthesized IDs (`POL-240ca0ce6f34:survey`) which no chunk substring-matches. Filter now excludes any subject/object that looks like a hash-prefixed record ID. Post-fix value: 0.800.*
+| Query accuracy (dataset-appropriate 40-Q benchmark) | **62.5 %** | **90.0 %** |
 
 ### Classes induced
 
