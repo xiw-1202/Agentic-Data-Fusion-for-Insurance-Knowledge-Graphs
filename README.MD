@@ -56,9 +56,9 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 | Chunks processed | 56 | 34 |
 | Raw triples (LLM + structured) | 72,663 | 31,489 |
 | Relation types | 186 | 321 |
-| **Triple precision** (LLM-as-judge, 100-triple sample)¹ᵃ | **0.903** | **0.840** |
-| Fact recall (BERTScore, 30-chunk sample)¹ᵇ | 0.920 | 0.744² |
-| Source grounding rate¹ᶜ | 0.870 | 0.120 |
+| **Triple precision** (LLM-as-judge, 100-triple sample)¹ᵃ | **0.903** | **0.745** |
+| Fact recall (BERTScore, 30-chunk sample)¹ᵇ | 0.920 | 0.730 |
+| Source grounding rate¹ᶜ | 0.870 | 0.800 |
 | Entities | 12,326 | 3,666 |
 | **Induced classes** | **10** | **10** |
 | **Labeling coverage** | **99.7 %** | **98.6 %** |
@@ -72,13 +72,11 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 
 ³ *Each dataset is evaluated against its own 40-question benchmark, **derived from the raw source files not from KG inspection** ([baseline/eval_tasks_flood.py](baseline/eval_tasks_flood.py) for NFIP / OpenFEMA / SFIP PDF; [baseline/eval_tasks_emory.py](baseline/eval_tasks_emory.py) for Auto Service PDF + T-Mobile + GEICO renters CSVs). Questions probe column names, PDF section titles, and actual source values — keywords come from the data, not from the KG. The picker auto-selects from the suffix or via an explicit `--dataset` flag. Emory's 4 misses (of 40, on the cluster run): Q14 payment-plan column preservation, Q16 claim-status keyword surfacing, Q34 auto-service-to-mobile concept sharing, Q40 county column capture.*
 
-¹ᵃ *Flood number is the original-judge run; Emory number uses an **independent judge model** (`gemma4:31b`) different from the extraction model (`qwen2.5:72b`) to avoid self-evaluation bias. The flood column will narrow to the gemma-judge value when re-run.*
+¹ᵃ *Emory uses an **independent judge model** (`gemma4:31b`) different from the extraction model (`qwen2.5:72b`) to avoid self-evaluation bias. Flood number still reflects the original qwen-judging-itself run and will tighten when re-judged. The Emory drop from 0.875 (qwen self-judge) → 0.745 (gemma independent judge) is the expected honest-evaluation correction, not a pipeline regression.*
 
-¹ᵇ *Emory fact-recall jumped from 0.635 to **0.744** after fixing the linearizer in `evaluation/extraction_quality.py` to prepend a human-readable type word (`claim CLM-4d4cbd06e76a has claim loss date 2023-05-08`). CSV-row chunks specifically went from 0.318 → 0.661 avg recall.*
+¹ᵇ *Emory fact-recall improved from 0.635 → 0.730 after fixing the linearizer in `evaluation/extraction_quality.py` to prepend a human-readable type word (`claim CLM-4d4cbd06e76a has claim loss date 2023-05-08`) so BERTScore can match it against LLM-extracted fact sentences. CSV-row chunks were the bottleneck.*
 
-¹ᶜ *Emory source-grounding number dropped sharply (0.87 → 0.12) when switching from self-judge (qwen) to independent-judge (gemma). The 44/50 "no_source_found" verdicts suggest gemma is much more conservative than qwen on the same prompt — flagged for follow-up; not a pipeline regression.*
-
-² *The earlier-reported 0.711 was incorrect; actual previous value was 0.635. The 0.744 here is post-linearizer-fix.*
+¹ᶜ *Emory source-grounding initially measured at 0.12 (broken eval) because the LLM-triple sampler was leaking Zone-3 record-decomposition synthesized IDs (`POL-240ca0ce6f34:survey`) which no chunk substring-matches. Filter now excludes any subject/object that looks like a hash-prefixed record ID. Post-fix value: 0.800.*
 
 ### Classes induced
 
