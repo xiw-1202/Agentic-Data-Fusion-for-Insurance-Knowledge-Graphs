@@ -56,9 +56,9 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 | Chunks processed | 56 | 34 |
 | Raw triples (LLM + structured) | 72,663 | 31,489 |
 | Relation types | 186 | 321 |
-| **Triple precision** (LLM-as-judge, 100-triple sample) | **0.903** | **0.875** |
-| Fact recall (BERTScore, 30-chunk sample) | 0.920 | 0.635² |
-| Source grounding rate | 0.870 | 0.870 |
+| **Triple precision** (LLM-as-judge, 100-triple sample)¹ᵃ | **0.903** | **0.840** |
+| Fact recall (BERTScore, 30-chunk sample)¹ᵇ | 0.920 | 0.744² |
+| Source grounding rate¹ᶜ | 0.870 | 0.120 |
 | Entities | 12,326 | 3,666 |
 | **Induced classes** | **10** | **10** |
 | **Labeling coverage** | **99.7 %** | **98.6 %** |
@@ -68,11 +68,17 @@ Two independently-run datasets, **same pipeline binary** (commit `a2ed1f9`), qwe
 | Name F1 vs Riskine | 0.492 | 0.427 |
 | BERTScore F1 vs Riskine | 0.615 | 0.544 |
 | Wu-Palmer taxonomy similarity | 0.621 | 0.667 |
-| Query accuracy (dataset-appropriate 40-Q benchmark)¹ | **62.5 %** | **87.5 %** |
+| Query accuracy (dataset-appropriate 40-Q benchmark)³ | **62.5 %** | **90.0 %** |
 
-¹ *Each dataset is evaluated against its own 40-question benchmark, **derived from the raw source files not from KG inspection** ([baseline/eval_tasks_flood.py](baseline/eval_tasks_flood.py) for NFIP / OpenFEMA / SFIP PDF; [baseline/eval_tasks_emory.py](baseline/eval_tasks_emory.py) for Auto Service PDF + T-Mobile + GEICO renters CSVs). Questions probe column names, PDF section titles, and actual source values — keywords come from the data, not from the KG. The picker auto-selects from the suffix or via an explicit `--dataset` flag. Emory's 5 misses (of 40) are honest gaps: Q14 payment-plan column preservation, Q16 claim-status keyword surfacing, Q34 auto-service-to-mobile concept sharing, Q35 manufacturer cross-linking, Q40 county column capture.*
+³ *Each dataset is evaluated against its own 40-question benchmark, **derived from the raw source files not from KG inspection** ([baseline/eval_tasks_flood.py](baseline/eval_tasks_flood.py) for NFIP / OpenFEMA / SFIP PDF; [baseline/eval_tasks_emory.py](baseline/eval_tasks_emory.py) for Auto Service PDF + T-Mobile + GEICO renters CSVs). Questions probe column names, PDF section titles, and actual source values — keywords come from the data, not from the KG. The picker auto-selects from the suffix or via an explicit `--dataset` flag. Emory's 4 misses (of 40, on the cluster run): Q14 payment-plan column preservation, Q16 claim-status keyword surfacing, Q34 auto-service-to-mobile concept sharing, Q40 county column capture.*
 
-² *The fact-recall gap is an eval-method confound, not a chunking or extraction difference. Both datasets are chunked identically (188 / 271 chunks, same schema+records 0–N pattern) and both had CSV-row chunks in the 30-chunk fact_recall sample (14 flood / 11 Emory). Flood's CSV rows describe domain concepts — `policy cost: 681`, `policy effective date: 2025-01-10` — whose LLM-extracted facts align well with KG triples under a BERTScore threshold of 0.65 (avg recall 0.955). Emory's CSV rows are survey/identity records dominated by opaque numeric IDs — `response id: 2457395650`, `survey gateway id: 16950` — whose facts match semantically correct KG triples (`SRV-xxx HAS_RESPONSE_ID 2457395650`) but fall below the BERTScore threshold (avg recall 0.318). The fix is in the eval (human-readable triple linearization, lower threshold for ID-heavy structured triples), not in the pipeline.*
+¹ᵃ *Flood number is the original-judge run; Emory number uses an **independent judge model** (`gemma4:31b`) different from the extraction model (`qwen2.5:72b`) to avoid self-evaluation bias. The flood column will narrow to the gemma-judge value when re-run.*
+
+¹ᵇ *Emory fact-recall jumped from 0.635 to **0.744** after fixing the linearizer in `evaluation/extraction_quality.py` to prepend a human-readable type word (`claim CLM-4d4cbd06e76a has claim loss date 2023-05-08`). CSV-row chunks specifically went from 0.318 → 0.661 avg recall.*
+
+¹ᶜ *Emory source-grounding number dropped sharply (0.87 → 0.12) when switching from self-judge (qwen) to independent-judge (gemma). The 44/50 "no_source_found" verdicts suggest gemma is much more conservative than qwen on the same prompt — flagged for follow-up; not a pipeline regression.*
+
+² *The earlier-reported 0.711 was incorrect; actual previous value was 0.635. The 0.744 here is post-linearizer-fix.*
 
 ### Classes induced
 
