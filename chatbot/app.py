@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 from chatbot.examples import EXAMPLES
-from chatbot.qa_chain import ask, build_schema_prefix
-from chatbot.render import render
+from chatbot.qa_chain import QAResult, _coerce_viz, ask, ask_stream, build_schema_prefix
+from chatbot.render import render, render_sources
 
 
 st.set_page_config(page_title="SEAF-KG Chatbot", layout="wide")
@@ -81,25 +81,73 @@ question = st.text_input(
     placeholder="e.g. Which device types have the most claims?",
 )
 
+# Run only triggers a new stream. Rendering reads from session_state so
+# subsequent reruns (e.g. from feedback buttons) don't lose the answer.
 if st.button("Run", type="primary") and question:
-    with st.spinner("Claude is generating Cypher and interpreting the result..."):
-        result = ask(question, graph=graph, schema_prefix=schema_prefix)
+    steps: list = []
+    final_payload: dict = {}
+    classify_payload: dict = {}
 
-    render(result)
+    for step in ask_stream(question, graph=graph, schema_prefix=schema_prefix):
+        steps.append(step)
+        with st.status(step.title, expanded=(step.name in {"classify", "plan", "cite"})) as status:
+            if step.name == "classify":
+                classify_payload = step.payload
+                st.write(f"**Kind:** `{step.payload['kind']}`")
+                st.write(f"**Why:** {step.payload['reason']}")
+                st.progress(step.payload["confidence"], text=f"confidence {step.payload['confidence']:.0%}")
+            elif step.name == "plan":
+                st.write(f"**Intent:** {step.payload.get('intent','')}")
+                st.write(f"**Approach:** {step.payload.get('approach','')}")
+                if step.payload.get("ontology_classes_used"):
+                    st.write("**Classes used:** " + ", ".join(step.payload["ontology_classes_used"]))
+            elif step.name == "cypher":
+                st.code(step.payload["cypher"], language="cypher")
+            elif step.name == "execute":
+                st.write(f"Returned {len(step.payload['rows'])} rows.")
+            elif step.name == "interpret":
+                st.json(step.payload)
+            elif step.name == "cite":
+                final_payload = step.payload
+            status.update(
+                label=("❌ " + step.title) if not step.ok else ("✅ " + step.title),
+                state=("error" if not step.ok else "complete"),
+            )
 
-    with st.expander("Generated Cypher", expanded=False):
-        st.code(result.cypher, language="cypher")
+    # Persist for re-render after rerun (feedback button etc.)
+    st.session_state["last_question"] = question
+    st.session_state["last_steps"] = [
+        {"name": s.name, "title": s.title, "payload": s.payload, "ok": s.ok} for s in steps
+    ]
+    st.session_state["last_classify"] = classify_payload
+    st.session_state["last_payload"] = final_payload
 
-    with st.expander("Chosen visualization"):
-        st.json(
-            {
-                "type": result.viz.type,
-                "title": result.viz.title,
-                "x": result.viz.x,
-                "y": result.viz.y,
-                "label": result.viz.label,
-                "value": result.viz.value,
-                "source": result.viz.source,
-                "target": result.viz.target,
-            }
-        )
+# --- Render answer block from session_state (survives reruns) ---
+final_payload = st.session_state.get("last_payload", {})
+classify_payload = st.session_state.get("last_classify", {})
+question_for_render = st.session_state.get("last_question", "")
+
+if final_payload:
+    if classify_payload.get("kind") == "open_interpretive":
+        st.warning("⚠️ Interpretive answer — the KG doesn't directly answer this. Verify against the sources below.")
+    elif classify_payload.get("kind") == "out_of_scope":
+        st.error("This question is out of scope for the current KG.")
+
+    if final_payload.get("summary"):
+        st.markdown("### Answer")
+        st.write(final_payload["summary"])
+        if final_payload.get("key_insight"):
+            st.info(f"**Key insight:** {final_payload['key_insight']}")
+
+        if final_payload.get("rows"):
+            result = QAResult(
+                question=question_for_render,
+                cypher="",
+                rows=final_payload["rows"],
+                summary=final_payload["summary"],
+                key_insight=final_payload.get("key_insight", ""),
+                viz=_coerce_viz({"viz": final_payload.get("viz", {})}, final_payload["rows"]),
+            )
+            render(result)
+
+        render_sources(final_payload.get("sources", []), graph)

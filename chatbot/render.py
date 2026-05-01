@@ -88,6 +88,30 @@ def render(result: QAResult) -> None:
     st.dataframe(df, use_container_width=True, height=min(600, 40 + 35 * len(df)))
 
 
+def render_sources(sources: list[dict[str, str]], graph) -> None:
+    """Render each source chunk as a clickable expander showing the original text."""
+    if not sources:
+        return
+    st.markdown(f"### Sources ({len(sources)})")
+    chunk_ids = [s["chunk_id"] for s in sources if s.get("chunk_id")]
+    if not chunk_ids:
+        return
+    rows = graph.query(
+        "MATCH (c:Chunk) WHERE c.id IN $ids RETURN c.id AS id, c.text AS text, c.source AS source",
+        params={"ids": chunk_ids},
+    )
+    by_id = {r["id"]: r for r in rows}
+    for s in sources:
+        rec = by_id.get(s["chunk_id"])
+        label = f"📄 {s['chunk_id']}" + (f" — {s['source']}" if s.get("source") else "")
+        with st.expander(label, expanded=False):
+            if rec:
+                st.caption(f"Source file: `{rec['source']}`")
+                st.text(rec["text"])
+            else:
+                st.warning(f"Chunk {s['chunk_id']} not found in KG (run zone4 loader with chunks).")
+
+
 def _render_graph(df: pd.DataFrame, src_col: str, tgt_col: str, title: str = "") -> None:
     """Render a node-edge graph using streamlit-agraph.
 
