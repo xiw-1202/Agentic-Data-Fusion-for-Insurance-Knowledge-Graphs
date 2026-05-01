@@ -154,6 +154,48 @@ if final_payload:
 
         render_sources(final_payload.get("sources", []), graph)
 
+        # --- CSV ground-truth check ---
+        # For each relation in the generated Cypher, compare KG edge count
+        # to the source CSV's non-null count for the same column. Surfaces
+        # extraction gaps so the user can judge how trustworthy the answer is.
+        steps_persisted = st.session_state.get("last_steps", [])
+        cypher_step = next(
+            (s for s in steps_persisted if s["name"] == "cypher"), None
+        )
+        if cypher_step:
+            from chatbot.eval.verify import verify_relations
+            checks = verify_relations(cypher_step["payload"].get("cypher", ""))
+            if checks:
+                st.markdown("### CSV ground-truth check")
+                check_rows = []
+                for c in checks:
+                    # Find the corresponding kg_edges count for this rel
+                    kg_count = graph.query(
+                        "MATCH ()-[r]->() WHERE type(r) = $rel RETURN count(r) AS n",
+                        params={"rel": c["relation"]},
+                    )
+                    n_kg = kg_count[0]["n"] if kg_count else 0
+                    cov = (n_kg / c["csv_non_null"] * 100) if c["csv_non_null"] else 0
+                    flag = "🟢" if cov >= 70 else ("🟡" if cov >= 30 else "🔴")
+                    check_rows.append(
+                        {
+                            "": flag,
+                            "Relation": c["relation"],
+                            "CSV column": f"{c['column']} ({c['csv_file']})",
+                            "CSV non-null": c["csv_non_null"],
+                            "KG edges": n_kg,
+                            "Coverage": f"{cov:.0f}%",
+                        }
+                    )
+                st.dataframe(check_rows, use_container_width=True, hide_index=True)
+                low_cov = [c for c in check_rows if c[""] == "🔴"]
+                if low_cov:
+                    rels = ", ".join(c["Relation"] for c in low_cov)
+                    st.warning(
+                        f"⚠️ Low extraction coverage on {rels} — answer may "
+                        "miss rows that exist in the source CSV."
+                    )
+
 # --- Feedback (only show after an answer exists) ---
 if final_payload:
     st.divider()
