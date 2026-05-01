@@ -331,6 +331,35 @@ def ask_stream(
         payload={"kind": cls.kind.value, "reason": cls.reason, "confidence": cls.confidence},
     )
 
+    if cls.kind == QuestionKind.OPEN_INTERPRETIVE:
+        kg_ctx = retrieve_kg_context(graph, question)
+        yield Step(
+            name="execute",
+            title=f"Retrieved {len(kg_ctx)} grounding triples",
+            payload={"rows": kg_ctx},
+        )
+        reasoning = reason_open(client, schema_prefix, question, kg_ctx)
+        yield Step(name="interpret", title="Open-question reasoning", payload=reasoning)
+
+        # Provenance from the retrieved triples themselves
+        sources: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for r in kg_ctx:
+            cid = r.get("chunk_id")
+            src = r.get("source") or ""
+            if cid and (cid, src) not in seen:
+                seen.add((cid, src))
+                sources.append({"chunk_id": cid, "source": src})
+
+        yield Step(name="cite", title="Open answer", payload={
+            "summary": reasoning.get("summary", ""),
+            "key_insight": f"Confidence {reasoning.get('confidence', 0.0):.0%}. {reasoning.get('caveats', '')}",
+            "rows": [],
+            "sources": sources,
+            "viz": {"type": "text"},
+        })
+        return
+
     if cls.kind == QuestionKind.OUT_OF_SCOPE:
         yield Step(name="cite", title="Out of scope", payload={
             "summary": f"This KG can't answer that. {cls.reason}",
@@ -423,3 +452,73 @@ def fetch_provenance(graph: Neo4jGraph, rows: list[dict[str, Any]]) -> list[dict
             seen.add(key)
             out.append({"chunk_id": r["chunk_id"], "source": r.get("source") or ""})
     return out
+
+
+def retrieve_kg_context(graph: Neo4jGraph, question: str, limit: int = 30) -> list[dict[str, Any]]:
+    """Coarse keyword retrieval: pull entities whose id contains any noun
+    from the question. Returns a small set of grounded triples that the
+    open-question reasoner can cite."""
+    tokens = [t.lower() for t in re.findall(r"[A-Za-z]{4,}", question)]
+    stop = {"what", "which", "when", "where", "show", "list", "tell",
+            "have", "with", "from", "this", "that", "they", "would",
+            "could", "about", "into", "many", "most", "more"}
+    keywords = [t for t in tokens if t not in stop][:6]
+    if not keywords:
+        return []
+
+    rows = graph.query(
+        """
+        UNWIND $kws AS kw
+        MATCH (e:Entity)-[r]-(o:Entity)
+        WHERE toLower(e.id) CONTAINS kw
+        RETURN DISTINCT e.id AS subject, type(r) AS rel, o.id AS object,
+               r.chunk_id AS chunk_id, r.source AS source
+        LIMIT $limit
+        """,
+        params={"kws": keywords, "limit": limit},
+    )
+    return rows
+
+
+OPEN_SYSTEM = """You answer interpretive questions about an insurance knowledge graph.
+
+You receive:
+- The user's question
+- A small set of retrieved triples from the KG (may be empty)
+
+Be honest:
+- If the triples support an answer, cite specific entities/relations.
+- If the triples don't support an answer, say "the KG doesn't contain
+  evidence for this" and explain what data WOULD answer it.
+- Never invent statistics or fact patterns not in the triples.
+
+Return JSON only:
+{"summary":"<2-4 sentences>",
+ "reasoning":"<how you arrived at it>",
+ "evidence_used":["<entity_id or rel>", "..."],
+ "confidence":<0.0-1.0>,
+ "caveats":"<what's missing or uncertain>"}
+"""
+
+
+def reason_open(
+    client: anthropic.Anthropic,
+    schema_prefix: str,
+    question: str,
+    kg_context: list[dict[str, Any]],
+) -> dict[str, Any]:
+    payload = (
+        f"Question: {question}\n\n"
+        f"Retrieved triples ({len(kg_context)}):\n"
+        f"{json.dumps(kg_context[:30], default=str)}"
+    )
+    resp = client.messages.create(
+        model=ANSWER_MODEL,
+        max_tokens=700,
+        system=[
+            {"type": "text", "text": OPEN_SYSTEM},
+            {"type": "text", "text": schema_prefix, "cache_control": {"type": "ephemeral"}},
+        ],
+        messages=[{"role": "user", "content": payload}],
+    )
+    return _extract_json(resp.content[0].text)
