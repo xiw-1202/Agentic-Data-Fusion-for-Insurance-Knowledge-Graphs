@@ -155,46 +155,78 @@ if final_payload:
         render_sources(final_payload.get("sources", []), graph)
 
         # --- CSV ground-truth check ---
-        # For each relation in the generated Cypher, compare KG edge count
-        # to the source CSV's non-null count for the same column. Surfaces
-        # extraction gaps so the user can judge how trustworthy the answer is.
+        # For each relation in the generated Cypher, diff CSV vs KG on:
+        #   - row count (how many records made it through extraction)
+        #   - distinct value set (which categories are missing)
+        #   - numeric range (for numeric fields, did extraction lose magnitude)
         steps_persisted = st.session_state.get("last_steps", [])
         cypher_step = next(
             (s for s in steps_persisted if s["name"] == "cypher"), None
         )
         if cypher_step:
-            from chatbot.eval.verify import verify_relations
-            checks = verify_relations(cypher_step["payload"].get("cypher", ""))
-            if checks:
+            from chatbot.eval.verify import diff_relations_in_cypher
+            diffs = diff_relations_in_cypher(
+                cypher_step["payload"].get("cypher", ""), graph
+            )
+            if diffs:
                 st.markdown("### CSV ground-truth check")
-                check_rows = []
-                for c in checks:
-                    # Find the corresponding kg_edges count for this rel
-                    kg_count = graph.query(
-                        "MATCH ()-[r]->() WHERE type(r) = $rel RETURN count(r) AS n",
-                        params={"rel": c["relation"]},
+                for d in diffs:
+                    val_cov = d["value_coverage_pct"]
+                    row_cov = d["row_coverage_pct"]
+                    overall = min(val_cov, row_cov)
+                    flag = "🟢" if overall >= 70 else ("🟡" if overall >= 30 else "🔴")
+                    title = (
+                        f"{flag} `{d['relation']}` — "
+                        f"values: {d['kg_distinct']}/{d['csv_distinct']} ({val_cov:.0f}%), "
+                        f"rows: {d['kg_edges']}/{d['csv_non_null']} ({row_cov:.0f}%) — "
+                        f"`{d['column']}` in {d['csv_file']}"
                     )
-                    n_kg = kg_count[0]["n"] if kg_count else 0
-                    cov = (n_kg / c["csv_non_null"] * 100) if c["csv_non_null"] else 0
-                    flag = "🟢" if cov >= 70 else ("🟡" if cov >= 30 else "🔴")
-                    check_rows.append(
-                        {
-                            "": flag,
-                            "Relation": c["relation"],
-                            "CSV column": f"{c['column']} ({c['csv_file']})",
-                            "CSV non-null": c["csv_non_null"],
-                            "KG edges": n_kg,
-                            "Coverage": f"{cov:.0f}%",
-                        }
-                    )
-                st.dataframe(check_rows, use_container_width=True, hide_index=True)
-                low_cov = [c for c in check_rows if c[""] == "🔴"]
-                if low_cov:
-                    rels = ", ".join(c["Relation"] for c in low_cov)
-                    st.warning(
-                        f"⚠️ Low extraction coverage on {rels} — answer may "
-                        "miss rows that exist in the source CSV."
-                    )
+                    with st.expander(title, expanded=(overall < 70)):
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.markdown("**CSV (source of truth)**")
+                            st.write(
+                                f"Rows: **{d['csv_non_null']}** non-null, "
+                                f"**{d['csv_distinct']}** distinct values"
+                            )
+                            if d["csv_numeric_stats"]:
+                                s = d["csv_numeric_stats"]
+                                st.write(
+                                    f"Numeric: min `{s['min']}`, max `{s['max']}`, "
+                                    f"mean `{s['mean']}` (n={s['n_numeric']})"
+                                )
+                        with col_b:
+                            st.markdown("**KG (what the chatbot saw)**")
+                            st.write(
+                                f"Edges: **{d['kg_edges']}**, "
+                                f"**{d['kg_distinct']}** distinct values"
+                            )
+                            if d["kg_numeric_stats"]:
+                                s = d["kg_numeric_stats"]
+                                st.write(
+                                    f"Numeric: min `{s['min']}`, max `{s['max']}`, "
+                                    f"mean `{s['mean']}` (n={s['n_numeric']})"
+                                )
+
+                        if d["missing_in_kg"]:
+                            n_missing = len(d["missing_in_kg"])
+                            shown = d["missing_in_kg"][:15]
+                            st.error(
+                                f"❌ **{n_missing} value(s) in CSV but missing from KG:** "
+                                + ", ".join(f"`{v[:40]}`" for v in shown)
+                                + (f" … (+{n_missing - 15} more)" if n_missing > 15 else "")
+                            )
+                        if d["extra_in_kg"]:
+                            n_extra = len(d["extra_in_kg"])
+                            shown = d["extra_in_kg"][:8]
+                            st.warning(
+                                f"⚠️ **{n_extra} value(s) in KG but not in CSV** "
+                                "(extraction noise / cross-CSV merges): "
+                                + ", ".join(f"`{v[:40]}`" for v in shown)
+                                + (f" … (+{n_extra - 8} more)" if n_extra > 8 else "")
+                            )
+                        if not d["missing_in_kg"] and not d["extra_in_kg"]:
+                            st.success("✅ Value sets match exactly.")
 
 # --- Feedback (only show after an answer exists) ---
 if final_payload:
