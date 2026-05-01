@@ -14,7 +14,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator
 
 import anthropic
 from langchain_neo4j import Neo4jGraph
@@ -22,6 +22,7 @@ from langchain_neo4j import Neo4jGraph
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
+from chatbot.classifier import Classification, QuestionKind, classify_question
 from chatbot.examples import format_for_prompt as examples_block
 from chatbot.guardrails import clamp_limit, is_read_only
 from chatbot.schema import summarize_schema
@@ -286,3 +287,105 @@ def ask(
         key_insight=interpretation.get("key_insight", ""),
         viz=_coerce_viz(interpretation, rows),
     )
+
+
+@dataclass
+class Step:
+    name: str  # classify | plan | cypher | execute | interpret | cite
+    title: str
+    payload: dict[str, Any] = field(default_factory=dict)
+    ok: bool = True
+    error: str = ""
+
+
+PLAN_SYSTEM = """You plan a Cypher query for an insurance KG question.
+Return JSON only:
+{"intent":"<1 sentence>","sub_questions":["..."],"approach":"<how you'll query>","expected_columns":["..."],"ontology_classes_used":["..."]}
+"""
+
+
+def plan_query(client: anthropic.Anthropic, schema_prefix: str, question: str) -> dict[str, Any]:
+    resp = client.messages.create(
+        model=CYPHER_MODEL,
+        max_tokens=400,
+        system=[
+            {"type": "text", "text": PLAN_SYSTEM},
+            {"type": "text", "text": schema_prefix, "cache_control": {"type": "ephemeral"}},
+        ],
+        messages=[{"role": "user", "content": question}],
+    )
+    return _extract_json(resp.content[0].text)
+
+
+def ask_stream(
+    question: str,
+    graph: Neo4jGraph,
+    schema_prefix: str,
+) -> Iterator[Step]:
+    client = _client()
+
+    cls = classify_question(question, schema_prefix)
+    yield Step(
+        name="classify",
+        title=f"Classified as {cls.kind.value} (conf {cls.confidence:.2f})",
+        payload={"kind": cls.kind.value, "reason": cls.reason, "confidence": cls.confidence},
+    )
+
+    if cls.kind == QuestionKind.OUT_OF_SCOPE:
+        yield Step(name="cite", title="Out of scope", payload={
+            "summary": f"This KG can't answer that. {cls.reason}",
+            "rows": [], "sources": [],
+        })
+        return
+
+    if cls.kind == QuestionKind.NEEDS_CLARIFICATION:
+        yield Step(name="cite", title="Needs clarification", payload={
+            "summary": cls.reason, "rows": [], "sources": [],
+        })
+        return
+
+    plan = plan_query(client, schema_prefix, question)
+    yield Step(name="plan", title="Query plan", payload=plan)
+
+    raw_cypher = generate_cypher(client, schema_prefix, question)
+    ok, reason = is_read_only(raw_cypher)
+    if not ok:
+        yield Step(name="cypher", title="Cypher rejected", payload={"cypher": raw_cypher},
+                   ok=False, error=reason)
+        return
+    safe_cypher = clamp_limit(raw_cypher)
+    yield Step(name="cypher", title="Generated Cypher", payload={"cypher": safe_cypher})
+
+    rows = graph.query(safe_cypher)
+    yield Step(name="execute", title=f"Got {len(rows)} rows", payload={"rows": rows})
+
+    if not rows:
+        yield Step(name="cite", title="No results", payload={
+            "summary": "Query returned no rows.", "rows": [], "sources": [],
+        })
+        return
+
+    interp = interpret_result(client, question, safe_cypher, rows)
+    yield Step(name="interpret", title="Interpretation", payload=interp)
+
+    sources = _extract_sources(rows)
+    yield Step(name="cite", title=f"{len(sources)} source chunks", payload={
+        "summary": interp.get("summary", ""),
+        "key_insight": interp.get("key_insight", ""),
+        "rows": rows,
+        "sources": sources,
+        "viz": interp.get("viz", {}),
+    })
+
+
+def _extract_sources(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Pull out _chunk_id / _source columns if present."""
+    seen = set()
+    out: list[dict[str, str]] = []
+    for r in rows:
+        cid = r.get("_chunk_id") or r.get("chunk_id")
+        src = r.get("_source") or r.get("source")
+        if cid and (cid, src) not in seen:
+            seen.add((cid, src))
+            out.append({"chunk_id": cid, "source": src or ""})
+    return out
