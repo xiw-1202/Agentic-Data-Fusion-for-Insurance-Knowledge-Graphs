@@ -85,3 +85,4 @@ node_modules/
 *.synctex.gz
 *.fls
 *.fdb_latexmk
+chatbot/feedback.jsonl

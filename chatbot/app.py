@@ -151,3 +151,29 @@ if final_payload:
             render(result)
 
         render_sources(final_payload.get("sources", []), graph)
+
+# --- Feedback (only show after an answer exists) ---
+if final_payload:
+    st.divider()
+    st.markdown("**Was this answer helpful?**")
+    col_up, col_down, col_comment = st.columns([1, 1, 6])
+    with col_up:
+        up_clicked = st.button("👍", key="fb_up")
+    with col_down:
+        down_clicked = st.button("👎", key="fb_down")
+    comment = col_comment.text_input(
+        "Comment (optional)", key="fb_comment", label_visibility="collapsed"
+    )
+
+    verdict = "up" if up_clicked else ("down" if down_clicked else None)
+    if verdict:
+        from chatbot.feedback import log_feedback
+        from pathlib import Path
+        log_feedback(
+            Path("chatbot/feedback.jsonl"),
+            question=st.session_state.get("last_question", ""),
+            verdict=verdict,
+            comment=comment,
+            trace=st.session_state.get("last_steps", []),
+        )
+        st.toast(f"Thanks — logged {verdict}.")
