@@ -135,8 +135,21 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(m.group(0))
 
 
+_SCHEMA_CACHE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "schema_prefix.cache.txt"
+)
+
+
 def build_schema_prefix(graph: Neo4jGraph) -> str:
-    """The cacheable prefix: schema + few-shot examples. ~3-6K tokens."""
+    """The cacheable prefix: schema + few-shot examples. ~3-6K tokens.
+
+    Loads from a pre-built file at chatbot/schema_prefix.cache.txt if it exists
+    (built by `python -m chatbot.build_schema_cache` after each KG reload).
+    Otherwise queries Neo4j live.
+    """
+    if os.path.exists(_SCHEMA_CACHE_PATH):
+        with open(_SCHEMA_CACHE_PATH, encoding="utf-8") as f:
+            return f.read()
     return f"{summarize_schema(graph)}\n\n{examples_block()}"
 
 

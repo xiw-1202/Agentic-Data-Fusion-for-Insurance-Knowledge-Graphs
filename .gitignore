@@ -86,3 +86,4 @@ node_modules/
 *.fls
 *.fdb_latexmk
 chatbot/feedback.jsonl
+chatbot/schema_prefix.cache.txt
