@@ -10,14 +10,17 @@ EXAMPLES: list[dict[str, str]] = [
     {
         "question": "Which claims had the longest resolution time?",
         "cypher": """
-MATCH (c:Entity)-[:HAS_TIME_TO_RESOLVE_HR]->(h:Entity)
-WHERE c.entity_type = 'ClaimRecord'
-WITH c, toFloat(h.id) AS hours
-ORDER BY hours DESC
+// Prefer HAS_TOTAL_CLAIM_TIME (covers ~230 claims, numeric)
+// over HAS_TIME_TO_RESOLVE_HR (sparse, only ~3 claims).
+// Both exist; pick the one with better coverage.
+MATCH (c:Entity)-[:HAS_TOTAL_CLAIM_TIME]->(t:Entity)
+WHERE c.entity_type = 'ClaimRecord' AND toFloat(t.id) IS NOT NULL
+WITH c, toFloat(t.id) AS total_time
+ORDER BY total_time DESC
 LIMIT 10
 OPTIONAL MATCH (c)-[:HAS_LOSS_TYPE]->(lt:Entity)
-OPTIONAL MATCH (c)-[:HAS_DEVICE_TYPE]->(dt:Entity)
-RETURN c.id AS claim, hours, lt.id AS loss_type, dt.id AS device_type
+OPTIONAL MATCH (c)-[:HAS_CLAIMED_MANUFACTURER]->(m:Entity)
+RETURN c.id AS claim, total_time, lt.id AS loss_type, m.id AS manufacturer
 """.strip(),
     },
     {

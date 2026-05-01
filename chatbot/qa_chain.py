@@ -38,6 +38,10 @@ Rules:
   The listed values are the canonical strings actually present in the KG.
 - Only use `CONTAINS` / `toLower` when filtering free-text fields (UUIDs, claim numbers,
   addresses, descriptions). Categorical enums and named entities are exact.
+- The "Relation types (top N by frequency)" list shows edge counts. When multiple relations
+  could answer the question (e.g. HAS_TOTAL_CLAIM_TIME vs HAS_TIME_TO_RESOLVE_HR for
+  "resolution time"), prefer the one with higher count — sparse relations often reflect
+  extraction gaps, not real answers.
 - Return only a Cypher query inside a ```cypher code fence. No prose outside the fence.
 - ClaimRecord entities have entity_type = 'ClaimRecord'. Other record types include SurveyRecord, PolicyRecord.
 - Numeric values are stored as :Entity nodes; cast with toFloat(n.id) or toInteger(n.id) for aggregation.
