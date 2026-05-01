@@ -44,6 +44,25 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
         """
     )
 
+    associations = graph.query(
+        """
+        MATCH (s:OntologyClass)-[:ASSOCIATED_WITH]->(t:OntologyClass)
+        RETURN s.name AS src, t.name AS tgt
+        """
+    )
+
+    class_props = graph.query(
+        """
+        MATCH (e:Entity)-[:INSTANCE_OF]->(c:OntologyClass)
+        WITH c.name AS cls, e LIMIT 5000
+        UNWIND keys(e) AS k
+        WITH cls, k, count(*) AS n
+        WHERE k <> 'id' AND n >= 3
+        RETURN cls, collect(DISTINCT k)[..6] AS props
+        ORDER BY cls
+        """
+    )
+
     lines: list[str] = [
         "# Neo4j Knowledge Graph schema",
         "",
@@ -66,6 +85,18 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
         lines.append("## SUBCLASS_OF hierarchy")
         for h in hierarchy:
             lines.append(f"  {h['child']} -> {h['parent']}")
+
+    if associations:
+        lines.append("")
+        lines.append("## ASSOCIATED_WITH edges (class-level wiring)")
+        for a in associations:
+            lines.append(f"  {a['src']} ASSOCIATED_WITH {a['tgt']}")
+
+    if class_props:
+        lines.append("")
+        lines.append("## Sample property keys per class")
+        for cp in class_props:
+            lines.append(f"  {cp['cls']} {{{', '.join(cp['props'])}}}")
 
     lines.append("")
     lines.append(f"## Relation types (top {top_rels} by frequency)")
