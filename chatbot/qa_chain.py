@@ -368,7 +368,7 @@ def ask_stream(
     interp = interpret_result(client, question, safe_cypher, rows)
     yield Step(name="interpret", title="Interpretation", payload=interp)
 
-    sources = _extract_sources(rows)
+    sources = fetch_provenance(graph, rows)
     yield Step(name="cite", title=f"{len(sources)} source chunks", payload={
         "summary": interp.get("summary", ""),
         "key_insight": interp.get("key_insight", ""),
@@ -388,4 +388,38 @@ def _extract_sources(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
         if cid and (cid, src) not in seen:
             seen.add((cid, src))
             out.append({"chunk_id": cid, "source": src or ""})
+    return out
+
+
+def fetch_provenance(graph: Neo4jGraph, rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Look up chunk_id/source for any entity ids referenced in rows.
+
+    Aggregate queries (count/avg/sum) get provenance for the entity ids
+    that appear in their non-numeric columns. Pure scalar results get
+    no sources, which is correct.
+    """
+    candidate_ids: set[str] = set()
+    for row in rows:
+        for v in row.values():
+            if isinstance(v, str) and v and not v.replace(".", "").replace("-", "").isdigit():
+                candidate_ids.add(v)
+    if not candidate_ids:
+        return []
+
+    prov_rows = graph.query(
+        """
+        MATCH (e:Entity)-[r]-()
+        WHERE e.id IN $ids AND r.chunk_id IS NOT NULL
+        RETURN DISTINCT r.chunk_id AS chunk_id, r.source AS source
+        LIMIT 50
+        """,
+        params={"ids": list(candidate_ids)},
+    )
+    seen: set[tuple[str, str]] = set()
+    out: list[dict[str, str]] = []
+    for r in prov_rows:
+        key = (r["chunk_id"], r.get("source") or "")
+        if r["chunk_id"] and key not in seen:
+            seen.add(key)
+            out.append({"chunk_id": r["chunk_id"], "source": r.get("source") or ""})
     return out
