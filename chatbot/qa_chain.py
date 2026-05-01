@@ -33,6 +33,11 @@ Given a user question and the schema/examples below, emit exactly one Cypher que
 
 Rules:
 - Use the exact relation types and labels shown in the schema — do not invent names.
+- When the schema lists "Sample entity ids per class" or "Categorical relation values",
+  ALWAYS prefer exact-match equality (`= 'Auto'`) over fuzzy matching (`CONTAINS 'auto'`).
+  The listed values are the canonical strings actually present in the KG.
+- Only use `CONTAINS` / `toLower` when filtering free-text fields (UUIDs, claim numbers,
+  addresses, descriptions). Categorical enums and named entities are exact.
 - Return only a Cypher query inside a ```cypher code fence. No prose outside the fence.
 - ClaimRecord entities have entity_type = 'ClaimRecord'. Other record types include SurveyRecord, PolicyRecord.
 - Numeric values are stored as :Entity nodes; cast with toFloat(n.id) or toInteger(n.id) for aggregation.

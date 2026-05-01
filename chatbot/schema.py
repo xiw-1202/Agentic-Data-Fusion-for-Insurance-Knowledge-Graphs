@@ -63,6 +63,33 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
         """
     )
 
+    # Sample concrete entity ids per class — gives the LLM ground truth for
+    # what real values look like ("T-Mobile" vs "tmobile" vs "TMOBILE_INC").
+    class_samples = graph.query(
+        """
+        MATCH (e:Entity)-[:INSTANCE_OF]->(c:OntologyClass)
+        WITH c.name AS cls, e.id AS eid, size(e.id) AS slen
+        ORDER BY cls, slen
+        WITH cls, collect(eid)[..5] AS samples, count(eid) AS total
+        RETURN cls, samples, total
+        ORDER BY cls
+        """
+    )
+
+    # Categorical enumerations: relation types whose object set is small enough
+    # that we can list every distinct value. These are de-facto enums (cause-of-loss,
+    # line-of-business, channel, etc.) and the LLM can't write good filters without
+    # seeing the actual values.
+    categorical_rels = graph.query(
+        """
+        MATCH ()-[r]->(o:Entity)
+        WITH type(r) AS rel_type, collect(DISTINCT o.id) AS values
+        WHERE size(values) >= 2 AND size(values) <= 30
+        RETURN rel_type, values
+        ORDER BY rel_type
+        """
+    )
+
     lines: list[str] = [
         "# Neo4j Knowledge Graph schema",
         "",
@@ -97,6 +124,20 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
         lines.append("## Sample property keys per class")
         for cp in class_props:
             lines.append(f"  {cp['cls']} {{{', '.join(cp['props'])}}}")
+
+    if class_samples:
+        lines.append("")
+        lines.append("## Sample entity ids per class (use these EXACT strings in WHERE clauses)")
+        for cs in class_samples:
+            samples = ", ".join(cs["samples"])
+            lines.append(f"  {cs['cls']} ({cs['total']} total): {samples}")
+
+    if categorical_rels:
+        lines.append("")
+        lines.append("## Categorical relation values (small enums — match exactly, no CONTAINS guessing)")
+        for cr in categorical_rels:
+            vals = ", ".join(cr["values"])
+            lines.append(f"  -[:{cr['rel_type']}]-> {{{vals}}}")
 
     lines.append("")
     lines.append(f"## Relation types (top {top_rels} by frequency)")
