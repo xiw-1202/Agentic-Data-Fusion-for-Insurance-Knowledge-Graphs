@@ -134,12 +134,8 @@ if final_payload:
         st.error("This question is out of scope for the current KG.")
 
     if final_payload.get("summary"):
-        st.markdown("### Answer")
-        st.write(final_payload["summary"])
-        if final_payload.get("key_insight"):
-            st.info(f"**Key insight:** {final_payload['key_insight']}")
-
         if final_payload.get("rows"):
+            # render() owns Answer + Key insight + viz when there are rows
             result = QAResult(
                 question=question_for_render,
                 cypher="",
@@ -149,6 +145,12 @@ if final_payload:
                 viz=_coerce_viz({"viz": final_payload.get("viz", {})}, final_payload["rows"]),
             )
             render(result)
+        else:
+            # No rows (text/open answers) — render Answer ourselves
+            st.markdown("### Answer")
+            st.write(final_payload["summary"])
+            if final_payload.get("key_insight"):
+                st.info(f"**Key insight:** {final_payload['key_insight']}")
 
         render_sources(final_payload.get("sources", []), graph)
 

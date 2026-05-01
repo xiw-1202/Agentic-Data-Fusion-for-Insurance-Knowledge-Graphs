@@ -89,27 +89,45 @@ def render(result: QAResult) -> None:
 
 
 def render_sources(sources: list[dict[str, str]], graph) -> None:
-    """Render each source chunk as a clickable expander showing the original text."""
+    """Render each source chunk as a clickable expander showing the original text.
+
+    Looks up :Chunk by composite (id, source) so PDF chunk #16 and CSV row #16
+    don't collide.
+    """
     if not sources:
         return
     st.markdown(f"### Sources ({len(sources)})")
-    chunk_ids = [s["chunk_id"] for s in sources if s.get("chunk_id")]
-    if not chunk_ids:
+    pairs = [
+        {"id": str(s["chunk_id"]), "source": s.get("source") or ""}
+        for s in sources
+        if s.get("chunk_id") is not None
+    ]
+    if not pairs:
         return
     rows = graph.query(
-        "MATCH (c:Chunk) WHERE c.id IN $ids RETURN c.id AS id, c.text AS text, c.source AS source",
-        params={"ids": chunk_ids},
+        """
+        UNWIND $pairs AS p
+        OPTIONAL MATCH (c:Chunk {id: p.id, source: p.source})
+        RETURN p.id AS id, p.source AS source, c.text AS text
+        """,
+        params={"pairs": pairs},
     )
-    by_id = {r["id"]: r for r in rows}
+    by_key = {(r["id"], r["source"]): r for r in rows}
     for s in sources:
-        rec = by_id.get(s["chunk_id"])
-        label = f"📄 {s['chunk_id']}" + (f" — {s['source']}" if s.get("source") else "")
+        cid = str(s.get("chunk_id", ""))
+        src = s.get("source") or ""
+        rec = by_key.get((cid, src))
+        label = f"📄 {cid}" + (f" — {src}" if src else "")
         with st.expander(label, expanded=False):
-            if rec:
-                st.caption(f"Source file: `{rec['source']}`")
+            if rec and rec.get("text"):
+                st.caption(f"Source file: `{src or '(unknown)'}`")
                 st.text(rec["text"])
             else:
-                st.warning(f"Chunk {s['chunk_id']} not found in KG (run zone4 loader with chunks).")
+                st.caption(f"Source file: `{src or '(unknown)'}`")
+                st.info(
+                    f"No stored text for chunk `{cid}` from `{src}`. "
+                    "Open the source file directly to see the original record."
+                )
 
 
 def _render_graph(df: pd.DataFrame, src_col: str, tgt_col: str, title: str = "") -> None:

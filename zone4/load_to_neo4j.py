@@ -101,15 +101,35 @@ def _write_triples(graph: Neo4jGraph, triples: list[dict]) -> int:
     return total
 
 
-def _write_chunks(graph: Neo4jGraph, chunks_path: Path) -> int:
-    """Load source chunks as :Chunk {id, text, source} nodes.
+def _wipe_chunks(graph: Neo4jGraph) -> None:
+    """Drop existing :Chunk nodes so we can re-key with composite (id, source)."""
+    graph.query("MATCH (c:Chunk) DETACH DELETE c")
 
-    Reads zone1_chunks.json (PDF chunks) and any CSV-derived chunks
-    referenced by triples. Each :Chunk has id matching the chunk_id
-    stored on relationships.
+
+def _looks_like_flood_kg(graph: Neo4jGraph) -> bool:
+    """Heuristic: does this KG actually contain entities sourced from the
+    flood PDF? If not, don't load FEMA chunks — they'd be unrelated noise."""
+    rows = graph.query(
+        """
+        MATCH ()-[r]-()
+        WHERE r.source CONTAINS 'fema' OR r.source CONTAINS 'SFIP'
+        RETURN count(r) AS n LIMIT 1
+        """
+    )
+    return bool(rows and rows[0]["n"] > 0)
+
+
+def _write_chunks(graph: Neo4jGraph, chunks_path: Path) -> int:
+    """Load source chunks as :Chunk {id, source, text} nodes.
+
+    Keyed by composite (id, source) so chunk ids can collide across
+    different source files (e.g. PDF chunk #16 vs CSV row #16).
     """
     if not chunks_path.exists():
         print(f"  (skip chunks: {chunks_path} not found)")
+        return 0
+    if not _looks_like_flood_kg(graph):
+        print(f"  (skip {chunks_path.name}: KG has no flood-sourced triples)")
         return 0
 
     data = json.loads(chunks_path.read_text())
@@ -129,8 +149,8 @@ def _write_chunks(graph: Neo4jGraph, chunks_path: Path) -> int:
         graph.query(
             """
             UNWIND $batch AS row
-            MERGE (c:Chunk {id: row.id})
-              ON CREATE SET c.text = row.text, c.source = row.source
+            MERGE (c:Chunk {id: row.id, source: row.source})
+              ON CREATE SET c.text = row.text
             """,
             params={"batch": batch},
         )
@@ -139,25 +159,27 @@ def _write_chunks(graph: Neo4jGraph, chunks_path: Path) -> int:
 
 
 def _write_csv_chunk_stubs(graph: Neo4jGraph) -> int:
-    """For CSV-derived triples (Emory), create :Chunk stubs from the
-    chunk_id/source already stored on relationships. text='' since the
-    raw CSV row isn't reconstructable, but the source filename is enough
-    for the user to locate the record."""
+    """Create :Chunk stubs for any (chunk_id, source) referenced by a
+    relationship that doesn't already have a matching :Chunk node.
+
+    Composite key matches `_write_chunks` so PDF chunk #16 and CSV row #16
+    don't collide.
+    """
     result = graph.query(
         """
         MATCH ()-[r]-()
-        WHERE r.chunk_id IS NOT NULL AND NOT EXISTS {
-          MATCH (c:Chunk {id: r.chunk_id})
+        WHERE r.chunk_id IS NOT NULL
+        WITH DISTINCT toString(r.chunk_id) AS cid, coalesce(r.source, '') AS src
+        WHERE NOT EXISTS {
+          MATCH (c:Chunk {id: cid, source: src})
         }
-        WITH DISTINCT r.chunk_id AS cid, r.source AS src
-        MERGE (c:Chunk {id: cid})
-          ON CREATE SET c.text = '(structured record — see source file)',
-                        c.source = coalesce(src, '')
+        MERGE (c:Chunk {id: cid, source: src})
+          ON CREATE SET c.text = '(structured record — see source file)'
         RETURN count(c) AS n
         """
     )
     n = result[0]["n"] if result else 0
-    print(f"  ✓ {n} :Chunk stubs for CSV-derived sources")
+    print(f"  ✓ {n} :Chunk stubs for source-keyed (chunk_id, source) pairs")
     return n
 
 
@@ -304,6 +326,7 @@ def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
 
     triples_written = _write_triples(graph, zone2.get("triples", []))
     chunks_path = Path(__file__).resolve().parents[1] / config.ZONE1_CHUNKS_FILE
+    _wipe_chunks(graph)  # composite-key migration: drop old single-key chunks
     _write_chunks(graph, chunks_path)
     _write_csv_chunk_stubs(graph)
     class_stats = _write_classes(graph, svloi)
