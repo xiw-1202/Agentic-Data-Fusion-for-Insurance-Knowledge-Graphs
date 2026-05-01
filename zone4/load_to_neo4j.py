@@ -101,6 +101,66 @@ def _write_triples(graph: Neo4jGraph, triples: list[dict]) -> int:
     return total
 
 
+def _write_chunks(graph: Neo4jGraph, chunks_path: Path) -> int:
+    """Load source chunks as :Chunk {id, text, source} nodes.
+
+    Reads zone1_chunks.json (PDF chunks) and any CSV-derived chunks
+    referenced by triples. Each :Chunk has id matching the chunk_id
+    stored on relationships.
+    """
+    if not chunks_path.exists():
+        print(f"  (skip chunks: {chunks_path} not found)")
+        return 0
+
+    data = json.loads(chunks_path.read_text())
+    chunks = data if isinstance(data, list) else data.get("chunks", [])
+    rows: list[dict] = []
+    for c in chunks:
+        cid = c.get("chunk_id")
+        if cid is None:
+            continue
+        text = c.get("content") or c.get("text", "")
+        src = c.get("source") or chunks_path.stem
+        rows.append({"id": str(cid), "text": text, "source": src})
+
+    print(f"[1.5/5] Writing {len(rows)} :Chunk nodes from {chunks_path.name}...")
+    for i in range(0, len(rows), BATCH_SIZE):
+        batch = rows[i : i + BATCH_SIZE]
+        graph.query(
+            """
+            UNWIND $batch AS row
+            MERGE (c:Chunk {id: row.id})
+              ON CREATE SET c.text = row.text, c.source = row.source
+            """,
+            params={"batch": batch},
+        )
+    print(f"  ✓ {len(rows)} chunk nodes")
+    return len(rows)
+
+
+def _write_csv_chunk_stubs(graph: Neo4jGraph) -> int:
+    """For CSV-derived triples (Emory), create :Chunk stubs from the
+    chunk_id/source already stored on relationships. text='' since the
+    raw CSV row isn't reconstructable, but the source filename is enough
+    for the user to locate the record."""
+    result = graph.query(
+        """
+        MATCH ()-[r]-()
+        WHERE r.chunk_id IS NOT NULL AND NOT EXISTS {
+          MATCH (c:Chunk {id: r.chunk_id})
+        }
+        WITH DISTINCT r.chunk_id AS cid, r.source AS src
+        MERGE (c:Chunk {id: cid})
+          ON CREATE SET c.text = '(structured record — see source file)',
+                        c.source = coalesce(src, '')
+        RETURN count(c) AS n
+        """
+    )
+    n = result[0]["n"] if result else 0
+    print(f"  ✓ {n} :Chunk stubs for CSV-derived sources")
+    return n
+
+
 def _write_classes(graph: Neo4jGraph, svloi: dict) -> dict[str, int]:
     classes = svloi.get("classes_final", []) or []
     hierarchy = svloi.get("hierarchy", []) or []
@@ -243,6 +303,9 @@ def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
         _wipe(graph)
 
     triples_written = _write_triples(graph, zone2.get("triples", []))
+    chunks_path = Path(__file__).resolve().parents[1] / config.ZONE1_CHUNKS_FILE
+    _write_chunks(graph, chunks_path)
+    _write_csv_chunk_stubs(graph)
     class_stats = _write_classes(graph, svloi)
     instance_edges = _write_instance_of(graph, prov)
     propagated_edges = _propagate_to_untyped(graph)
