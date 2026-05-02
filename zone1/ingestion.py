@@ -205,8 +205,12 @@ def _humanize_field_name(field_name: str, expansions: dict[str, str] | None = No
     if "_" in field_name and field_name == field_name.upper():
         # UPPER_SNAKE_CASE → split on underscores
         return field_name.lower().replace("_", " ").strip()
-    # ALL-CAPS without underscores (e.g., POLNO, GWP, MCO) → just lowercase
-    if field_name == field_name.upper() and field_name.isalpha():
+    # ALL-CAPS, possibly with trailing/embedded digits (POLNO, GWP, MCO,
+    # LADD1, ADD2, LOC3) → just lowercase.  The previous isalpha() guard
+    # excluded digit-bearing names and let them fall through to the
+    # camelCase regex, which letter-spaced them (LADD1 → 'l a d d1' →
+    # HAS_L_A_D_D1).  Treat any all-caps run as one token.
+    if field_name == field_name.upper():
         return field_name.lower()
     # camelCase → insert spaces before uppercase letters
     s = re.sub(r'([A-Z])', r' \1', field_name)
