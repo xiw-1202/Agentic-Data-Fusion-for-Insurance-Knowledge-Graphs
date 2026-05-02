@@ -119,29 +119,78 @@ def _looks_like_flood_kg(graph: Neo4jGraph) -> bool:
     return bool(rows and rows[0]["n"] > 0)
 
 
+def _normalize_source(src: str, project_root: Path) -> str:
+    """Canonicalize a chunk/relationship source string for matching.
+
+    Zone 1 stores absolute paths in the chunks file; the Zone 2 relations
+    store the same paths relative to the project root.  Strip the project
+    root prefix so both conventions land on the same string.
+    """
+    if not src:
+        return ""
+    s = str(src)
+    root = str(project_root).rstrip("/") + "/"
+    if s.startswith(root):
+        s = s[len(root):]
+    return s
+
+
 def _write_chunks(graph: Neo4jGraph, chunks_path: Path) -> int:
     """Load source chunks as :Chunk {id, source, text} nodes.
 
     Keyed by composite (id, source) so chunk ids can collide across
     different source files (e.g. PDF chunk #16 vs CSV row #16).
+
+    Only loads chunks whose source path is referenced by at least one
+    relationship in the KG — domain-agnostic guard against importing
+    unrelated chunk files (e.g. flood chunks into an Emory KG).
     """
     if not chunks_path.exists():
         print(f"  (skip chunks: {chunks_path} not found)")
         return 0
-    if not _looks_like_flood_kg(graph):
-        print(f"  (skip {chunks_path.name}: KG has no flood-sourced triples)")
-        return 0
 
     data = json.loads(chunks_path.read_text())
     chunks = data if isinstance(data, list) else data.get("chunks", [])
-    rows: list[dict] = []
+    if not chunks:
+        print(f"  (skip {chunks_path.name}: file is empty)")
+        return 0
+
+    project_root = Path(__file__).resolve().parents[1]
+
+    # Normalize every chunk's source up front so absolute and relative
+    # variants of the same file collapse to one canonical key.
+    normalized_chunks: list[dict] = []
     for c in chunks:
         cid = c.get("chunk_id")
         if cid is None:
             continue
+        raw_src = c.get("source") or chunks_path.stem
+        norm_src = _normalize_source(raw_src, project_root)
         text = c.get("content") or c.get("text", "")
-        src = c.get("source") or chunks_path.stem
-        rows.append({"id": str(cid), "text": text, "source": src})
+        normalized_chunks.append({
+            "id": str(cid),
+            "text": text,
+            "source": norm_src,
+        })
+
+    # Find which chunk sources are actually used by the KG, so we don't
+    # pollute the graph with chunks from a different dataset.
+    candidate_sources = {c["source"] for c in normalized_chunks}
+    used_sources = set()
+    for src in candidate_sources:
+        rows = graph.query(
+            "MATCH ()-[r]-() WHERE r.source = $src RETURN count(r) AS n LIMIT 1",
+            params={"src": src},
+        )
+        if rows and rows[0]["n"] > 0:
+            used_sources.add(src)
+
+    if not used_sources:
+        print(f"  (skip {chunks_path.name}: no triples reference any of its "
+              f"{len(candidate_sources)} sources)")
+        return 0
+
+    rows: list[dict] = [c for c in normalized_chunks if c["source"] in used_sources]
 
     print(f"[1.5/5] Writing {len(rows)} :Chunk nodes from {chunks_path.name}...")
     for i in range(0, len(rows), BATCH_SIZE):
@@ -309,7 +358,44 @@ def _propagate_to_untyped(graph: Neo4jGraph) -> int:
     return labeled
 
 
-def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
+def _resolve_chunks_path(
+    results_dir: Path, override: Path | None = None,
+) -> Path:
+    """Resolve the Zone 1 chunks file for this dataset.
+
+    Precedence:
+      1. ``override`` from --chunks CLI flag
+      2. Standard path inferred from the results directory name
+         (``data/results/emory`` → ``data/Emory_Spring2026/processed/zone1_chunks.json``,
+          ``data/results/flood`` → ``data/flood/processed/zone1_chunks.json``)
+      3. Legacy ``config.ZONE1_CHUNKS_FILE`` fallback (always flood)
+
+    The override path is the only way to be 100% sure the chunks match
+    the extraction; the inferred default works for the two production
+    datasets and saves typing.
+    """
+    if override:
+        return override.resolve()
+
+    repo_root = Path(__file__).resolve().parents[1]
+    name = results_dir.name.lower()
+    if name == "emory":
+        guess = repo_root / "data/Emory_Spring2026/processed/zone1_chunks.json"
+        if guess.exists():
+            return guess
+    elif name == "flood":
+        guess = repo_root / "data/flood/processed/zone1_chunks.json"
+        if guess.exists():
+            return guess
+
+    return repo_root / config.ZONE1_CHUNKS_FILE
+
+
+def load(
+    results_dir: Path,
+    wipe: bool = True,
+    chunks_override: Path | None = None,
+) -> dict[str, Any]:
     print(f"Target: {config.NEO4J_URI} (db={config.NEO4J_DATABASE})")
     print(f"Source: {results_dir}")
     zone2, svloi, prov = _load_artifacts(results_dir)
@@ -325,7 +411,8 @@ def load(results_dir: Path, wipe: bool = True) -> dict[str, Any]:
         _wipe(graph)
 
     triples_written = _write_triples(graph, zone2.get("triples", []))
-    chunks_path = Path(__file__).resolve().parents[1] / config.ZONE1_CHUNKS_FILE
+    chunks_path = _resolve_chunks_path(results_dir, chunks_override)
+    print(f"  chunks file:        {chunks_path}")
     _wipe_chunks(graph)  # composite-key migration: drop old single-key chunks
     _write_chunks(graph, chunks_path)
     _write_csv_chunk_stubs(graph)
@@ -366,13 +453,20 @@ def main() -> int:
         action="store_true",
         help="Incremental mode — do not clear the target DB first",
     )
+    ap.add_argument(
+        "--chunks",
+        type=Path,
+        default=None,
+        help="Override the Zone 1 chunks file path (auto-resolved from "
+             "results dir name when omitted: emory→Emory_Spring2026, flood→flood).",
+    )
     args = ap.parse_args()
 
     if not args.results.is_dir():
         print(f"error: {args.results} is not a directory", file=sys.stderr)
         return 2
 
-    load(args.results, wipe=not args.no_wipe)
+    load(args.results, wipe=not args.no_wipe, chunks_override=args.chunks)
     return 0
 
 
