@@ -25,13 +25,36 @@ SSH_JUMP="-J ${NETID}@lab0z.mathcs.emory.edu"
 # --fetch: pull results back to local data/results/
 # ---------------------------------------------------------------------------
 if [ "$MODE" = "--fetch" ]; then
+    # SSH connection multiplexing: open ONE master connection, reuse it
+    # for every rsync below.  Without this the user gets prompted for
+    # both jump-host and target passwords on every single rsync call
+    # (4-5 prompts → exhausting).  The control socket auto-closes after
+    # 60s of idle.
+    SSH_CTRL_DIR="$(mktemp -d -t ssh-fetch-XXXXXX)"
+    SSH_CTRL_OPTS=(
+        -o "ControlMaster=auto"
+        -o "ControlPath=$SSH_CTRL_DIR/%C"
+        -o "ControlPersist=60s"
+    )
+    cleanup_ssh() {
+        ssh "${SSH_CTRL_OPTS[@]}" $SSH_JUMP "$REMOTE" -O exit 2>/dev/null || true
+        rm -rf "$SSH_CTRL_DIR"
+    }
+    trap cleanup_ssh EXIT
+    SSH_CMD="ssh ${SSH_CTRL_OPTS[*]} $SSH_JUMP"
+
+    # Open the master connection up front — ONE password prompt only.
+    echo "Opening shared SSH connection (you'll be prompted ONCE)..."
+    ssh "${SSH_CTRL_OPTS[@]}" $SSH_JUMP "$REMOTE" "true"
+
+    echo ""
     echo "Fetching results $REMOTE:$SCRATCH/project/data/results/ → $PROJECT_ROOT/data/results/"
     echo "  (only subdirectories: flood/, emory/, visualizations/)"
     echo ""
     # Only fetch organized subdirectories, skip flat top-level files from old layout
     for subdir in flood emory visualizations; do
         rsync -avz --progress \
-            -e "ssh $SSH_JUMP" \
+            -e "$SSH_CMD" \
             "$REMOTE:$SCRATCH/project/data/results/$subdir/" \
             "$PROJECT_ROOT/data/results/$subdir/" 2>/dev/null || true
     done
@@ -44,7 +67,7 @@ if [ "$MODE" = "--fetch" ]; then
     echo "Fetching processed/zone1_chunks.json for each dataset..."
     for dataset in flood Emory_Spring2026; do
         rsync -avz --progress \
-            -e "ssh $SSH_JUMP" \
+            -e "$SSH_CMD" \
             "$REMOTE:$SCRATCH/project/data/$dataset/processed/zone1_chunks.json" \
             "$PROJECT_ROOT/data/$dataset/processed/zone1_chunks.json" 2>/dev/null || true
     done
@@ -57,7 +80,7 @@ if [ "$MODE" = "--fetch" ]; then
     echo ""
     echo "Fetching SLURM job logs → $LOCAL_LOG_DIR ..."
     rsync -avz --progress \
-        -e "ssh $SSH_JUMP" \
+        -e "$SSH_CMD" \
         --include="*.out" --include="*.err" --exclude="*" \
         "$REMOTE:$SCRATCH/logs/" "$LOCAL_LOG_DIR/" 2>/dev/null || true
 
