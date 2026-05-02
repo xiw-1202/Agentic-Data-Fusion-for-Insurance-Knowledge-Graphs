@@ -1496,11 +1496,57 @@ _REL_STOP_WORDS: frozenset[str] = frozenset({
     "HAS", "OF", "THE", "A", "AN", "IS", "FOR", "BY", "IN", "TO", "FROM",
 })
 
+# Tokens that, when both relations contain ANY of them and the sets disagree,
+# block merging — they encode discriminating semantics (status vs issue,
+# authorized vs approved, etc.).  Adding to this set is conservative: a
+# false positive blocks a merge, never adds one.
+_DISCRIMINATOR_TOKENS: frozenset[str] = frozenset({
+    "STATUS", "ISSUE", "REASON", "CAUSE",
+    "AUTHORIZED", "APPROVED", "DENIED", "PENDING", "REJECTED", "PAID",
+    "OPEN", "CLOSE", "OPENED", "CLOSED", "ACTIVE", "INACTIVE",
+    "REPLACE", "REPAIR", "HANDLE", "RESOLVE",
+    "MIN", "MAX", "AVG", "MEAN", "MEDIAN", "TOTAL", "COUNT", "SUM",
+    "START", "END", "BEGIN", "FINISH",
+})
+
 
 def _rel_content_tokens(rel: str) -> set[str]:
     """Extract content tokens from a relation name (strip HAS_, OF, THE, etc.)."""
     parts = rel.replace("HAS_", "").split("_")
     return {p.upper() for p in parts if p.upper() not in _REL_STOP_WORDS and len(p) > 1}
+
+
+def _safe_to_merge_rels(
+    sim: float,
+    tokens_i: set[str],
+    tokens_j: set[str],
+) -> bool:
+    """Decide whether two relations should be merged.
+
+    Stricter than a flat 0.85 + ≥1-shared-token rule:
+      • Short relations (≤4 content tokens) require sim ≥ 0.92 — short names
+        carry less signal, so cosine similarity overstates closeness.
+      • Token overlap must reach Jaccard ≥ 0.6 — for two 3-token relations
+        this means ≥2 shared tokens, blocking pairs like CLAIM_STATUS vs
+        CLAIM_ISSUE that share only the head noun.
+      • Discriminator tokens (status/issue, authorized/approved, replace/handle,
+        min/max, etc.) must agree when both names contain any.
+    """
+    short = max(len(tokens_i), len(tokens_j)) <= 4
+    if sim < (0.92 if short else 0.85):
+        return False
+
+    overlap = tokens_i & tokens_j
+    union = tokens_i | tokens_j
+    if not overlap or len(overlap) / max(1, len(union)) < 0.6:
+        return False
+
+    disc_i = tokens_i & _DISCRIMINATOR_TOKENS
+    disc_j = tokens_j & _DISCRIMINATOR_TOKENS
+    if disc_i and disc_j and disc_i != disc_j:
+        return False
+
+    return True
 
 
 def normalize_structured_relations(state: Zone2State) -> dict:
@@ -1552,8 +1598,7 @@ def normalize_structured_relations(state: Zone2State) -> dict:
     import numpy as np
     sim_matrix = embeddings @ embeddings.T
 
-    # Build merge candidates: all pairs with embedding sim >= threshold
-    threshold = 0.85
+    # Build merge candidates: all pairs that pass the safety check
     merge_map: dict[str, str] = {}
     merged_into: dict[str, set[str]] = {}  # canonical -> set of merged rels
 
@@ -1564,18 +1609,16 @@ def normalize_structured_relations(state: Zone2State) -> dict:
         for j in range(i + 1, len(has_rels)):
             if has_rels[j] in merge_map:
                 continue
-            if sim_matrix[i, j] < threshold:
-                continue
 
             rel_i, rel_j = has_rels[i], has_rels[j]
-
-            # Check 1: Token overlap (at least 1 shared content word)
             tokens_i = _rel_content_tokens(rel_i)
             tokens_j = _rel_content_tokens(rel_j)
-            if not (tokens_i & tokens_j):
+
+            # Check 1+2: cosine, Jaccard token overlap, discriminator tokens
+            if not _safe_to_merge_rels(float(sim_matrix[i, j]), tokens_i, tokens_j):
                 continue
 
-            # Check 2: Structural compatibility (object types must overlap)
+            # Check 3: Structural compatibility (object types must overlap)
             types_i = set(rel_to_obj_types.get(rel_i, {}).keys())
             types_j = set(rel_to_obj_types.get(rel_j, {}).keys())
             # Remove "Unknown" before comparison
