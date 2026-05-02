@@ -141,8 +141,26 @@ def summarize_schema(graph: Neo4jGraph, top_rels: int = 60) -> str:
 
     lines.append("")
     lines.append(f"## Relation types (top {top_rels} by frequency)")
+    top_set = {r["value"] for r in rels[:top_rels]}
     for r in rels[:top_rels]:
         lines.append(f"  -[:{r['value']}]-> ({r['n']})")
+
+    # Always surface temporal relations regardless of frequency rank — date
+    # questions otherwise hit a wall when the relevant relation (e.g.
+    # HAS_CLAIM_LOSS_DATE) sits below the top-N cutoff.
+    _TEMPORAL_TOKENS = ("DATE", "TIME", "MONTH", "PERIOD", "STAMP",
+                        "EFF_", "EXP_", "OPEN", "CLOSE", "START", "END",
+                        "BEGIN", "FINISH")
+    temporal = [
+        r for r in rels
+        if r["value"] not in top_set
+        and any(tok in r["value"] for tok in _TEMPORAL_TOKENS)
+    ]
+    if temporal:
+        lines.append("")
+        lines.append("## Date / temporal relations (always surfaced — for 'when'/'time' questions)")
+        for r in temporal:
+            lines.append(f"  -[:{r['value']}]-> ({r['n']})")
 
     lines.append("")
     lines.append("## Special edges")
