@@ -9,6 +9,7 @@
 #   bash scripts/run_on_cluster.sh --mode zone3 --data Emory_Spring2026
 #   bash scripts/run_on_cluster.sh --mode eval --judge gemma4:31b
 #   bash scripts/run_on_cluster.sh --model gemma4:31b --data Emory_Spring2026
+#   bash scripts/run_on_cluster.sh --force-zone1 --data Emory_Spring2026  # re-run zone1 (cache busted)
 #   bash scripts/run_on_cluster.sh --fetch                            # fetch results
 #   bash scripts/run_on_cluster.sh --setup                            # first-time setup
 # =============================================================================
@@ -27,16 +28,18 @@ MODEL="qwen2.5:72b"
 DATA=""
 JUDGE=""
 ACTION="submit"
+FORCE_ZONE1=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --fetch)    ACTION="fetch"; shift ;;
-        --setup)    ACTION="setup"; shift ;;
-        --mode)     MODE="$2"; shift 2 ;;
-        --model)    MODEL="$2"; shift 2 ;;
-        --data)     DATA="$2"; shift 2 ;;
-        --judge)    JUDGE="$2"; shift 2 ;;
-        *)          MODEL="$1"; shift ;;  # backward compat: positional = model
+        --fetch)        ACTION="fetch"; shift ;;
+        --setup)        ACTION="setup"; shift ;;
+        --mode)         MODE="$2"; shift 2 ;;
+        --model)        MODEL="$2"; shift 2 ;;
+        --data)         DATA="$2"; shift 2 ;;
+        --judge)        JUDGE="$2"; shift 2 ;;
+        --force-zone1)  FORCE_ZONE1=1; shift ;;
+        *)              MODEL="$1"; shift ;;  # backward compat: positional = model
     esac
 done
 
@@ -86,6 +89,7 @@ fi
 # --- Build export vars ---
 EXPORT_VARS="ALL,MODEL=$MODEL,DATA_DIR=$DATA_DIR"
 [ -n "$JUDGE" ] && EXPORT_VARS="$EXPORT_VARS,JUDGE_MODEL=$JUDGE"
+[ -n "$FORCE_ZONE1" ] && EXPORT_VARS="$EXPORT_VARS,SKIP_ZONE1=0"
 
 # --- Submit ---
 echo ""
