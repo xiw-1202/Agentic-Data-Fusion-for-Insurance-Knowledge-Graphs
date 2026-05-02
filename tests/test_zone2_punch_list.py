@@ -149,3 +149,28 @@ class TestHeaderExpansionFilter:
         from zone1.ingestion import _is_letter_spaced_response
         assert _is_letter_spaced_response("MANUFACTURER", "m a n u f a c t u r e r") is True
         assert _is_letter_spaced_response("MCO", "master company code") is False
+
+
+class TestHumanizeFieldNameWithDigits:
+    """Regression: all-caps column names with digits (LADD1, ADD2, LOC3)
+    were being letter-spaced by the camelCase fallback because the
+    isalpha() guard excluded digit-bearing strings.  Result was relations
+    like HAS_L_A_D_D1 in Neo4j."""
+
+    def test_all_caps_with_trailing_digit_is_lowercased(self):
+        from zone1.ingestion import _humanize_field_name
+        assert _humanize_field_name("LADD1") == "ladd1"
+        assert _humanize_field_name("ADD1") == "add1"
+        assert _humanize_field_name("LADD2") == "ladd2"
+        assert _humanize_field_name("LOC3") == "loc3"
+
+    def test_camel_case_with_digits_still_handled(self):
+        from zone1.ingestion import _humanize_field_name
+        # genuine camelCase with embedded digit — keep current behavior
+        assert _humanize_field_name("amountPaid1") == "amount paid1"
+        assert _humanize_field_name("Item3Cost") == "item3 cost"
+
+    def test_underscore_separated_with_digits_preserved(self):
+        from zone1.ingestion import _humanize_field_name
+        assert _humanize_field_name("CLAIM_NUMBER_1") == "claim number 1"
+        assert _humanize_field_name("ADDR_LINE_2") == "addr line 2"
