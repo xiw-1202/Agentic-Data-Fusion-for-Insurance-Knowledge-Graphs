@@ -355,23 +355,37 @@ def ask_stream(
 
     if cls.kind == QuestionKind.OPEN_INTERPRETIVE:
         kg_ctx = retrieve_kg_context(graph, question)
+        n_triples = len(kg_ctx.get("triples", []))
+        n_chunks = len(kg_ctx.get("chunks", []))
         yield Step(
             name="execute",
-            title=f"Retrieved {len(kg_ctx)} grounding triples",
-            payload={"rows": kg_ctx},
+            title=f"Retrieved {n_triples} triples + {n_chunks} source chunks",
+            payload={"rows": kg_ctx.get("triples", []),
+                     "chunks": kg_ctx.get("chunks", [])},
         )
         reasoning = reason_open(client, schema_prefix, question, kg_ctx)
         yield Step(name="interpret", title="Open-question reasoning", payload=reasoning)
 
-        # Provenance from the retrieved triples themselves
+        # Provenance: union of triple-cited chunks and the chunks we
+        # actually fed into the LLM (those drove the answer).
         sources: list[dict[str, str]] = []
         seen: set[tuple[str, str]] = set()
-        for r in kg_ctx:
+        for c in kg_ctx.get("chunks", []):
+            cid = str(c.get("chunk_id") or "")
+            src = c.get("source") or ""
+            key = (cid, src)
+            if cid and key not in seen:
+                seen.add(key)
+                sources.append({"chunk_id": cid, "source": src})
+        for r in kg_ctx.get("triples", []):
             cid = r.get("chunk_id")
             src = r.get("source") or ""
-            if cid and (cid, src) not in seen:
-                seen.add((cid, src))
-                sources.append({"chunk_id": cid, "source": src})
+            if cid is None:
+                continue
+            key = (str(cid), src)
+            if key not in seen:
+                seen.add(key)
+                sources.append({"chunk_id": str(cid), "source": src})
 
         yield Step(name="cite", title="Open answer", payload={
             "summary": reasoning.get("summary", ""),
@@ -476,19 +490,33 @@ def fetch_provenance(graph: Neo4jGraph, rows: list[dict[str, Any]]) -> list[dict
     return out
 
 
-def retrieve_kg_context(graph: Neo4jGraph, question: str, limit: int = 30) -> list[dict[str, Any]]:
-    """Coarse keyword retrieval: pull entities whose id contains any noun
-    from the question. Returns a small set of grounded triples that the
-    open-question reasoner can cite."""
+def retrieve_kg_context(
+    graph: Neo4jGraph,
+    question: str,
+    limit: int = 30,
+    max_chunks: int = 5,
+) -> dict[str, list[dict[str, Any]]]:
+    """Hybrid GraphRAG retrieval for open-interpretive questions.
+
+    Returns a payload with both:
+      * ``triples`` — keyword-matched (subject, rel, object, chunk_id, source)
+        rows for grounding edge-level claims.
+      * ``chunks`` — the top-K source chunks (by triple density) with their
+        full text, so the LLM can quote actual policy/contract language and
+        reason about clauses that aren't fully expressed as edges.
+
+    ``max_chunks`` caps the chunk-text payload to keep the LLM context
+    bounded; default 5 ≈ 3-5K tokens of grounded source material.
+    """
     tokens = [t.lower() for t in re.findall(r"[A-Za-z]{4,}", question)]
     stop = {"what", "which", "when", "where", "show", "list", "tell",
             "have", "with", "from", "this", "that", "they", "would",
             "could", "about", "into", "many", "most", "more"}
     keywords = [t for t in tokens if t not in stop][:6]
     if not keywords:
-        return []
+        return {"triples": [], "chunks": []}
 
-    rows = graph.query(
+    triples = graph.query(
         """
         UNWIND $kws AS kw
         MATCH (e:Entity)-[r]-(o:Entity)
@@ -499,41 +527,111 @@ def retrieve_kg_context(graph: Neo4jGraph, question: str, limit: int = 30) -> li
         """,
         params={"kws": keywords, "limit": limit},
     )
-    return rows
+    if not triples:
+        return {"triples": [], "chunks": []}
+
+    # Rank chunks by how many of the matched triples cite them — a chunk
+    # cited by many keyword-matched triples is the best candidate to feed
+    # to the LLM for source-grounded reasoning.
+    #
+    # The Zone 4 loader stores ``:Chunk.id`` as ``toString(r.chunk_id)``,
+    # but ``r.chunk_id`` itself can be either int (PDF chunks) or string
+    # (CSV chunks).  Cast both to string here so PDF and CSV chunks join
+    # consistently and aren't silently dropped.
+    chunk_hits: dict[tuple[str, str], int] = {}
+    for r in triples:
+        cid = r.get("chunk_id")
+        if cid is None:
+            continue
+        src = r.get("source") or ""
+        key = (str(cid), src)
+        chunk_hits[key] = chunk_hits.get(key, 0) + 1
+
+    if not chunk_hits:
+        return {"triples": triples, "chunks": []}
+
+    top_keys = sorted(chunk_hits.items(), key=lambda kv: -kv[1])[:max_chunks]
+    top_ids = [k[0] for k, _ in top_keys]
+    top_sources = [k[1] for k, _ in top_keys]
+
+    chunks = graph.query(
+        """
+        UNWIND range(0, size($ids) - 1) AS i
+        MATCH (c:Chunk {id: $ids[i], source: $sources[i]})
+        RETURN c.id AS chunk_id, c.source AS source, c.text AS text
+        """,
+        params={"ids": top_ids, "sources": top_sources},
+    )
+
+    return {"triples": triples, "chunks": chunks[:max_chunks]}
 
 
 OPEN_SYSTEM = """You answer interpretive questions about an insurance knowledge graph.
 
 You receive:
 - The user's question
-- A small set of retrieved triples from the KG (may be empty)
+- A small set of retrieved triples from the KG (edges and entities)
+- The full text of the top source chunks those triples came from
+  (the actual policy / contract / survey paragraphs)
 
-Be honest:
-- If the triples support an answer, cite specific entities/relations.
-- If the triples don't support an answer, say "the KG doesn't contain
-  evidence for this" and explain what data WOULD answer it.
-- Never invent statistics or fact patterns not in the triples.
+Reasoning rules:
+- Quote or paraphrase the source chunks when the answer depends on
+  policy language (exclusions, conditions, deductibles, eligibility).
+- Cross-check the chunk text against the triples — if they disagree,
+  trust the chunk text and note the discrepancy in caveats.
+- If neither triples nor chunks support an answer, say "the KG doesn't
+  contain evidence for this" and describe what data would answer it.
+- Never invent statistics, clauses, or fact patterns not in the inputs.
 
 Return JSON only:
 {"summary":"<2-4 sentences>",
- "reasoning":"<how you arrived at it>",
- "evidence_used":["<entity_id or rel>", "..."],
+ "reasoning":"<how you arrived at it, citing chunk text where relevant>",
+ "evidence_used":["<entity_id or rel or chunk_id>", "..."],
  "confidence":<0.0-1.0>,
  "caveats":"<what's missing or uncertain>"}
 """
+
+
+def _format_kg_context(kg_context: dict[str, list[dict[str, Any]]]) -> str:
+    """Render the hybrid retrieval payload for the LLM prompt.
+
+    Triples are shown as compact JSON (cheap, structural).  Chunk text is
+    shown as labeled blocks so the LLM can quote them and ``evidence_used``
+    can cite ``chunk_id``s.  Each chunk is truncated to keep the prompt
+    bounded; the full text is still on disk + visible in the chatbot UI.
+    """
+    triples = kg_context.get("triples", [])[:30]
+    chunks = kg_context.get("chunks", [])
+
+    parts: list[str] = []
+    parts.append(f"Retrieved triples ({len(triples)}):")
+    parts.append(json.dumps(triples, default=str))
+    if chunks:
+        parts.append(f"\nSource chunks ({len(chunks)}):")
+        for c in chunks:
+            cid = c.get("chunk_id", "?")
+            src = c.get("source", "?")
+            text = (c.get("text") or "").strip()
+            if len(text) > 1500:
+                text = text[:1500] + " […]"
+            parts.append(f"\n[chunk_id={cid} | source={src}]\n{text}")
+    return "\n".join(parts)
 
 
 def reason_open(
     client: anthropic.Anthropic,
     schema_prefix: str,
     question: str,
-    kg_context: list[dict[str, Any]],
+    kg_context: dict[str, list[dict[str, Any]]] | list[dict[str, Any]],
 ) -> dict[str, Any]:
-    payload = (
-        f"Question: {question}\n\n"
-        f"Retrieved triples ({len(kg_context)}):\n"
-        f"{json.dumps(kg_context[:30], default=str)}"
-    )
+    # Back-compat: accept the old list-of-triples shape from any caller
+    # that hasn't been migrated yet.
+    if isinstance(kg_context, list):
+        kg_context = {"triples": kg_context, "chunks": []}
+
+    body = _format_kg_context(kg_context)
+    payload = f"Question: {question}\n\n{body}"
+
     resp = client.messages.create(
         model=ANSWER_MODEL,
         max_tokens=700,
