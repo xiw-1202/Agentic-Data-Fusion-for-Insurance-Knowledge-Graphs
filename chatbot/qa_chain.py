@@ -554,6 +554,65 @@ def fetch_provenance(graph: Neo4jGraph, rows: list[dict[str, Any]]) -> list[dict
 
 CHUNK_HARD_CAP = 12  # absolute ceiling regardless of ties / max_chunks
 
+# Map plain-English class words in a question to the actual class names
+# / entity_type values used in the KG.  Domain-specific to insurance
+# but easy to extend.
+_CLASS_KEYWORDS: dict[str, list[str]] = {
+    "claim":     ["Claim", "ClaimRecord"],
+    "claims":    ["Claim", "ClaimRecord"],
+    "policy":    ["Policy", "PolicyRecord"],
+    "policies":  ["Policy", "PolicyRecord"],
+    "survey":    ["Survey", "SurveyRecord", "ClientJourneySurvey"],
+    "surveys":   ["Survey", "SurveyRecord", "ClientJourneySurvey"],
+    "coverage":  ["Coverage", "CoverageType"],
+    "coverages": ["Coverage", "CoverageType"],
+    "person":    ["Person"],
+    "organization": ["Organization"],
+    "procedure": ["Procedure", "WarrantyServiceProcedure", "ServiceProcedure"],
+    "device":    ["Device"],
+    "property":  ["Property", "InsuredProperty"],
+}
+
+
+def _retrieve_by_class(
+    graph: Neo4jGraph,
+    class_or_type_names: list[str],
+    per_class_limit: int = 8,
+) -> list[dict[str, Any]]:
+    """Pull a small balanced sample of outgoing relations from entities
+    that belong to *any* of the given classes / entity_types.
+
+    Catches the case where a question explicitly names a type
+    (e.g. "claim records") but the underlying entities have hex IDs
+    (CLM-d0beac0c11fd) that won't textually match the keyword.
+
+    Per-class CALL subquery ensures each class contributes its own
+    quota — without it, the first class would consume the global
+    LIMIT and later classes get nothing.
+    """
+    if not class_or_type_names:
+        return []
+    return graph.query(
+        """
+        UNWIND $names AS name
+        CALL (name) {
+            MATCH (e:Entity)
+            WHERE EXISTS {
+                    MATCH (e)-[:INSTANCE_OF]->(c:OntologyClass {name: name})
+                  }
+               OR e.entity_type = name
+            RETURN e
+            ORDER BY e.id
+            LIMIT $per_class
+        }
+        MATCH (e)-[r]->(o:Entity)
+        WHERE type(r) <> 'INSTANCE_OF'
+        RETURN DISTINCT e.id AS subject, type(r) AS rel, o.id AS object,
+               r.chunk_id AS chunk_id, r.source AS source
+        """,
+        params={"names": class_or_type_names, "per_class": per_class_limit},
+    )
+
 
 def retrieve_kg_context(
     graph: Neo4jGraph,
@@ -588,7 +647,7 @@ def retrieve_kg_context(
     if not keywords:
         return {"triples": [], "chunks": []}
 
-    triples = graph.query(
+    keyword_triples = graph.query(
         """
         UNWIND $kws AS kw
         MATCH (e:Entity)-[r]-(o:Entity)
@@ -599,6 +658,27 @@ def retrieve_kg_context(
         """,
         params={"kws": keywords, "limit": limit},
     )
+
+    # Also retrieve a balanced sample of triples from any class names
+    # mentioned in the question.  Bridges the gap when entity IDs are
+    # hex hashes (CLM-d0beac0c11fd) that won't substring-match the
+    # natural-language keyword ("claim").
+    class_targets: list[str] = []
+    for kw in keywords:
+        class_targets.extend(_CLASS_KEYWORDS.get(kw, []))
+    class_targets = list(dict.fromkeys(class_targets))  # dedup, keep order
+    class_triples = _retrieve_by_class(graph, class_targets) if class_targets else []
+
+    # Merge; dedupe on (subject, rel, object).
+    seen: set[tuple[str, str, str]] = set()
+    triples: list[dict[str, Any]] = []
+    for t in keyword_triples + class_triples:
+        key = (t["subject"], t["rel"], t["object"])
+        if key in seen:
+            continue
+        seen.add(key)
+        triples.append(t)
+
     if not triples:
         return {"triples": [], "chunks": []}
 

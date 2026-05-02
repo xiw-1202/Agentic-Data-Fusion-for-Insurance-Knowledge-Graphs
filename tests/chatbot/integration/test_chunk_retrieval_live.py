@@ -153,6 +153,45 @@ class TestRetrieveKgContextLive:
         out = retrieve_kg_context(graph, "is it ok?")
         assert out == {"triples": [], "chunks": []}
 
+    def test_cross_type_question_retrieves_both_types(self, graph):
+        """Cross-type questions like 'do claim records and survey records
+        reference the same organization?' must surface triples from BOTH
+        sides — not just whatever happens to substring-match an entity ID.
+
+        Keyword-only retrieval missed the actual claim CSV (CLM-xxx hex
+        IDs don't contain the word 'claim') and only returned survey-side
+        data, leading the LLM to a wrong 'yes they share Assurant Global
+        Home' answer.  Class-aware retrieval should pull HAS_MASTER_NAME
+        triples (which point to GEICO RENTERS, the real claim org).
+        """
+        from chatbot.qa_chain import retrieve_kg_context
+
+        out = retrieve_kg_context(
+            graph,
+            "Do claim records and survey records reference the same organization?",
+        )
+        # Pull source/relation fingerprints from the retrieved triples
+        sources = {(t.get("source") or "").split("/")[-1] for t in out["triples"]}
+        rels = {t["rel"] for t in out["triples"]}
+
+        # Both sides must be represented — the question explicitly asks
+        # about both types.
+        has_claim_source = any("geicorentersclaims" in s for s in sources)
+        has_survey_source = any("survey" in s for s in sources)
+        assert has_claim_source, (
+            f"no triples from claims CSV in retrieval; sources={sources}"
+        )
+        assert has_survey_source, (
+            f"no triples from survey CSV in retrieval; sources={sources}"
+        )
+        # And at least one organization-bearing relation from EACH side
+        # must show up so the LLM can compare them.
+        org_rels = {r for r in rels
+                    if "MASTER" in r or "ORG" in r or "COMPANY" in r}
+        assert org_rels, (
+            f"no organization-bearing relations retrieved; rels={rels}"
+        )
+
     def test_top_chunks_are_highest_triple_density(self, graph):
         """The chunks returned should be the ones cited by the most matched
         triples — that's how the function ranks for source-grounded QA."""
