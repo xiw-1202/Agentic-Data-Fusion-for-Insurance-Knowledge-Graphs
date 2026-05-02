@@ -638,11 +638,47 @@ _GENERIC_SKIP_FIELDS: set[str] = {
     "bi_created_dt", "bi_created_by", "bi_modified_dt", "bi_modified_by",
 }
 
-# Values treated as empty in generic CSVs.
-_EMPTY_VALUES: frozenset[str] = frozenset({
-    "", "nan", "none", "null", "false", "0", "0.0", "0.00",
+# Values treated as truly empty regardless of column type.
+_TRULY_EMPTY: frozenset[str] = frozenset({
+    "", "nan", "none", "null",
     "1900-01-01", "1900-01-01T00:00:00.000Z",
 })
+
+# Zero-like values — meaningful for numeric/currency, not for boolean flags.
+_ZERO_LIKE: frozenset[str] = frozenset({
+    "0", "0.0", "0.00", "false",
+})
+
+# Legacy combined set kept for back-compat call sites that have no column
+# type information.  Behavior matches the old global-skip rule.
+_EMPTY_VALUES: frozenset[str] = _TRULY_EMPTY | _ZERO_LIKE
+
+
+def _is_meaningful_value(value: str, value_type: str | None = None) -> bool:
+    """Decide whether a CSV cell value should produce a triple.
+
+    Type-aware so that ``"0"``, ``"0.00"`` and ``"false"`` are preserved
+    when the column is a numeric/currency one (zero claim count, zero
+    deductible, zero NWP endorsement amount are all real observations)
+    but still dropped for boolean-encoded flag columns where ``"0"``
+    means absent.
+
+    Truly-empty markers (``""``, ``"nan"``, ``"null"``, the 1900 sentinel)
+    are always dropped regardless of type.
+
+    When ``value_type`` is ``None`` the legacy combined drop-set is used —
+    safe default for narrative/categorical columns and back-compat for
+    callers that haven't been updated.
+    """
+    v = (value or "").strip().lower()
+    if v in _TRULY_EMPTY:
+        return False
+    if value_type in ("currency", "integer", "float"):
+        return True
+    if value_type == "boolean":
+        return v not in _ZERO_LIKE
+    # value_type is None or an unrecognized label — preserve old behavior
+    return v not in _EMPTY_VALUES
 
 
 def _infer_record_type_from_filename(filename: str) -> str:
@@ -660,6 +696,112 @@ def _infer_record_type_from_filename(filename: str) -> str:
     if "survey" in name or "cancel" in name:
         return "survey"
     return "unknown"
+
+
+_ENGLISH_WORDS_CACHE: frozenset[str] | None = None
+
+
+def _load_english_words() -> frozenset[str]:
+    """Load a permissive English-word set from /usr/share/dict/words.
+
+    Available on macOS by default and on most Linux distros via the
+    ``words`` / ``wamerican`` package.  Falls back to a small inline set
+    covering the columns that historically triggered LLM letter-spacing.
+    """
+    global _ENGLISH_WORDS_CACHE
+    if _ENGLISH_WORDS_CACHE is not None:
+        return _ENGLISH_WORDS_CACHE
+
+    # Inline fallback — the documented offenders from the punch list.
+    inline = {
+        "manufacturer", "account", "platform", "journey", "period",
+        "comments", "client", "insured", "claim", "claims", "county",
+        "credit", "earned", "kind", "rank", "taxes", "term", "fees",
+        "policy", "policies", "coverage", "deductible", "premium",
+        "amount", "value", "name", "date", "address", "city", "state",
+        "zip", "phone", "email", "first", "last", "middle", "status",
+        "issue", "reason", "open", "close", "opened", "closed", "active",
+        "inactive", "total", "count", "type", "category", "description",
+        "reference", "number", "code", "year", "month", "day", "time",
+    }
+
+    for path in ("/usr/share/dict/words", "/usr/dict/words"):
+        try:
+            with open(path) as f:
+                words = {line.strip().lower() for line in f if line.strip().isalpha()}
+            if len(words) > 1000:
+                _ENGLISH_WORDS_CACHE = frozenset(inline | words)
+                return _ENGLISH_WORDS_CACHE
+        except OSError:
+            continue
+
+    _ENGLISH_WORDS_CACHE = frozenset(inline)
+    return _ENGLISH_WORDS_CACHE
+
+
+# Domain abbreviations that collide with real English words and would
+# otherwise be skipped by the dictionary filter.  Domain-agnostic in
+# the sense that any insurance/finance run will benefit; not Riskine-
+# specific.
+_DOMAIN_ABBREVIATIONS: frozenset[str] = frozenset({
+    "cat",  # catastrophe (CAT_CLAIMS)
+    "gwp", "nwp", "rwp", "mco", "csat", "nb", "mtd", "ytd", "qtd",
+    "loa", "loi", "cob", "eob", "ppo", "hmo", "dme",
+})
+
+
+def _looks_like_abbreviation(word: str) -> bool:
+    """Heuristic: should *word* be sent to the LLM for abbreviation expansion?
+
+    Real English words (MANUFACTURER, COUNTY, CLAIMS) must NOT be expanded —
+    the LLM tends to letter-space them and the downstream relation
+    normalizer mangles the result.  This filter excludes them via a
+    dictionary lookup plus a vowel-ratio heuristic for words missing
+    from the local word list.
+
+    Returns True for things like ``GWP``, ``MCO``, ``NWP`` that genuinely
+    need expansion; False for plain English words.
+    """
+    if not word or not word.isalpha() or word != word.upper():
+        return False
+    if len(word) > 12:
+        return False
+
+    lw = word.lower()
+    if lw in _DOMAIN_ABBREVIATIONS:
+        return True
+
+    if len(word) <= 4:
+        # Short all-caps tokens are almost always abbreviations (GWP, NWP, MCO,
+        # CSAT, NB).  A few real words slip through (CITY, NAME) but those
+        # are caught by the dictionary check below.
+        return lw not in _load_english_words()
+
+    # 5+ characters — distinguish CLAIMS / MANUFACTURER from real abbreviations
+    if lw in _load_english_words():
+        return False
+
+    # Not in dictionary — use vowel-ratio heuristic.  English words usually
+    # have vowels in 25-55% of positions; abbreviations are vowel-poor.
+    vowels = sum(1 for c in word if c in "AEIOU")
+    ratio = vowels / len(word)
+    return ratio < 0.25
+
+
+def _is_letter_spaced_response(raw: str, expansion: str) -> bool:
+    """Detect when the LLM letter-spaced its input (e.g. MANUFACTURER →
+    'm a n u f a c t u r e r') instead of expanding it.
+
+    Signals: the expansion contains spaces, has multiple length-1 tokens,
+    and collapses to the input.
+    """
+    if " " not in expansion:
+        return False
+    tokens = expansion.split()
+    short_tokens = sum(1 for t in tokens if len(t) == 1)
+    if short_tokens / max(1, len(tokens)) <= 0.5:
+        return False
+    return expansion.replace(" ", "").lower() == raw.lower()
 
 
 def _expand_csv_headers(
@@ -687,10 +829,13 @@ def _expand_csv_headers(
         except (json.JSONDecodeError, OSError):
             pass  # rebuild
 
-    # Identify headers that need expansion (short all-caps abbreviations).
+    # Identify headers that need expansion (genuine abbreviations).
+    # Real English words like MANUFACTURER, COUNTY, CLAIMS are excluded —
+    # the LLM letter-spaces them, which the downstream relation normalizer
+    # then mangles into HAS_M_N_U_F_C_T_U_R_E_R-style garbage.
     needs_expansion = [
         h for h in headers
-        if h == h.upper() and len(h) <= 12 and h.isalpha()
+        if _looks_like_abbreviation(h)
         and h.lower() not in _GENERIC_SKIP_FIELDS
     ]
     if not needs_expansion:
@@ -712,7 +857,8 @@ def _expand_csv_headers(
         + "Return ONLY a JSON object mapping each column name to its "
         "expanded label. Example: {\"GWP\": \"gross written premium\", "
         "\"MCO\": \"master company code\"}\n"
-        "If you are unsure about a column, use the original name lowercased."
+        "If you are unsure about a column, use the original name lowercased.\n"
+        "DO NOT letter-space the input (e.g. never return 'm a n u f a c t u r e r')."
     )
 
     # Call LLM (optional — gracefully degrade if unavailable).
@@ -750,6 +896,16 @@ def _expand_csv_headers(
                 for k, v in expansions.items()
                 if k in needs_expansion and isinstance(v, str) and v.strip()
             }
+            # Reject letter-spaced responses ("m a n u f a c t u r e r") —
+            # better to fall back to the raw header than to mangle the
+            # downstream relation name.
+            rejected = [k for k, v in expansions.items()
+                        if _is_letter_spaced_response(k, v)]
+            for k in rejected:
+                expansions.pop(k, None)
+            if rejected:
+                print(f"  ⚠ Rejected {len(rejected)} letter-spaced responses: "
+                      f"{rejected[:5]}{'…' if len(rejected) > 5 else ''}")
             print(f"  ✓ LLM expanded {len(expansions)}/{len(needs_expansion)} headers")
 
             # Cache results.
@@ -770,23 +926,82 @@ def _expand_csv_headers(
     return {}
 
 
+def _infer_column_types(
+    records: list[dict[str, str]],
+    headers: list[str],
+    sample: int = 200,
+) -> dict[str, str]:
+    """Infer a coarse value-type per column from a sample of records.
+
+    Returns one of ``"currency"``, ``"integer"``, ``"float"``, ``"boolean"``,
+    or omits the column when the type is ambiguous (callers fall back to
+    the legacy combined drop-set).
+
+    Heuristics:
+      • Boolean — the column's distinct non-empty values are a subset of
+        ``{"0", "1", "true", "false", "yes", "no"}``.
+      • Currency — at least one non-empty value starts with ``$`` or ends
+        with a typical currency suffix.
+      • Integer / float — all non-empty values parse as int / float.
+    """
+    sample_recs = records[:sample]
+    types: dict[str, str] = {}
+    for h in headers:
+        vals: set[str] = set()
+        for r in sample_recs:
+            v = str(r.get(h, "")).strip()
+            if v and v.lower() not in _TRULY_EMPTY:
+                vals.add(v)
+            if len(vals) > 50:  # plenty for type inference
+                break
+        if not vals:
+            continue
+        lowered = {v.lower() for v in vals}
+        if lowered <= {"0", "1", "true", "false", "yes", "no", "y", "n", "t", "f"}:
+            types[h] = "boolean"
+            continue
+        if any(v.startswith("$") or v.endswith(("USD", "usd")) for v in vals):
+            types[h] = "currency"
+            continue
+        try:
+            for v in vals:
+                int(v.replace(",", ""))
+            types[h] = "integer"
+            continue
+        except ValueError:
+            pass
+        try:
+            for v in vals:
+                float(v.replace(",", ""))
+            types[h] = "float"
+            continue
+        except ValueError:
+            pass
+        # ambiguous — leave unset
+    return types
+
+
 def _format_generic_csv_record(
     rec: dict[str, str],
     headers: list[str],
     expansions: dict[str, str] | None = None,
+    column_types: dict[str, str] | None = None,
 ) -> str:
     """Format a generic CSV record into grouped, human-readable text.
 
-    Uses auto-grouping by field name heuristics. Skips empty/zero values
-    and internal audit columns.
+    Uses auto-grouping by field name heuristics.  Drops cells that
+    ``_is_meaningful_value`` rejects under the inferred column type — so
+    zeros are kept for numeric/currency columns but dropped for boolean
+    flag columns.
     """
     groups: dict[str, list[str]] = {}
+    column_types = column_types or {}
 
     for field_name in headers:
         if field_name.lower() in _GENERIC_SKIP_FIELDS:
             continue
         value = str(rec.get(field_name, "")).strip()
-        if value.lower() in _EMPTY_VALUES:
+        if not _is_meaningful_value(value, column_types.get(field_name)):
             continue
 
         group = _auto_group_field(field_name)
@@ -834,6 +1049,10 @@ def _chunk_generic_csv_records(
     schema_text = "\n".join(schema_lines)
     dataset_header = f"DATASET: {dataset_name}\n"
 
+    # Type-infer once per CSV so zeros are preserved for numeric/currency
+    # columns and only dropped for boolean-encoded flags.
+    column_types = _infer_column_types(records, headers)
+
     chunks: list[dict] = []
 
     # Chunk 0: schema description.
@@ -869,7 +1088,7 @@ def _chunk_generic_csv_records(
         batch_start_idx = end_idx + 1
 
     for rec_idx, rec in enumerate(records):
-        formatted = _format_generic_csv_record(rec, headers, expansions)
+        formatted = _format_generic_csv_record(rec, headers, expansions, column_types)
         if not formatted:
             continue
         tok = _approx_tokens(formatted)

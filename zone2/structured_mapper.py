@@ -684,6 +684,9 @@ def identity_triples(
 # Triple generation
 # ---------------------------------------------------------------------------
 
+_ARTICLES = frozenset({"a", "an", "the"})
+
+
 def _normalize_field_name(field_name: str) -> str:
     """Strip only articles (determiners) that cause near-duplicate relation names.
 
@@ -694,12 +697,16 @@ def _normalize_field_name(field_name: str) -> str:
     carry semantic role information. Only articles are removed — they are
     the sole source of CSV-header duplication (e.g., "in the" vs "in").
 
+    Letter-spacing guard: if the input looks letter-spaced (majority of tokens
+    are length-1, e.g. "m a n u f a c t u r e r"), bypass article stripping —
+    every "a" would otherwise be removed, mangling the field name. The upstream
+    fix is in zone1/ingestion.py header expansion, but this is defense-in-depth.
+
     Domain-agnostic: safe for any CSV column naming convention.
     """
-    # ONLY articles — prepositions encode semantic roles and must be preserved
-    # per ontology engineering best practice.
-    _ARTICLES = frozenset({"a", "an", "the"})
     tokens = field_name.lower().split()
+    if tokens and sum(1 for t in tokens if len(t) == 1) / len(tokens) > 0.5:
+        return field_name.lower()
     return " ".join(t for t in tokens if t not in _ARTICLES)
 
 
