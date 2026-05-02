@@ -366,8 +366,13 @@ def ask_stream(
         reasoning = reason_open(client, schema_prefix, question, kg_ctx)
         yield Step(name="interpret", title="Open-question reasoning", payload=reasoning)
 
-        # Provenance: union of triple-cited chunks and the chunks we
-        # actually fed into the LLM (those drove the answer).
+        # Provenance: ONLY the chunks we actually fed into the LLM —
+        # those are the chunks the answer is grounded in.  Triples that
+        # matched on a tangential keyword (e.g. a tmobile field called
+        # DEVICE_DAMAGE matching a "mold damage" question) are still
+        # part of ``triples`` for the LLM's edge-level reasoning, but
+        # their chunks were never read by the model and shouldn't be
+        # surfaced as sources of the answer.
         sources: list[dict[str, str]] = []
         seen: set[tuple[str, str]] = set()
         for c in kg_ctx.get("chunks", []):
@@ -377,15 +382,6 @@ def ask_stream(
             if cid and key not in seen:
                 seen.add(key)
                 sources.append({"chunk_id": cid, "source": src})
-        for r in kg_ctx.get("triples", []):
-            cid = r.get("chunk_id")
-            src = r.get("source") or ""
-            if cid is None:
-                continue
-            key = (str(cid), src)
-            if key not in seen:
-                seen.add(key)
-                sources.append({"chunk_id": str(cid), "source": src})
 
         yield Step(name="cite", title="Open answer", payload={
             "summary": reasoning.get("summary", ""),
@@ -490,6 +486,9 @@ def fetch_provenance(graph: Neo4jGraph, rows: list[dict[str, Any]]) -> list[dict
     return out
 
 
+CHUNK_HARD_CAP = 12  # absolute ceiling regardless of ties / max_chunks
+
+
 def retrieve_kg_context(
     graph: Neo4jGraph,
     question: str,
@@ -501,12 +500,19 @@ def retrieve_kg_context(
     Returns a payload with both:
       * ``triples`` — keyword-matched (subject, rel, object, chunk_id, source)
         rows for grounding edge-level claims.
-      * ``chunks`` — the top-K source chunks (by triple density) with their
-        full text, so the LLM can quote actual policy/contract language and
-        reason about clauses that aren't fully expressed as edges.
+      * ``chunks`` — source chunks (with their full text) ranked by how many
+        keyword-matched triples cite each one, so the LLM can quote actual
+        policy/contract language and reason about clauses that aren't fully
+        expressed as edges.
 
-    ``max_chunks`` caps the chunk-text payload to keep the LLM context
-    bounded; default 5 ≈ 3-5K tokens of grounded source material.
+    Chunk selection policy:
+      * Take the top ``max_chunks`` chunks by hit count (default 5 ≈ 3–5K
+        tokens of grounding text — comfortable for Sonnet 4.6).
+      * Then **extend ties at the threshold**: any additional chunk with
+        the same hit count as the K-th chunk is included.  Avoids silently
+        dropping equally-relevant evidence.
+      * A hard ceiling of ``CHUNK_HARD_CAP`` (=12) prevents pathological
+        questions from blowing up the LLM payload.
     """
     tokens = [t.lower() for t in re.findall(r"[A-Za-z]{4,}", question)]
     stop = {"what", "which", "when", "where", "show", "list", "tell",
@@ -550,9 +556,36 @@ def retrieve_kg_context(
     if not chunk_hits:
         return {"triples": triples, "chunks": []}
 
-    top_keys = sorted(chunk_hits.items(), key=lambda kv: -kv[1])[:max_chunks]
-    top_ids = [k[0] for k, _ in top_keys]
-    top_sources = [k[1] for k, _ in top_keys]
+    # Sort by hit count desc, then take top K with bounded tie-extension.
+    # E.g. with max_chunks=5 and hits [4,4,3,3,3,3,2]:
+    #   - top 5 = [4,4,3,3,3], threshold = 3
+    #   - tie-extend: also include the 4th '3' → 6 chunks total
+    #   - extension is bounded to max_chunks + TIE_EXTENSION_SLACK so
+    #     a small max_chunks (e.g. 2) doesn't balloon when many chunks
+    #     share the same boundary hit count.
+    #   - CHUNK_HARD_CAP is the absolute ceiling.
+    TIE_EXTENSION_SLACK = 2
+    sorted_hits = sorted(
+        chunk_hits.items(),
+        key=lambda kv: (-kv[1], kv[0][0], kv[0][1]),  # tiebreak deterministic
+    )
+    if len(sorted_hits) <= max_chunks:
+        kept_keys = sorted_hits
+    else:
+        threshold = sorted_hits[max_chunks - 1][1]
+        tied_extras = [
+            (k, h) for k, h in sorted_hits[max_chunks:] if h >= threshold
+        ]
+        if len(tied_extras) <= TIE_EXTENSION_SLACK:
+            kept_keys = sorted_hits[:max_chunks] + tied_extras
+        else:
+            # Too many ties at threshold — take only top max_chunks
+            # deterministically rather than ballooning the prompt.
+            kept_keys = sorted_hits[:max_chunks]
+        kept_keys = kept_keys[:CHUNK_HARD_CAP]
+
+    top_ids = [k[0] for k, _ in kept_keys]
+    top_sources = [k[1] for k, _ in kept_keys]
 
     chunks = graph.query(
         """
@@ -563,7 +596,7 @@ def retrieve_kg_context(
         params={"ids": top_ids, "sources": top_sources},
     )
 
-    return {"triples": triples, "chunks": chunks[:max_chunks]}
+    return {"triples": triples, "chunks": chunks[:CHUNK_HARD_CAP]}
 
 
 OPEN_SYSTEM = """You answer interpretive questions about an insurance knowledge graph.

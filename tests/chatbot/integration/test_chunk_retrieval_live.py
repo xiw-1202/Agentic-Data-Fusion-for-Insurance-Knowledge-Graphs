@@ -80,19 +80,72 @@ class TestRetrieveKgContextLive:
                 f"chunk {c['chunk_id']} not cited by any matched triple"
             )
 
-    def test_chunk_count_capped_at_default(self, graph):
+    def test_chunk_count_capped_at_default_with_tie_extension(self, graph):
+        """Default max_chunks=5 is a soft target.  Tied chunks at the
+        threshold hit-count are kept (so we never silently drop a chunk
+        that's just as relevant as the last one we returned).  A hard
+        ceiling at 12 still bounds the LLM prompt."""
         from chatbot.qa_chain import retrieve_kg_context
 
         out = retrieve_kg_context(graph, "what does the policy cover?")
-        assert len(out["chunks"]) <= 5, "default max_chunks=5 not enforced"
+        # Soft default 5, plus tie-extension, capped hard at 12.
+        assert 0 <= len(out["chunks"]) <= 12, (
+            f"chunk count {len(out['chunks'])} outside [0,12]"
+        )
 
     def test_explicit_max_chunks_respected(self, graph):
+        """max_chunks is honored within a small slack window.
+
+        Tie-extension allows at most TIE_EXTENSION_SLACK (=2) extra
+        chunks beyond max_chunks; if more chunks tie at the threshold,
+        we fall back to deterministic top-K without extension.
+        """
         from chatbot.qa_chain import retrieve_kg_context
 
         out = retrieve_kg_context(
             graph, "what does the policy cover?", max_chunks=2,
         )
-        assert len(out["chunks"]) <= 2
+        # max_chunks=2 + slack=2 = 4 hard upper bound on returned chunks
+        # for the open path.
+        assert len(out["chunks"]) <= 4, (
+            f"max_chunks=2 produced {len(out['chunks'])} chunks — "
+            "tie-extension exceeded its slack budget"
+        )
+
+    def test_no_chunks_below_threshold_hit_count(self, graph):
+        """Every returned chunk must have a hit count >= the smallest
+        hit count among returned chunks.  Equivalently: there's no
+        triple-density value in the candidate set strictly above what
+        we returned that we silently dropped."""
+        from chatbot.qa_chain import retrieve_kg_context
+
+        out = retrieve_kg_context(graph, "deductible coverage exclusion")
+        if not out["chunks"] or not out["triples"]:
+            pytest.skip("no triples/chunks for this question")
+
+        # Recount hits from triples (str-normalized) and find threshold
+        hits: dict[tuple[str, str], int] = {}
+        for r in out["triples"]:
+            cid = r.get("chunk_id")
+            if cid is None:
+                continue
+            key = (str(cid), r.get("source") or "")
+            hits[key] = hits.get(key, 0) + 1
+        returned_keys = {(str(c["chunk_id"]), c.get("source") or "")
+                         for c in out["chunks"]}
+        min_returned_hits = min(hits[k] for k in returned_keys)
+
+        # Any candidate chunk with hits > min_returned_hits MUST be in
+        # the returned set — otherwise we silently dropped a more
+        # relevant chunk.
+        more_relevant_dropped = [
+            k for k, h in hits.items()
+            if h > min_returned_hits and k not in returned_keys
+        ]
+        assert not more_relevant_dropped, (
+            f"dropped chunks more relevant than returned: "
+            f"{more_relevant_dropped[:3]}"
+        )
 
     def test_empty_question_returns_empty_payload(self, graph):
         from chatbot.qa_chain import retrieve_kg_context
