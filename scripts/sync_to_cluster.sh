@@ -49,8 +49,34 @@ if [ "$MODE" = "--fetch" ]; then
             "$PROJECT_ROOT/data/$dataset/processed/zone1_chunks.json" 2>/dev/null || true
     done
 
+    # SLURM job logs — most recent N for debugging.  Logs land in
+    # /local/scratch/<netid>/logs/<jobid>.out and .err.  Mirror them
+    # into a dotted local directory so they're git-ignored by default.
+    LOCAL_LOG_DIR="$PROJECT_ROOT/.cluster_logs"
+    mkdir -p "$LOCAL_LOG_DIR"
+    echo ""
+    echo "Fetching SLURM job logs → $LOCAL_LOG_DIR ..."
+    rsync -avz --progress \
+        -e "ssh $SSH_JUMP" \
+        --include="*.out" --include="*.err" --exclude="*" \
+        "$REMOTE:$SCRATCH/logs/" "$LOCAL_LOG_DIR/" 2>/dev/null || true
+
     echo ""
     echo "Fetch complete."
+    # Show a quick summary of what landed.
+    echo ""
+    echo "Local results sizes:"
+    for d in flood emory; do
+        if [ -d "$PROJECT_ROOT/data/results/$d" ]; then
+            n=$(find "$PROJECT_ROOT/data/results/$d" -type f | wc -l | tr -d ' ')
+            sz=$(du -sh "$PROJECT_ROOT/data/results/$d" 2>/dev/null | cut -f1)
+            echo "  data/results/$d: $n files, $sz"
+        fi
+    done
+    if [ -d "$LOCAL_LOG_DIR" ]; then
+        n=$(find "$LOCAL_LOG_DIR" -type f | wc -l | tr -d ' ')
+        echo "  .cluster_logs: $n log files"
+    fi
     echo ""
     echo "IMPORTANT — cluster policy: delete scratch data now that you have results:"
     echo "  ssh $SSH_JUMP $REMOTE 'rm -rf $SCRATCH/project'"
