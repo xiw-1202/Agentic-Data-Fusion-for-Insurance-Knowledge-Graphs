@@ -42,6 +42,24 @@ Rules:
   could answer the question (e.g. HAS_TOTAL_CLAIM_TIME vs HAS_TIME_TO_RESOLVE_HR for
   "resolution time"), prefer the one with higher count — sparse relations often reflect
   extraction gaps, not real answers.
+
+CRITICAL — multi-source date relations:
+  Different source datasets (T-Mobile vs GEICO renters) record dates under
+  DIFFERENT relation names even on the same :ClaimRecord type:
+    • T-Mobile claims:        HAS_CLAIM_LOSS_DATE, HAS_CLAIM_OPEN_DATE,
+                              HAS_CLAIM_AUTHORIZED_DATE, HAS_REPORT_DATE
+    • GEICO renters claims:   HAS_FISCAL_PMS_ACCOUNT_DATE, HAS_CLAIM_MONTH_ID,
+                              HAS_CLAIM_DENIED_DATE
+  For "when did X happen?" questions where the filter spans both datasets
+  (e.g. cause-of-loss = MOLD lives in GEICO; device repairs live in T-Mobile),
+  use OPTIONAL MATCH on EVERY candidate date relation and return the first
+  non-null one via COALESCE.  Example skeleton:
+    MATCH (c:Entity)-[:HAS_CAUSE_OF_LOSS]->(:Entity {id:'MOLD'})
+    OPTIONAL MATCH (c)-[:HAS_CLAIM_LOSS_DATE]->(d1)
+    OPTIONAL MATCH (c)-[:HAS_FISCAL_PMS_ACCOUNT_DATE]->(d2)
+    OPTIONAL MATCH (c)-[:HAS_CLAIM_OPEN_DATE]->(d3)
+    RETURN c.id AS claim, COALESCE(d1.id, d2.id, d3.id) AS date
+
 - Return only a Cypher query inside a ```cypher code fence. No prose outside the fence.
 - ClaimRecord entities have entity_type = 'ClaimRecord'. Other record types include SurveyRecord, PolicyRecord.
 - Numeric values are stored as :Entity nodes; cast with toFloat(n.id) or toInteger(n.id) for aggregation.
