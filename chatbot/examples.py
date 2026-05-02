@@ -18,11 +18,14 @@ from __future__ import annotations
 
 EXAMPLES: list[dict[str, str]] = [
     # 1. The KG has structure: SV-LOI induced an ontology.
+    #    Show ALL 10 classes plus both edge types so orphan classes
+    #    (Claim, Person, Organization, RiskFactor — no SUBCLASS_OF
+    #    parent) still appear in the graph viz via ASSOCIATED_WITH.
     {
         "question": "Show the ontology hierarchy.",
         "cypher": """
-MATCH (child:OntologyClass)-[:SUBCLASS_OF]->(parent:OntologyClass)
-RETURN child.name AS child, parent.name AS parent
+MATCH (s:OntologyClass)-[r:SUBCLASS_OF|ASSOCIATED_WITH]->(t:OntologyClass)
+RETURN s.name AS source, type(r) AS rel, t.name AS target
 """.strip(),
     },
     # 2. The classes are populated: every entity has a class assignment.
