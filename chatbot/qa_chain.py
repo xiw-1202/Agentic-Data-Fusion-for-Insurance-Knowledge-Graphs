@@ -148,13 +148,61 @@ def _extract_cypher(text: str) -> str:
 
 
 def _extract_json(text: str) -> dict[str, Any]:
+    """Extract a JSON object from a model response.
+
+    Tolerates: code fences (```json … ```), wrapping text, and (most
+    importantly) responses truncated mid-JSON because the model hit a
+    token cap.  When the closing brace is missing, walk backwards from
+    the cut to the last complete (key, value) pair, append a closing
+    brace, and parse the salvageable prefix.
+    """
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
-    m = re.search(r"\{.*\}", text, flags=re.S)
-    if not m:
+
+    # Find the start of the JSON object (first balanced-or-truncated brace).
+    start = text.find("{")
+    if start == -1:
         raise ValueError(f"no JSON object found in response: {text[:200]}")
-    return json.loads(m.group(0))
+
+    body = text[start:]
+
+    # Try a clean parse first.
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        pass
+
+    # Try greedy regex (the original behavior — handles trailing prose).
+    m = re.search(r"\{.*\}", body, flags=re.S)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    # Salvage path: response truncated mid-string.  An unclosed string
+    # leaves an odd number of (unescaped) double-quotes — close it and
+    # the object, then retry.  Preserves the partial trailing field
+    # rather than dropping it.
+    n_quotes = body.count('"') - body.count('\\"')
+    if n_quotes % 2 == 1:
+        for closer in ('"}', '"]}', '",}'):
+            try:
+                return json.loads(body + closer)
+            except json.JSONDecodeError:
+                continue
+
+    # Last resort: walk backwards to the last `,` that follows a
+    # closed string or numeric value and close the object there.
+    for i in range(len(body) - 1, 0, -1):
+        if body[i] == "," and i > 0 and body[i - 1] in '"0123456789]}':
+            try:
+                return json.loads(body[:i] + "}")
+            except json.JSONDecodeError:
+                continue
+
+    raise ValueError(f"no JSON object found in response: {text[:200]}")
 
 
 _SCHEMA_CACHE_PATH = os.path.join(
@@ -685,7 +733,11 @@ def reason_open(
 
     resp = client.messages.create(
         model=ANSWER_MODEL,
-        max_tokens=700,
+        # Bumped from 700 to 1500 because hybrid GraphRAG payloads
+        # (triples + chunk-text) push the model toward longer answers
+        # that quote source language.  At 700 the JSON could be cut
+        # mid-string and crash _extract_json.
+        max_tokens=1500,
         system=[
             {"type": "text", "text": OPEN_SYSTEM},
             {"type": "text", "text": schema_prefix, "cache_control": {"type": "ephemeral"}},
