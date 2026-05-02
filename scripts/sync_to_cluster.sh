@@ -35,6 +35,20 @@ if [ "$MODE" = "--fetch" ]; then
             "$REMOTE:$SCRATCH/project/data/results/$subdir/" \
             "$PROJECT_ROOT/data/results/$subdir/" 2>/dev/null || true
     done
+
+    # Also fetch the per-dataset zone1 chunks file — needed by the
+    # chatbot's hybrid GraphRAG (load_to_neo4j writes :Chunk text from
+    # this file).  Without it we'd reload Neo4j against a stale chunks
+    # file and lose any source files added since the last local zone1.
+    echo ""
+    echo "Fetching processed/zone1_chunks.json for each dataset..."
+    for dataset in flood Emory_Spring2026; do
+        rsync -avz --progress \
+            -e "ssh $SSH_JUMP" \
+            "$REMOTE:$SCRATCH/project/data/$dataset/processed/zone1_chunks.json" \
+            "$PROJECT_ROOT/data/$dataset/processed/zone1_chunks.json" 2>/dev/null || true
+    done
+
     echo ""
     echo "Fetch complete."
     echo ""
