@@ -471,10 +471,30 @@ def ask_stream(
         })
         return
 
-    plan = plan_query(client, schema_prefix, question)
-    yield Step(name="plan", title="Query plan", payload=plan)
-
-    raw_cypher = generate_cypher(client, schema_prefix, question)
+    # Demo fast-path: if the question matches a curated example exactly,
+    # use the example's hand-tuned Cypher instead of regenerating it.
+    # Saves an LLM round-trip and gives presentations predictable
+    # behavior — Claude otherwise tunnel-visions on individual words
+    # in the question (e.g. "hierarchy" → SUBCLASS_OF only) and
+    # produces narrower queries than the example intends.
+    from chatbot.examples import EXAMPLES
+    canonical_q = question.strip().rstrip("?").lower()
+    matched = next(
+        (e for e in EXAMPLES
+         if e["question"].strip().rstrip("?").lower() == canonical_q),
+        None,
+    )
+    if matched:
+        yield Step(name="plan", title="Query plan",
+                   payload={"intent": "Saved demo query — using curated Cypher",
+                            "approach": "Bypassing LLM generation; running the "
+                                        "verified example query directly.",
+                            "classes_used": []})
+        raw_cypher = matched["cypher"]
+    else:
+        plan = plan_query(client, schema_prefix, question)
+        yield Step(name="plan", title="Query plan", payload=plan)
+        raw_cypher = generate_cypher(client, schema_prefix, question)
     ok, reason = is_read_only(raw_cypher)
     if not ok:
         yield Step(name="cypher", title="Cypher rejected", payload={"cypher": raw_cypher},
