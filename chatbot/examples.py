@@ -1,30 +1,52 @@
 """Hand-curated few-shot English -> Cypher pairs for the Emory KG.
 
-Based on the Slide 9 showcase queries plus a few coverage questions.
-Every query here was verified against the Emory schema
-(data/results/emory/zone2_run_summary.json relation types).
+Doubles as the 'Try one of these' demo deck in the Streamlit sidebar.
+The order tells a story; ask them top-to-bottom during a presentation:
+
+  1. Ontology exists  -> SV-LOI induced classes
+  2. Ontology is populated  -> entities map to classes
+  3. Categorical filter  -> CSV columns become queryable enums
+  4. Aggregation & chart  -> KG drives bar charts
+  5. Multi-relation join  -> NPS x channel
+  6. Multi-source date  -> mold claim dates (T-Mobile vs GEICO date schema)
+  7. Cross-type retrieval  -> claim org vs survey org are *different*
+  8. Policy text grounding  -> hybrid GraphRAG quotes actual policy language
+
+Every Cypher here was verified against the live Emory KG.
 """
 from __future__ import annotations
 
 EXAMPLES: list[dict[str, str]] = [
+    # 1. The KG has structure: SV-LOI induced an ontology.
     {
-        "question": "Which claims had the longest resolution time?",
+        "question": "Show the ontology hierarchy.",
         "cypher": """
-// Prefer HAS_TOTAL_CLAIM_TIME (covers ~230 claims, numeric)
-// over HAS_TIME_TO_RESOLVE_HR (sparse, only ~3 claims).
-// Both exist; pick the one with better coverage.
-MATCH (c:Entity)-[:HAS_TOTAL_CLAIM_TIME]->(t:Entity)
-WHERE c.entity_type = 'ClaimRecord' AND toFloat(t.id) IS NOT NULL
-WITH c, toFloat(t.id) AS total_time
-ORDER BY total_time DESC
-LIMIT 10
-OPTIONAL MATCH (c)-[:HAS_LOSS_TYPE]->(lt:Entity)
-OPTIONAL MATCH (c)-[:HAS_CLAIMED_MANUFACTURER]->(m:Entity)
-RETURN c.id AS claim, total_time, lt.id AS loss_type, m.id AS manufacturer
+MATCH (child:OntologyClass)-[:SUBCLASS_OF]->(parent:OntologyClass)
+RETURN child.name AS child, parent.name AS parent
 """.strip(),
     },
+    # 2. The classes are populated: every entity has a class assignment.
     {
-        "question": "What device types have the most claims?",
+        "question": "How many entities are in each ontology class?",
+        "cypher": """
+MATCH (e:Entity)-[:INSTANCE_OF]->(c:OntologyClass)
+RETURN c.name AS class_name, count(e) AS entity_count
+ORDER BY entity_count DESC
+""".strip(),
+    },
+    # 3. CSV columns become queryable categorical enums.
+    {
+        "question": "What cause-of-loss values appear in GEICO renters claims?",
+        "cypher": """
+MATCH (c:Entity)-[:HAS_CAUSE_OF_LOSS]->(cause:Entity)
+WHERE c.entity_type = 'ClaimRecord'
+RETURN cause.id AS cause_of_loss, count(c) AS claim_count
+ORDER BY claim_count DESC
+""".strip(),
+    },
+    # 4. Aggregation + chart — the chatbot picks bar viz automatically.
+    {
+        "question": "Which device types have the most T-Mobile claims?",
         "cypher": """
 MATCH (c:Entity)-[:HAS_DEVICE_TYPE]->(d:Entity)
 WHERE c.entity_type = 'ClaimRecord'
@@ -33,15 +55,7 @@ ORDER BY claim_count DESC
 LIMIT 10
 """.strip(),
     },
-    {
-        "question": "What loss types are most common?",
-        "cypher": """
-MATCH (c:Entity)-[:HAS_LOSS_TYPE]->(l:Entity)
-WHERE c.entity_type = 'ClaimRecord'
-RETURN l.id AS loss_type, count(c) AS claim_count
-ORDER BY claim_count DESC
-""".strip(),
-    },
+    # 5. Multi-relation join + numeric aggregation.
     {
         "question": "What's the average NPS score by claim channel?",
         "cypher": """
@@ -54,38 +68,46 @@ RETURN ch.id AS channel,
 ORDER BY avg_nps DESC
 """.strip(),
     },
+    # 6. Multi-source date handling — GEICO and T-Mobile use different
+    #    date relations even though both are :ClaimRecord.  COALESCE
+    #    surfaces whichever exists per claim.
     {
-        "question": "How many entities are classified into each ontology class?",
+        "question": "When did mold damage claims happen?",
         "cypher": """
-MATCH (e:Entity)-[:INSTANCE_OF]->(c:OntologyClass)
-RETURN c.name AS class_name, count(e) AS entity_count
-ORDER BY entity_count DESC
+MATCH (c:Entity)-[:HAS_CAUSE_OF_LOSS]->(:Entity {id: 'MOLD'})
+OPTIONAL MATCH (c)-[:HAS_CLAIM_LOSS_DATE]->(d1)
+OPTIONAL MATCH (c)-[:HAS_FISCAL_PMS_ACCOUNT_DATE]->(d2)
+OPTIONAL MATCH (c)-[:HAS_CLAIM_OPEN_DATE]->(d3)
+RETURN c.id AS claim_id,
+       COALESCE(d1.id, d2.id, d3.id) AS date
 """.strip(),
     },
+    # 7. Cross-type retrieval — claim records and survey records use
+    #    DIFFERENT organization relations (HAS_MASTER_NAME vs
+    #    HAS_ORGANIZATION_NAME) and reference different orgs.  The
+    #    class-aware retrieval pulls both sides.
     {
-        "question": "Show the ontology hierarchy.",
+        "question": "Do claim records and survey records reference the same organization?",
         "cypher": """
-MATCH (child:OntologyClass)-[:SUBCLASS_OF]->(parent:OntologyClass)
-RETURN child.name AS child, parent.name AS parent
-""".strip(),
-    },
-    {
-        "question": "Which organizations appear in the claims data?",
-        "cypher": """
-MATCH (c:Entity)-[:HAS_ORGANIZATION_NAME]->(o:Entity)
+MATCH (c:Entity)-[:HAS_MASTER_NAME]->(claim_org:Entity)
 WHERE c.entity_type = 'ClaimRecord'
-RETURN o.id AS organization, count(c) AS claim_count
-ORDER BY claim_count DESC
+WITH collect(DISTINCT claim_org.id) AS claim_orgs
+MATCH (s:Entity)-[:HAS_ORGANIZATION_NAME]->(survey_org:Entity)
+WHERE s.entity_type IN ['SurveyRecord', 'ClientJourneySurvey']
+RETURN claim_orgs,
+       collect(DISTINCT survey_org.id) AS survey_orgs
 """.strip(),
     },
+    # 8. Policy text grounding — the open-interpretive path quotes
+    #    actual policy paragraphs (hybrid GraphRAG).  This question
+    #    can be answered structurally too, via :EXCLUDED_FROM edges.
     {
-        "question": "What are the top cause-of-loss reasons?",
+        "question": "What is excluded from Personal Liability Coverage?",
         "cypher": """
-MATCH (c:Entity)-[:HAS_CAUSE_OF_LOSS]->(cause:Entity)
-WHERE c.entity_type = 'ClaimRecord'
-RETURN cause.id AS cause_of_loss, count(c) AS claim_count
-ORDER BY claim_count DESC
-LIMIT 10
+MATCH (c:Entity)-[:EXCLUDED_FROM|HAS_EXCLUSION]->(x:Entity)
+WHERE toLower(c.id) CONTAINS 'personal liability'
+   OR toLower(c.id) CONTAINS 'liability coverage'
+RETURN c.id AS coverage, x.id AS exclusion
 """.strip(),
     },
 ]
