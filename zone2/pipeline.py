@@ -86,6 +86,8 @@ class Zone2State(TypedDict):
     chunks_file:         str                        # path to zone1_chunks.json
     results_dir:         str                        # output directory for results
     no_wipe:             bool                       # skip Neo4j graph clear
+    skip_canonicalize:   bool                       # defer EDC canonicalization to Zone 3
+    skip_normalize:      bool                       # defer HAS_* merging to Zone 3
 
 
 # ---------------------------------------------------------------------------
@@ -662,6 +664,10 @@ def _parse_chunk_triples(
         if not all(k in item for k in ("subject", "relation", "object")):
             continue
 
+        # ``relation_raw`` is the post-sanitize, pre-cleanup form.  Sanitize
+        # so it's safe for Cypher/Neo4j use; do NOT apply paraphrase or
+        # pattern collapse — Zone 3 needs the source-specific original
+        # for hierarchy induction.
         rel_raw = _sanitize_relation(str(item.get("relation", "")))
         rel     = RELATION_NORMALIZATIONS.get(rel_raw, rel_raw)
         rel     = RELATION_NORMALIZATIONS.get(rel, rel)
@@ -682,6 +688,7 @@ def _parse_chunk_triples(
             "subject":      str(item["subject"]).strip(),
             "subject_type": subj_type,
             "relation":    rel,
+            "relation_raw": rel_raw,
             "object":      str(item["object"]).strip(),
             "object_type": obj_type,
             "span":       str(item.get("span", ""))[:120],
@@ -838,6 +845,7 @@ def _extract_numeric_from_text(
             "chunk_id":     chunk_id,
             "source":       source,
             "source_type":  "regex",
+            "relation_raw": rel,
             "lob":          lob,
         })
 
@@ -880,6 +888,7 @@ def _extract_numeric_from_text(
             "chunk_id":     chunk_id,
             "source":       source,
             "source_type":  "regex",
+            "relation_raw": rel,
             "lob":          lob,
         })
 
@@ -911,6 +920,7 @@ def _extract_numeric_from_text(
             "chunk_id":     chunk_id,
             "source":       source,
             "source_type":  "regex",
+            "relation_raw": rel,
             "lob":          lob,
         })
 
@@ -1457,11 +1467,12 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
     total = 0
     for rel_type, batch in by_relation.items():
         rel_type = _sanitize_relation(rel_type)
-        # Every row needs a lob field so the MERGE Cypher can read it
-        # uniformly — backfill 'generic' for legacy callers that pre-date
-        # Phase 3 threading.
+        # Every row needs lob + relation_raw so the MERGE Cypher can read
+        # them uniformly — backfill defaults for legacy callers that
+        # pre-date Phase 3 / Stage A threading.
         for row in batch:
             row.setdefault("lob", "generic")
+            row.setdefault("relation_raw", rel_type)
         graph.query(
             f"""
             UNWIND $batch AS row
@@ -1478,12 +1489,14 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
                 WHEN o.entity_type IS NULL OR o.entity_type = 'Unknown' THEN row.object_type
                 ELSE o.entity_type END
             MERGE (s)-[r:{rel_type}]->(o)
-            ON CREATE SET r.span       = row.span,
-                          r.confidence = row.confidence,
-                          r.chunk_id   = row.chunk_id,
-                          r.source     = row.source,
-                          r.lob        = row.lob
-            ON MATCH SET  r.lob = COALESCE(r.lob, row.lob)
+            ON CREATE SET r.span         = row.span,
+                          r.confidence   = row.confidence,
+                          r.chunk_id     = row.chunk_id,
+                          r.source       = row.source,
+                          r.lob          = row.lob,
+                          r.relation_raw = row.relation_raw
+            ON MATCH SET  r.lob          = COALESCE(r.lob, row.lob),
+                          r.relation_raw = COALESCE(r.relation_raw, row.relation_raw)
             """,
             params={"batch": batch}
         )
@@ -1497,7 +1510,15 @@ def canonicalize_relations(state: Zone2State) -> dict:
     The LLM-based mapping only applies to LLM-extracted triples. Structured
     triples get their normalization in the subsequent normalize_relations step
     (hybrid embedding + structural + token overlap).
+
+    When ``state["skip_canonicalize"]`` is True, the node is a no-op so
+    cross-source canonicalization can be deferred to Zone 3 hierarchy
+    induction.  ``relation_raw`` on every triple is left unchanged
+    regardless — it always holds the post-sanitize, pre-cleanup form.
     """
+    if state.get("skip_canonicalize"):
+        print("\n[3.5/4] EDC Canonicalization — skipped (skip_canonicalize=True)")
+        return {}
     print("\n[3.5/4] EDC Canonicalization — mapping raw relations → vocab...")
     triples = state.get("triples", [])
     vocab   = state.get("vocab", [])
@@ -1648,7 +1669,15 @@ def normalize_structured_relations(state: Zone2State) -> dict:
 
     For near-ties (0.85-0.92), an LLM confirmation is used.
     Protected relations (too generic) are never merged.
+
+    When ``state["skip_normalize"]`` is True, the node is a no-op so
+    cross-source HAS_* merging can be deferred to Zone 3 hierarchy
+    induction.  ``relation_raw`` on every triple is left unchanged
+    regardless.
     """
+    if state.get("skip_normalize"):
+        print("\n[3.6/4] Hybrid relation normalization — skipped (skip_normalize=True)")
+        return {}
     print("\n[3.6/4] Hybrid relation normalization (structured + LLM)...")
     triples = state.get("triples", [])
     model_name = state.get("model", config.OLLAMA_MODEL)
@@ -2149,7 +2178,9 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
               skip_extraction: bool = False,
               chunks_file: str | None = None,
               results_dir: str | None = None,
-              no_wipe: bool = False):
+              no_wipe: bool = False,
+              skip_canonicalize: bool = False,
+              skip_normalize: bool = False):
     rdir = results_dir or config.RESULTS_DIR
     os.makedirs(rdir, exist_ok=True)
 
@@ -2219,6 +2250,8 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "chunks_file": chunks_file or config.ZONE1_CHUNKS_FILE,
             "results_dir": rdir,
             "no_wipe": no_wipe,
+            "skip_canonicalize": skip_canonicalize,
+            "skip_normalize": skip_normalize,
         }
 
         link_result = cross_source_link(result_state)
@@ -2255,6 +2288,8 @@ def run_zone2(model: str = config.OLLAMA_MODEL, num_passes: int = 3,
             "chunks_file":        chunks_file or config.ZONE1_CHUNKS_FILE,
             "results_dir":        rdir,
             "no_wipe":            no_wipe,
+            "skip_canonicalize":  skip_canonicalize,
+            "skip_normalize":     skip_normalize,
         })
         elapsed = time.time() - start
 
@@ -2322,9 +2357,22 @@ Examples:
         "--no-wipe", action="store_true",
         help="Skip Neo4j graph clear (incremental mode, for concurrent safety)"
     )
+    parser.add_argument(
+        "--skip-canonicalize", action="store_true",
+        help="Skip Zone 2 EDC canonicalization so cross-source mapping "
+             "is deferred to Zone 3 hierarchy induction (relation_raw is "
+             "always preserved on each triple regardless)."
+    )
+    parser.add_argument(
+        "--skip-normalize", action="store_true",
+        help="Skip Zone 2 hybrid HAS_* relation merging so cross-source "
+             "merging is deferred to Zone 3 hierarchy induction."
+    )
     args = parser.parse_args()
     run_zone2(model=args.model, num_passes=args.passes,
               skip_extraction=args.skip_extraction,
               chunks_file=args.chunks,
               results_dir=args.results_dir,
-              no_wipe=args.no_wipe)
+              no_wipe=args.no_wipe,
+              skip_canonicalize=args.skip_canonicalize,
+              skip_normalize=args.skip_normalize)

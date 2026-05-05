@@ -196,6 +196,7 @@ def _build_class_chain_triples(
             "subject": specific,
             "subject_type": _ONTOLOGY_CLASS_TYPE,
             "relation": "IS_A",
+            "relation_raw": "IS_A",
             "object": general,
             "object_type": _ONTOLOGY_CLASS_TYPE,
             "span": f"{specific} is a kind of {general}",
@@ -215,6 +216,7 @@ def _build_class_chain_triples(
             "subject": general,
             "subject_type": _ONTOLOGY_CLASS_TYPE,
             "relation": "IS_A",
+            "relation_raw": "IS_A",
             "object": _ONTOLOGY_ROOT,
             "object_type": _ONTOLOGY_CLASS_TYPE,
             "span": f"{general} is a kind of {_ONTOLOGY_ROOT}",
@@ -720,6 +722,7 @@ def identity_triples(
             "subject": id_key,
             "subject_type": id_type,
             "relation": "IS_A",
+            "relation_raw": "IS_A",
             "object": id_type,
             "object_type": "IdentityType",
             "span": f"{id_type} identity from {source}",
@@ -734,6 +737,7 @@ def identity_triples(
             "subject": record_key,
             "subject_type": record_entity_type,
             "relation": "BELONGS_TO",
+            "relation_raw": "BELONGS_TO",
             "object": id_key,
             "object_type": id_type,
             "span": f"{record_key} belongs to {id_type} {id_key}",
@@ -752,6 +756,7 @@ def identity_triples(
                 "subject": id_key,
                 "subject_type": id_type,
                 "relation": relation,
+                "relation_raw": relation,
                 "object": value,
                 "object_type": value_type,
                 "span": f"{field_name}: {value}",
@@ -844,6 +849,7 @@ def record_to_triples(
         "subject": key,
         "subject_type": entity_type,
         "relation": "IS_A",
+        "relation_raw": "IS_A",
         "object": entity_type,
         "object_type": "RecordType",
         "span": f"{entity_type} record from {source}",
@@ -854,7 +860,9 @@ def record_to_triples(
         "source_role": source_role,
     })
 
-    # Property triples.
+    # Property triples.  ``relation_raw`` mirrors ``relation`` for
+    # structured triples — the field-derived HAS_X is the lossless,
+    # source-specific form Zone 3 will cluster bottom-up.
     for field_name, value in record.items():
         value_type = infer_value_type(field_name, value)
         relation = _field_to_relation(field_name)
@@ -863,6 +871,7 @@ def record_to_triples(
             "subject": key,
             "subject_type": entity_type,
             "relation": relation,
+            "relation_raw": relation,
             "object": value,
             "object_type": value_type,
             "span": f"{field_name}: {value}",
@@ -881,6 +890,7 @@ def record_to_triples(
                 "subject": key,
                 "subject_type": entity_type,
                 "relation": "ABOUT",
+                "relation_raw": "ABOUT",
                 "object": fk["target_key"],
                 "object_type": _ENTITY_TYPE_MAP.get(fk["references_type"], "Record"),
                 "span": f"{fk['column']}: {fk['value']}",
