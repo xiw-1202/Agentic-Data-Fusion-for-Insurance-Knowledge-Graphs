@@ -649,6 +649,92 @@ def _extract_pdf_tables(pdf_path: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Shared CSV batching scaffold
+# ---------------------------------------------------------------------------
+
+def _batch_records_to_chunks(
+    records: list[dict],
+    schema_text: str,
+    dataset_header: str,
+    record_formatter: Callable[[dict, int], str],
+    section_hierarchy_prefix: list[str],
+    temporal_extractor: Callable[[dict], list[str]] | None = None,
+    max_tokens: int = MAX_CHUNK_TOKENS,
+) -> list[dict]:
+    """Shared schema-chunk + token-capped batching scaffold for CSV chunkers.
+
+    Per-record provenance:
+      • ``record_formatter`` is called as ``record_formatter(rec, abs_idx)``
+        and is expected to embed ``RECORD <abs_idx>:`` in its output so the
+        chunk text carries per-record identifiers (not just batch ranges).
+      • The flushed chunk's ``section_hierarchy`` records the absolute index
+        range ``records N–M``.
+
+    Returns: ``[schema_chunk, *data_chunks]`` where each chunk dict has
+    keys ``text``, ``section_hierarchy``, ``pages``, ``temporal_markers``,
+    ``merged_from``, ``chunk_type``.
+    """
+    chunks: list[dict] = []
+
+    # Chunk 0: schema description.  Always emitted, even when records=[].
+    chunks.append({
+        "text": schema_text,
+        "section_hierarchy": section_hierarchy_prefix + ["schema"],
+        "pages": [],
+        "temporal_markers": [],
+        "merged_from": [],
+        "chunk_type": "text",
+    })
+
+    current_batch: list[str] = []
+    current_tokens: int = 0
+    current_temporal: list[str] = []
+    batch_start_idx: int = 0
+    last_seen_idx: int = -1   # last record index actually appended to a batch
+
+    def flush(end_idx: int) -> None:
+        nonlocal current_batch, current_tokens, current_temporal, batch_start_idx
+        if not current_batch:
+            return
+        text = dataset_header + "\n\n".join(current_batch)
+        chunks.append({
+            "text": text,
+            "section_hierarchy": (
+                section_hierarchy_prefix + [f"records {batch_start_idx}–{end_idx}"]
+            ),
+            "pages": [],
+            "temporal_markers": list(dict.fromkeys(current_temporal)),
+            "merged_from": [],
+            "chunk_type": "text",
+        })
+        current_batch = []
+        current_tokens = 0
+        current_temporal = []
+        batch_start_idx = end_idx + 1
+
+    for rec_idx, rec in enumerate(records):
+        formatted = record_formatter(rec, rec_idx)
+        if not formatted:
+            continue
+        tok = _approx_tokens(formatted)
+
+        if current_tokens + tok > max_tokens and current_batch:
+            flush(last_seen_idx)
+            batch_start_idx = rec_idx
+
+        current_batch.append(formatted)
+        current_tokens += tok
+        last_seen_idx = rec_idx
+        if temporal_extractor is not None:
+            current_temporal.extend(temporal_extractor(rec))
+
+    if current_batch:
+        flush(last_seen_idx)
+
+    return chunks
+
+
+# ---------------------------------------------------------------------------
 # CSV ingestion (OpenFEMA)
 # ---------------------------------------------------------------------------
 
@@ -656,6 +742,7 @@ def _format_csv_record(
     rec: dict,
     record_type: str,
     column_types: dict[str, str] | None = None,
+    record_idx: int | None = None,
 ) -> str:
     """
     Format a single CSV record into grouped, human-readable text.
@@ -664,6 +751,9 @@ def _format_csv_record(
     policy — type-aware, so legitimate ``$0`` payments and ``0`` counts
     are preserved for currency/integer/float columns.
     camelCase field names are converted to human-readable labels.
+
+    When ``record_idx`` is provided, the record header is
+    ``RECORD <idx>:`` (per-record provenance); otherwise just ``RECORD:``.
     """
     groups = CSV_FIELD_GROUPS.get(record_type, {})
     column_types = column_types or {}
@@ -698,7 +788,14 @@ def _format_csv_record(
     if extras:
         lines.append("  [Other] " + " | ".join(extras[:5]))
 
-    return "RECORD:\n" + "\n".join(lines)
+    header = f"RECORD {record_idx}:" if record_idx is not None else "RECORD:"
+    return f"{header}\n" + "\n".join(lines)
+
+
+_OPENFEMA_DATE_FIELDS = frozenset({
+    "dateOfLoss", "originalNBDate", "originalConstructionDate",
+    "policyEffectiveDate", "policyTerminationDate", "asOfDate",
+})
 
 
 def _chunk_csv_records(
@@ -708,17 +805,16 @@ def _chunk_csv_records(
     max_tokens: int = MAX_CHUNK_TOKENS,
 ) -> list[dict]:
     """
-    Convert structured CSV records into token-capped text chunks.
-    Uses dynamic batching (replaces old fixed batch_size=50) to respect max_tokens.
-    First chunk is always a schema description to give the LLM field vocabulary.
-    Each subsequent chunk prepends a brief dataset header for context.
+    Convert structured OpenFEMA records into token-capped text chunks
+    via the shared :func:`_batch_records_to_chunks` scaffold.
+
+    Per-record provenance: each record carries ``RECORD <abs_idx>:`` so
+    chatbot/eval traces can identify the originating record without
+    parsing chunk text.
     """
-    DATE_FIELDS = {
-        "dateOfLoss", "originalNBDate", "originalConstructionDate",
-        "policyEffectiveDate", "policyTerminationDate", "asOfDate",
-    }
     dataset_title = record_type.title()  # "Policies" | "Claims"
     schema_header_line = f"DATASET: OpenFEMA NFIP {dataset_title}\n"
+    schema_text = schema_header_line + CSV_SCHEMA_HEADERS.get(record_type, "")
 
     # Type-infer once so legitimate $0 / 0-count values are preserved for
     # currency/integer/float columns (matches generic CSV path).
@@ -729,64 +825,26 @@ def _chunk_csv_records(
             all_headers.update(rec.keys())
         column_types = _infer_column_types(records, list(all_headers))
 
-    chunks: list[dict] = []
+    def fmt(rec: dict, idx: int) -> str:
+        return _format_csv_record(rec, record_type, column_types, record_idx=idx)
 
-    # --- Chunk 0: schema description ---
-    schema_text = schema_header_line + CSV_SCHEMA_HEADERS.get(record_type, "")
-    chunks.append({
-        "text": schema_text,
-        "section_hierarchy": [source, "schema"],
-        "pages": [],
-        "temporal_markers": [],
-        "merged_from": [],
-        "chunk_type": "text",
-    })
-
-    # --- Data chunks: dynamic token-capped batching ---
-    current_batch: list[str] = []
-    current_tokens: int = 0
-    current_temporal: list[str] = []
-    batch_start_idx: int = 0
-
-    def flush_batch(end_idx: int) -> None:
-        nonlocal current_batch, current_tokens, current_temporal, batch_start_idx
-        if not current_batch:
-            return
-        text = schema_header_line + "\n\n".join(current_batch)
-        chunks.append({
-            "text": text,
-            "section_hierarchy": [source, f"records {batch_start_idx}–{end_idx}"],
-            "pages": [],
-            "temporal_markers": list(dict.fromkeys(current_temporal)),
-            "merged_from": [],
-            "chunk_type": "text",
-        })
-        current_batch = []
-        current_tokens = 0
-        current_temporal = []
-        batch_start_idx = end_idx + 1
-
-    for rec_idx, rec in enumerate(records):
-        # Extract temporal markers before formatting
-        temporal: list[str] = []
-        for df in DATE_FIELDS:
+    def temporal(rec: dict) -> list[str]:
+        out: list[str] = []
+        for df in _OPENFEMA_DATE_FIELDS:
             v = rec.get(df, "")
             if v and isinstance(v, str):
-                temporal.append(v[:10])  # YYYY-MM-DD prefix
+                out.append(v[:10])  # YYYY-MM-DD prefix
+        return out
 
-        formatted = _format_csv_record(rec, record_type, column_types)
-        tok = _approx_tokens(formatted)
-
-        if current_tokens + tok > max_tokens and current_batch:
-            flush_batch(rec_idx - 1)
-
-        current_batch.append(formatted)
-        current_tokens += tok
-        current_temporal.extend(temporal)
-
-    flush_batch(len(records) - 1)   # flush final batch
-
-    return chunks
+    return _batch_records_to_chunks(
+        records=records,
+        schema_text=schema_text,
+        dataset_header=schema_header_line,
+        record_formatter=fmt,
+        section_hierarchy_prefix=[source],
+        temporal_extractor=temporal,
+        max_tokens=max_tokens,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1188,6 +1246,7 @@ def _format_generic_csv_record(
     headers: list[str],
     expansions: dict[str, str] | None = None,
     column_types: dict[str, str] | None = None,
+    record_idx: int | None = None,
 ) -> str:
     """Format a generic CSV record into grouped, human-readable text.
 
@@ -1195,6 +1254,9 @@ def _format_generic_csv_record(
     ``_is_meaningful_value`` rejects under the inferred column type — so
     zeros are kept for numeric/currency columns but dropped for boolean
     flag columns.
+
+    When ``record_idx`` is provided, the record header is
+    ``RECORD <idx>:`` (per-record provenance); otherwise just ``RECORD:``.
     """
     groups: dict[str, list[str]] = {}
     column_types = column_types or {}
@@ -1221,7 +1283,10 @@ def _format_generic_csv_record(
         if parts:
             lines.append(f"  [{g}] " + " | ".join(parts))
 
-    return "RECORD:\n" + "\n".join(lines) if lines else ""
+    if not lines:
+        return ""
+    header = f"RECORD {record_idx}:" if record_idx is not None else "RECORD:"
+    return f"{header}\n" + "\n".join(lines)
 
 
 def _chunk_generic_csv_records(
@@ -1232,10 +1297,10 @@ def _chunk_generic_csv_records(
     max_tokens: int = MAX_CHUNK_TOKENS,
     expansions: dict[str, str] | None = None,
 ) -> list[dict]:
-    """Convert generic CSV records into token-capped text chunks.
+    """Convert generic CSV records into token-capped text chunks via the
+    shared :func:`_batch_records_to_chunks` scaffold.
 
-    Same batching logic as OpenFEMA but with auto-generated schema
-    and auto-grouped fields.
+    Per-record provenance: each record carries ``RECORD <abs_idx>:``.
     """
     # Schema chunk: list all column headers with their auto-detected groups.
     schema_lines = [f"DATASET SCHEMA: {dataset_name}"]
@@ -1255,55 +1320,20 @@ def _chunk_generic_csv_records(
     # columns and only dropped for boolean-encoded flags.
     column_types = _infer_column_types(records, headers)
 
-    chunks: list[dict] = []
+    def fmt(rec: dict, idx: int) -> str:
+        return _format_generic_csv_record(
+            rec, headers, expansions, column_types, record_idx=idx,
+        )
 
-    # Chunk 0: schema description.
-    chunks.append({
-        "text": schema_text,
-        "section_hierarchy": [source, "schema"],
-        "pages": [],
-        "temporal_markers": [],
-        "merged_from": [],
-        "chunk_type": "text",
-    })
-
-    # Data chunks: dynamic token-capped batching.
-    current_batch: list[str] = []
-    current_tokens: int = 0
-    batch_start_idx: int = 0
-
-    def flush_batch(end_idx: int) -> None:
-        nonlocal current_batch, current_tokens, batch_start_idx
-        if not current_batch:
-            return
-        text = dataset_header + "\n\n".join(current_batch)
-        chunks.append({
-            "text": text,
-            "section_hierarchy": [source, f"records {batch_start_idx}–{end_idx}"],
-            "pages": [],
-            "temporal_markers": [],
-            "merged_from": [],
-            "chunk_type": "text",
-        })
-        current_batch = []
-        current_tokens = 0
-        batch_start_idx = end_idx + 1
-
-    for rec_idx, rec in enumerate(records):
-        formatted = _format_generic_csv_record(rec, headers, expansions, column_types)
-        if not formatted:
-            continue
-        tok = _approx_tokens(formatted)
-
-        if current_tokens + tok > max_tokens and current_batch:
-            flush_batch(rec_idx - 1)
-
-        current_batch.append(formatted)
-        current_tokens += tok
-
-    flush_batch(len(records) - 1)
-
-    return chunks
+    return _batch_records_to_chunks(
+        records=records,
+        schema_text=schema_text,
+        dataset_header=dataset_header,
+        record_formatter=fmt,
+        section_hierarchy_prefix=[source],
+        temporal_extractor=None,
+        max_tokens=max_tokens,
+    )
 
 
 def ingest_generic_csv(
