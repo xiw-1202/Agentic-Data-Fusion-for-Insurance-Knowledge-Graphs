@@ -28,6 +28,8 @@ Usage:
   python3 zone2/pipeline.py --model qwen2.5:7b # alt model
 """
 
+from __future__ import annotations
+
 import json
 import re
 import time
@@ -607,8 +609,52 @@ def bootstrap_vocab(state: Zone2State) -> dict:
     return {"vocab": vocab, "entity_types": entity_types}
 
 
-def _parse_chunk_triples(parsed: list, chunk_id: str, source: str) -> list[dict]:
-    """Convert raw LLM-parsed items into validated, normalized triple dicts."""
+_PREAMBLE_SECTION_LIMIT = 100   # cap section-hierarchy section in preamble
+_PREAMBLE_TOTAL_LIMIT = 280     # hard cap on total preamble length
+
+
+def _build_chunk_preamble(chunk: dict) -> str:
+    """Build a compact ``Source: ... | LOB: ... | Section: ...`` preamble.
+
+    Used by both LLM extraction paths (main few-shot and decompose) so
+    the model gets enough context to disambiguate cross-section meaning
+    and apply LOB-aware extraction patterns without enlarging few-shot
+    payloads.
+
+    Returns at most :data:`_PREAMBLE_TOTAL_LIMIT` characters; ends with
+    a single newline so downstream callers can prepend directly.
+    """
+    src_full = str(chunk.get("source", "")).strip()
+    basename = src_full.replace("\\", "/").rsplit("/", 1)[-1]
+    lob = chunk.get("lob") or "generic"
+    hierarchy = chunk.get("section_hierarchy") or []
+
+    parts: list[str] = []
+    if basename:
+        parts.append(f"Source: {basename}")
+    parts.append(f"LOB: {lob}")
+    if hierarchy:
+        section = " > ".join(str(h) for h in hierarchy)
+        section = section[:_PREAMBLE_SECTION_LIMIT]
+        parts.append(f"Section: {section}")
+
+    line = "  |  ".join(parts)
+    if len(line) > _PREAMBLE_TOTAL_LIMIT:
+        line = line[: _PREAMBLE_TOTAL_LIMIT - 1] + "…"
+    return f"[Context] {line}\n"
+
+
+def _parse_chunk_triples(
+    parsed: list,
+    chunk_id: str,
+    source: str,
+    lob: str = "generic",
+) -> list[dict]:
+    """Convert raw LLM-parsed items into validated, normalized triple dicts.
+
+    Every emitted triple carries the chunk's ``lob`` so Zone 3 induction
+    and chatbot filters can scope by Line of Business.
+    """
     triples: list[dict] = []
     for item in parsed:
         if not isinstance(item, dict):
@@ -642,6 +688,7 @@ def _parse_chunk_triples(parsed: list, chunk_id: str, source: str) -> list[dict]
             "confidence": conf,
             "chunk_id":   chunk_id,
             "source":     source,
+            "lob":        lob or "generic",
         }
         if keep_triple(triple):
             triples.append(triple)
@@ -721,7 +768,12 @@ def _extract_subject_from_context(text: str, match_start: int) -> str:
     return ""
 
 
-def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[dict]:
+def _extract_numeric_from_text(
+    text: str,
+    chunk_id: str,
+    source: str,
+    lob: str = "generic",
+) -> list[dict]:
     """
     Regex fallback: extract numeric triples (dollar amounts, time periods,
     percentages) that the LLM typically misses (F-01 fix).
@@ -732,7 +784,11 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
 
     Only creates triples when the surrounding context is unambiguous.
     Returns [] for chunks with no numeric content or ambiguous context.
+
+    Every emitted triple carries the chunk's ``lob`` so Zone 3 induction
+    and chatbot filters can scope by Line of Business.
     """
+    lob = lob or "generic"
     triples: list[dict] = []
     text_lo = text.lower()
 
@@ -782,6 +838,7 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
             "chunk_id":     chunk_id,
             "source":       source,
             "source_type":  "regex",
+            "lob":          lob,
         })
 
     # --- Day periods ---
@@ -823,6 +880,7 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
             "chunk_id":     chunk_id,
             "source":       source,
             "source_type":  "regex",
+            "lob":          lob,
         })
 
     # --- Percentages ---
@@ -853,6 +911,7 @@ def _extract_numeric_from_text(text: str, chunk_id: str, source: str) -> list[di
             "chunk_id":     chunk_id,
             "source":       source,
             "source_type":  "regex",
+            "lob":          lob,
         })
 
     return triples
@@ -1097,8 +1156,13 @@ def _decompose_then_extract(
               end=" ", flush=True)
 
         # --- Stage 1: Decompose into facts ---
+        # Prepend the source/LOB/section preamble so the LLM understands
+        # what kind of document and section it is decomposing.
+        preamble = _build_chunk_preamble(chunk)
         try:
-            decomp_prompt = DECOMPOSITION_PROMPT.format(chunk_text=content)
+            decomp_prompt = DECOMPOSITION_PROMPT.format(
+                chunk_text=f"{preamble}\n{content}",
+            )
             response = llm_freeform.invoke([HumanMessage(content=decomp_prompt)])
             facts = _parse_decomposed_facts(response.content)
         except Exception as e:
@@ -1142,7 +1206,10 @@ def _decompose_then_extract(
                     continue
 
                 # Validate and normalize the triple.
-                validated = _parse_chunk_triples([parsed], chunk_id, source)
+                validated = _parse_chunk_triples(
+                    [parsed], chunk_id, source,
+                    lob=chunk.get("lob", "generic"),
+                )
                 if not validated:
                     continue
 
@@ -1190,11 +1257,15 @@ def _extract_one_pass(
         hierarchy = chunk.get("section_hierarchy", [])
         label     = " > ".join(hierarchy) if hierarchy else f"chunk {i+1}"
         print(f"    Chunk {i+1}/{len(chunks)} [{label[:45]}]...", end=" ", flush=True)
-        messages = base_messages + [HumanMessage(content=f"Text: {content}")]
+        chunk_lob = chunk.get("lob", "generic")
+        preamble = _build_chunk_preamble(chunk)
+        messages = base_messages + [
+            HumanMessage(content=f"{preamble}\nText: {content}")
+        ]
         try:
             response      = llm.invoke(messages)
             parsed        = _parse_json_list(response.content)
-            chunk_triples = _parse_chunk_triples(parsed, chunk_id, source)
+            chunk_triples = _parse_chunk_triples(parsed, chunk_id, source, lob=chunk_lob)
             if len(chunk_triples) > MAX_TRIPLES_PER_CHUNK:
                 print(f"→ {len(chunk_triples)} (capped to {MAX_TRIPLES_PER_CHUNK})")
                 chunk_triples = chunk_triples[:MAX_TRIPLES_PER_CHUNK]
@@ -1278,6 +1349,7 @@ def extract_triples(state: Zone2State) -> dict:
                     chunk["content"][:CHUNK_CONTENT_LIMIT],
                     chunk.get("chunk_id", ""),
                     chunk.get("source", ""),
+                    lob=chunk.get("lob", "generic"),
                 )
             )
         if regex_numeric:
@@ -1374,10 +1446,22 @@ def _group_triples_by_relation(triples: list[dict]) -> dict:
 
 
 def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
-    """MERGE triples into Neo4j grouped by relation type."""
+    """MERGE triples into Neo4j grouped by relation type.
+
+    The relationship MERGE writes ``r.lob`` onto every edge so Zone 3
+    induction and chatbot filters can scope by Line of Business without
+    traversing through endpoint nodes.  The SET uses COALESCE so that
+    re-inserts upgrade an unset edge but never blank a previously-set
+    LOB (defensive against a triple arriving without LOB tagging).
+    """
     total = 0
     for rel_type, batch in by_relation.items():
         rel_type = _sanitize_relation(rel_type)
+        # Every row needs a lob field so the MERGE Cypher can read it
+        # uniformly — backfill 'generic' for legacy callers that pre-date
+        # Phase 3 threading.
+        for row in batch:
+            row.setdefault("lob", "generic")
         graph.query(
             f"""
             UNWIND $batch AS row
@@ -1397,7 +1481,9 @@ def _batch_merge_triples(graph: Neo4jGraph, by_relation: dict) -> int:
             ON CREATE SET r.span       = row.span,
                           r.confidence = row.confidence,
                           r.chunk_id   = row.chunk_id,
-                          r.source     = row.source
+                          r.source     = row.source,
+                          r.lob        = row.lob
+            ON MATCH SET  r.lob = COALESCE(r.lob, row.lob)
             """,
             params={"batch": batch}
         )
