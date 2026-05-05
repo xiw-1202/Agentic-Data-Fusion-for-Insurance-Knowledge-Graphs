@@ -143,6 +143,90 @@ _ENTITY_TYPE_MAP: dict[str, str] = {
     "email": "EmailRecord",
 }
 
+# Root ontology class — top of the IS_A chain.
+_ONTOLOGY_ROOT: str = "Record"
+
+# Class-level subject/object marker (Phase 2 hierarchy triples).
+_ONTOLOGY_CLASS_TYPE: str = "OntologyClass"
+
+
+def _lob_entity_type(record_type: str, lob: str) -> str:
+    """Compose an LOB-specific entity type name.
+
+    'flood' + 'policies' → 'FloodPolicyRecord'
+    'lender_placed' + 'policies' → 'LenderPlacedPolicyRecord'
+    'generic' + 'policies' → 'PolicyRecord' (no LOB layer)
+    """
+    base = _ENTITY_TYPE_MAP.get(record_type, "Record")
+    if not lob or lob == "generic":
+        return base
+    # snake_case → PascalCase  (lender_placed → LenderPlaced)
+    prefix = "".join(part.capitalize() for part in lob.split("_") if part)
+    return f"{prefix}{base}"
+
+
+def _build_class_chain_triples(
+    lob_combos: set[tuple[str, str]],
+    record_types: set[str],
+) -> list[dict[str, Any]]:
+    """Emit ontology-class IS_A triples once per pipeline run.
+
+    Two layers:
+      • LOB-specific → general:  ``<Lob><RecordType> IS_A <RecordType>``
+        (skipped for ``lob == 'generic'``)
+      • General → root:          ``<RecordType> IS_A Record``
+
+    Class triples are marked ``source_type='structured'`` so they
+    round-trip through the dedup + Neo4j MERGE path identically to
+    record triples.  Class subjects/objects are typed
+    :data:`_ONTOLOGY_CLASS_TYPE` so Zone 3 induction can recognize
+    them as ontology nodes.
+    """
+    triples: list[dict[str, Any]] = []
+
+    # Layer 1: LOB-specific → general.
+    for lob, record_type in sorted(lob_combos):
+        if lob == "generic":
+            continue
+        specific = _lob_entity_type(record_type, lob)
+        general = _ENTITY_TYPE_MAP.get(record_type, "Record")
+        if specific == general:
+            continue  # safety: never emit (X IS_A X)
+        triples.append({
+            "subject": specific,
+            "subject_type": _ONTOLOGY_CLASS_TYPE,
+            "relation": "IS_A",
+            "object": general,
+            "object_type": _ONTOLOGY_CLASS_TYPE,
+            "span": f"{specific} is a kind of {general}",
+            "confidence": 1.0,
+            "chunk_id": "ontology",
+            "source": "ontology",
+            "source_type": "structured",
+            "source_role": "ontology",
+        })
+
+    # Layer 2: general → root (deduped).
+    for record_type in sorted(record_types):
+        general = _ENTITY_TYPE_MAP.get(record_type, "Record")
+        if general == _ONTOLOGY_ROOT:
+            continue
+        triples.append({
+            "subject": general,
+            "subject_type": _ONTOLOGY_CLASS_TYPE,
+            "relation": "IS_A",
+            "object": _ONTOLOGY_ROOT,
+            "object_type": _ONTOLOGY_CLASS_TYPE,
+            "span": f"{general} is a kind of {_ONTOLOGY_ROOT}",
+            "confidence": 1.0,
+            "chunk_id": "ontology",
+            "source": "ontology",
+            "source_type": "structured",
+            "source_role": "ontology",
+        })
+
+    return triples
+
 # Foreign key column patterns → what they reference.
 _FOREIGN_KEY_PATTERNS: list[tuple[str, str]] = [
     ("policy_number", "policies"),
@@ -731,18 +815,25 @@ def record_to_triples(
     chunk_id: str,
     source: str,
     record_index: int = 0,
+    lob: str = "generic",
 ) -> list[dict[str, Any]]:
     """Convert one parsed record into deterministic triples.
 
     Produces:
-      - 1 type triple:  (composite_key, IS_A, PolicyRecord/ClaimRecord)
+      - 1 type triple:  (composite_key, IS_A, <Lob>PolicyRecord)
+                        — instance-to-specific only.  The class chain
+                          (<Lob>X IS_A X, X IS_A Record) is emitted once
+                          per pipeline run by :func:`extract_structured`.
       - N property triples: (composite_key, HAS_FIELD_NAME, value)
 
-    All triples have confidence=1.0 and source_type='structured'.
+    When ``lob`` is ``"generic"`` (or omitted), the LOB layer collapses
+    and the entity type stays as the base ``PolicyRecord`` /
+    ``ClaimRecord`` / etc.  All triples have confidence=1.0 and
+    source_type='structured'.
     """
     key = generate_composite_key(record, record_type)
 
-    entity_type = _ENTITY_TYPE_MAP.get(record_type, "Record")
+    entity_type = _lob_entity_type(record_type, lob)
 
     triples: list[dict[str, Any]] = []
 
@@ -824,6 +915,10 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
     n_structured_chunks = 0
     n_identity_nodes = 0
     identity_keys_seen: set[str] = set()
+    # Track unique (lob, record_type) and unique record_type combos so the
+    # class-chain triples can be emitted exactly once each after the loop.
+    seen_lob_combos: set[tuple[str, str]] = set()
+    seen_record_types: set[str] = set()
 
     for i, chunk in enumerate(all_chunks):
         if is_schema_chunk(chunk):
@@ -838,6 +933,9 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
 
             chunk_id = str(chunk.get("chunk_id", i))
             source = chunk.get("source", "unknown")
+            chunk_lob = chunk.get("lob", "generic") or "generic"
+            seen_lob_combos.add((chunk_lob, record_type))
+            seen_record_types.add(record_type)
 
             for j, record in enumerate(records):
                 triples = record_to_triples(
@@ -846,6 +944,7 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
                     chunk_id=chunk_id,
                     source=source,
                     record_index=j,
+                    lob=chunk_lob,
                 )
                 structured_triples.extend(triples)
 
@@ -870,6 +969,15 @@ def extract_structured(state: dict[str, Any]) -> dict[str, Any]:
                 n_records += 1
         else:
             pdf_chunks.append(chunk)
+
+    # --- Class chain triples (Phase 2 hierarchy) ---------------------------
+    # For every (lob, record_type) seen, emit:
+    #   <Lob><RecordType> IS_A <RecordType>     (skipped when lob == 'generic')
+    #   <RecordType>      IS_A Record            (root, deduped)
+    class_chain_triples = _build_class_chain_triples(
+        seen_lob_combos, seen_record_types
+    )
+    structured_triples.extend(class_chain_triples)
 
     # Include schema chunks with PDF chunks so bootstrap_vocab can sample them.
     remaining_chunks = schema_chunks + pdf_chunks
