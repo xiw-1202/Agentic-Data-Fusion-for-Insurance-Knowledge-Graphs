@@ -826,6 +826,60 @@ def _is_letter_spaced_response(raw: str, expansion: str) -> bool:
     return expansion.replace(" ", "").lower() == raw.lower()
 
 
+def _call_llm(prompt: str, model: str | None = None) -> str:
+    """Provider-agnostic LLM call.
+
+    Reads ``config.LLM_PROVIDER`` (default ``"ollama"``) and dispatches
+    to the matching transport.  Keeps callers free of HTTP / SDK
+    plumbing — they only build prompts and parse responses.
+
+    Returns the raw text response.  Raises on transport / API errors so
+    callers can decide whether to fall back or hard-fail.
+    """
+    import config as cfg
+    provider = (getattr(cfg, "LLM_PROVIDER", None) or "ollama").lower()
+
+    if provider == "ollama":
+        import requests
+        llm_model = model or cfg.OLLAMA_MODEL
+        base_url = cfg.OLLAMA_BASE_URL
+        resp = requests.post(
+            f"{base_url}/api/generate",
+            json={"model": llm_model, "prompt": prompt, "stream": False,
+                  "options": {"temperature": 0, "num_predict": 1024}},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "")
+
+    if provider == "openai":
+        from openai import OpenAI
+        api_key = getattr(cfg, "OPENAI_API_KEY", None) or os.environ.get("OPENAI_API_KEY", "")
+        client = OpenAI(api_key=api_key)
+        llm_model = model or getattr(cfg, "OPENAI_MODEL", "gpt-4o-mini")
+        resp = client.chat.completions.create(
+            model=llm_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=1024,
+        )
+        return resp.choices[0].message.content or ""
+
+    if provider == "anthropic":
+        import anthropic
+        api_key = getattr(cfg, "ANTHROPIC_API_KEY", None) or os.environ.get("ANTHROPIC_API_KEY", "")
+        client = anthropic.Anthropic(api_key=api_key)
+        llm_model = model or getattr(cfg, "ANTHROPIC_MODEL", "claude-haiku-4-5")
+        resp = client.messages.create(
+            model=llm_model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return "".join(getattr(b, "text", "") for b in resp.content)
+
+    raise ValueError(f"Unknown LLM_PROVIDER: {provider!r}")
+
+
 def _expand_csv_headers(
     headers: list[str],
     sample_rows: list[dict[str, str]],
@@ -883,69 +937,57 @@ def _expand_csv_headers(
         "DO NOT letter-space the input (e.g. never return 'm a n u f a c t u r e r')."
     )
 
-    # Call LLM (optional — gracefully degrade if unavailable).
+    # Call LLM via provider-agnostic dispatcher.  Gracefully degrade on
+    # any failure — header expansion is a quality boost, not required.
     try:
-        import requests
-    except ImportError:
-        print("  ⚠ requests library not available, skipping header expansion")
+        raw_text = _call_llm(prompt, model)
+    except ImportError as e:
+        # Provider SDK not installed — silently fall back.
+        print(f"  ⚠ LLM SDK not available ({e}), using raw names")
         return {}
-
-    try:
-        import config as cfg
-        llm_model = model or cfg.OLLAMA_MODEL
-        base_url = cfg.OLLAMA_BASE_URL
-    except (ImportError, AttributeError) as e:
-        print(f"  ⚠ Config not available ({e}), skipping header expansion")
-        return {}
-
-    try:
-        resp = requests.post(
-            f"{base_url}/api/generate",
-            json={"model": llm_model, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0, "num_predict": 1024}},
-            timeout=120,
-        )
-        resp.raise_for_status()
-        raw_text = resp.json().get("response", "")
-
-        # Extract JSON from response (flat object, no nesting expected).
-        json_match = re.search(r'\{[^{}]*\}', raw_text, re.DOTALL)
-        if json_match:
-            expansions = json.loads(json_match.group())
-            # Normalize values to lowercase strings.
-            expansions = {
-                k: str(v).lower().strip()
-                for k, v in expansions.items()
-                if k in needs_expansion and isinstance(v, str) and v.strip()
-            }
-            # Reject letter-spaced responses ("m a n u f a c t u r e r") —
-            # better to fall back to the raw header than to mangle the
-            # downstream relation name.
-            rejected = [k for k, v in expansions.items()
-                        if _is_letter_spaced_response(k, v)]
-            for k in rejected:
-                expansions.pop(k, None)
-            if rejected:
-                print(f"  ⚠ Rejected {len(rejected)} letter-spaced responses: "
-                      f"{rejected[:5]}{'…' if len(rejected) > 5 else ''}")
-            print(f"  ✓ LLM expanded {len(expansions)}/{len(needs_expansion)} headers")
-
-            # Cache results.
-            if cache_path:
-                parent = os.path.dirname(cache_path)
-                if parent:
-                    os.makedirs(parent, exist_ok=True)
-                with open(cache_path, "w") as f:
-                    json.dump(expansions, f, indent=2)
-
-            return expansions
-
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"  ⚠ Header expansion failed ({e}), using raw names")
+        return {}
+
+    # Extract JSON from response (flat object, no nesting expected).
+    json_match = re.search(r'\{[^{}]*\}', raw_text, re.DOTALL)
+    if not json_match:
+        print("  ⚠ Could not find JSON in LLM response, using raw names")
+        return {}
+
+    try:
+        expansions = json.loads(json_match.group())
     except (json.JSONDecodeError, ValueError) as e:
         print(f"  ⚠ Could not parse LLM response ({e}), using raw names")
+        return {}
 
-    return {}
+    # Normalize values to lowercase strings.
+    expansions = {
+        k: str(v).lower().strip()
+        for k, v in expansions.items()
+        if k in needs_expansion and isinstance(v, str) and v.strip()
+    }
+    # Reject letter-spaced responses ("m a n u f a c t u r e r") — better
+    # to fall back to the raw header than to mangle the downstream
+    # relation name.
+    rejected = [k for k, v in expansions.items()
+                if _is_letter_spaced_response(k, v)]
+    for k in rejected:
+        expansions.pop(k, None)
+    if rejected:
+        print(f"  ⚠ Rejected {len(rejected)} letter-spaced responses: "
+              f"{rejected[:5]}{'…' if len(rejected) > 5 else ''}")
+    print(f"  ✓ LLM expanded {len(expansions)}/{len(needs_expansion)} headers")
+
+    # Cache results.
+    if cache_path:
+        parent = os.path.dirname(cache_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(cache_path, "w") as f:
+            json.dump(expansions, f, indent=2)
+
+    return expansions
 
 
 def _infer_column_types(
