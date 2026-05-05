@@ -6,8 +6,10 @@ knowledge — all entity types and relation types are bootstrapped from the
 documents themselves. Works on any insurance Line of Business (flood, auto,
 health, liability) without code changes.
 
-Architecture (4-node LangGraph pipeline):
-  load_chunks → bootstrap_vocab → extract_triples → insert_to_neo4j → entity_resolution → END
+Architecture (LangGraph pipeline):
+  load_chunks → detect_lobs → extract_structured → bootstrap_vocab →
+  extract_triples → canonicalize_relations → normalize_relations →
+  zone25_entity_resolution → cross_source_link → insert_to_neo4j → END
 
 Design principles:
   - NO reference ontology in the pipeline (Riskine is evaluation-only)
@@ -59,6 +61,7 @@ from zone2.prompts import (
 from zone2.entity_resolution import resolve_entities_in_memory
 from zone2.structured_mapper import extract_structured
 from zone2.cross_source_linker import cross_source_link
+from zone2.lob_detector import detect_lobs
 from zone2.utils import sanitize_label, sanitize_relation
 
 
@@ -1984,6 +1987,7 @@ def zone25_entity_resolution(state: Zone2State) -> dict:
 def build_pipeline():
     builder = StateGraph(Zone2State)
     builder.add_node("load_chunks",              load_chunks)
+    builder.add_node("detect_lobs",              detect_lobs)
     builder.add_node("extract_structured",       extract_structured)
     builder.add_node("bootstrap_vocab",          bootstrap_vocab)
     builder.add_node("extract_triples",          extract_triples)
@@ -1993,7 +1997,8 @@ def build_pipeline():
     builder.add_node("zone25_entity_resolution", zone25_entity_resolution)
     builder.add_node("cross_source_link",        cross_source_link)
     builder.set_entry_point("load_chunks")
-    builder.add_edge("load_chunks",              "extract_structured")
+    builder.add_edge("load_chunks",              "detect_lobs")
+    builder.add_edge("detect_lobs",              "extract_structured")
     builder.add_edge("extract_structured",       "bootstrap_vocab")
     builder.add_edge("bootstrap_vocab",          "extract_triples")
     builder.add_edge("extract_triples",          "canonicalize_relations")
