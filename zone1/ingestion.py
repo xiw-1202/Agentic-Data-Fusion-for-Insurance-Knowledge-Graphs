@@ -514,14 +514,21 @@ def _extract_pdf_tables(pdf_path: str) -> list[dict]:
 # CSV ingestion (OpenFEMA)
 # ---------------------------------------------------------------------------
 
-def _format_csv_record(rec: dict, record_type: str) -> str:
+def _format_csv_record(
+    rec: dict,
+    record_type: str,
+    column_types: dict[str, str] | None = None,
+) -> str:
     """
     Format a single CSV record into grouped, human-readable text.
     Uses CSV_FIELD_GROUPS to organize fields by semantic category.
-    Skips null/False/empty values and fields in CSV_SKIP_FIELDS.
+    Drops null/empty values via the shared :func:`_is_meaningful_value`
+    policy — type-aware, so legitimate ``$0`` payments and ``0`` counts
+    are preserved for currency/integer/float columns.
     camelCase field names are converted to human-readable labels.
     """
     groups = CSV_FIELD_GROUPS.get(record_type, {})
+    column_types = column_types or {}
     lines: list[str] = []
     seen: set[str] = set()
 
@@ -531,7 +538,8 @@ def _format_csv_record(rec: dict, record_type: str) -> str:
             if f in CSV_SKIP_FIELDS:
                 continue
             v = rec.get(f, "")
-            if v is None or str(v).strip() in ("", "False", "0", "0.0", "0.00"):
+            v_str = "" if v is None else str(v)
+            if not _is_meaningful_value(v_str, column_types.get(f)):
                 continue
             seen.add(f)
             label = _humanize_field_name(f)
@@ -544,7 +552,8 @@ def _format_csv_record(rec: dict, record_type: str) -> str:
     for f, v in rec.items():
         if f in seen or f in CSV_SKIP_FIELDS:
             continue
-        if v is None or str(v).strip() in ("", "False", "0", "0.0", "0.00"):
+        v_str = "" if v is None else str(v)
+        if not _is_meaningful_value(v_str, column_types.get(f)):
             continue
         label = _humanize_field_name(f)
         extras.append(f"{label}: {v}")
@@ -572,6 +581,15 @@ def _chunk_csv_records(
     }
     dataset_title = record_type.title()  # "Policies" | "Claims"
     schema_header_line = f"DATASET: OpenFEMA NFIP {dataset_title}\n"
+
+    # Type-infer once so legitimate $0 / 0-count values are preserved for
+    # currency/integer/float columns (matches generic CSV path).
+    column_types: dict[str, str] = {}
+    if records:
+        all_headers: set[str] = set()
+        for rec in records:
+            all_headers.update(rec.keys())
+        column_types = _infer_column_types(records, list(all_headers))
 
     chunks: list[dict] = []
 
@@ -618,7 +636,7 @@ def _chunk_csv_records(
             if v and isinstance(v, str):
                 temporal.append(v[:10])  # YYYY-MM-DD prefix
 
-        formatted = _format_csv_record(rec, record_type)
+        formatted = _format_csv_record(rec, record_type, column_types)
         tok = _approx_tokens(formatted)
 
         if current_tokens + tok > max_tokens and current_batch:
@@ -1444,23 +1462,51 @@ def run_zone1(
                     chunks = ingest_text_file(fpath)
                     all_chunks.extend(chunks)
 
-        # Discover OpenFEMA JSONs (in case they're mixed in).
+        # Discover OpenFEMA-shaped JSONs (in case they're mixed in).
+        # Detection rule (replaces brittle "sample" filename gate):
+        #   1. Top-level value is an object/dict.
+        #   2. At least one key whose value is a non-empty list[dict].
+        #   3. Key name hints at policy/claim domain (avoids false
+        #      positives on arbitrary JSON blobs).
         for root, _dirs, files in os.walk(data_dir):
             for f in sorted(files):
                 fpath = os.path.join(root, f)
-                if f.lower().endswith(".json") and "sample" in f.lower():
-                    # Attempt to load as OpenFEMA format.
-                    try:
-                        with open(fpath) as fh:
-                            data = json.load(fh)
-                        for key in data:
-                            if isinstance(data[key], list) and len(data[key]) > 0:
-                                rtype = "policies" if "polic" in key.lower() else "claims"
-                                chunks = ingest_csv(fpath, key, rtype)
-                                all_chunks.extend(chunks)
-                                csv_chunk_groups.append((f"{f} ({key})", chunks))
-                    except (json.JSONDecodeError, Exception):
-                        pass
+                if not f.lower().endswith(".json"):
+                    continue
+                try:
+                    with open(fpath) as fh:
+                        data = json.load(fh)
+                except (json.JSONDecodeError, OSError) as e:
+                    print(f"  ⚠ Skipping {f}: cannot parse JSON ({e})")
+                    continue
+
+                if not isinstance(data, dict):
+                    continue
+
+                matched_any = False
+                for key, value in data.items():
+                    if not (isinstance(value, list) and value
+                            and isinstance(value[0], dict)):
+                        continue
+                    kl = key.lower()
+                    if "polic" not in kl and "claim" not in kl:
+                        continue
+                    rtype = "policies" if "polic" in kl else "claims"
+                    chunks = ingest_csv(fpath, key, rtype)
+                    all_chunks.extend(chunks)
+                    csv_chunk_groups.append((f"{f} ({key})", chunks))
+                    matched_any = True
+
+                if not matched_any:
+                    # JSON was syntactically valid but didn't look OpenFEMA-shaped.
+                    # Emit only when the file has dict-of-lists shape so the
+                    # log isn't flooded by unrelated JSON in the data dir.
+                    has_list_of_dicts = any(
+                        isinstance(v, list) and v and isinstance(v[0], dict)
+                        for v in data.values()
+                    )
+                    if has_list_of_dicts:
+                        print(f"  ℹ {f}: dict-of-lists JSON, but no policy/claim key — skipped")
 
     # --- Summary ---
     print(f"\n{'=' * 60}")
