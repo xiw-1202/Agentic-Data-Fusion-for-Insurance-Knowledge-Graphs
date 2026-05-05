@@ -23,7 +23,7 @@ import re
 import os
 import sys
 from dataclasses import dataclass, field, asdict
-from typing import Optional
+from typing import Callable, Optional
 
 # Allow imports from project root (config.py lives there)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -175,6 +175,7 @@ def _extract_temporal_markers(text: str) -> list[str]:
 
 def _detect_section_label(line: str) -> Optional[tuple[str, str]]:
     """
+    SFIP-tuned header detector for the NFIP General Property Form PDF.
     Returns (level, label) if line is a section header, else None.
     level: 'major' (Roman) or 'sub' (letter)
     """
@@ -184,6 +185,110 @@ def _detect_section_label(line: str) -> Optional[tuple[str, str]]:
     if LETTER_SUBSECTION.match(stripped):
         return ("sub", stripped.split('\n')[0].strip())
     return None
+
+
+# Generic header patterns for plain-text inputs (scraped policy pages,
+# Markdown-style docs).  Intentionally distinct from SFIP regexes —
+# scraped sources rarely use Roman numerals.
+MD_HEADER          = re.compile(r'^(#{1,3})\s+(.+?)\s*$')
+NUMBERED_MAJOR     = re.compile(r'^(\d+)\.\s+([A-Z][^\n]{1,80})$')
+NUMBERED_SUB       = re.compile(r'^(\d+)\.(\d+)\s+([A-Z][^\n]{1,80})$')
+ALLCAPS_HEADER     = re.compile(r'^([A-Z][A-Z0-9 \-]{4,80})$')
+TITLE_COLON_HEADER = re.compile(r'^([A-Z][A-Za-z][^\n:]{1,60}):\s*$')
+
+
+def _detect_text_section(line: str) -> Optional[tuple[str, str]]:
+    """Generic header detector for plain-text inputs.
+
+    Recognizes Markdown (``# Title`` / ``## Title``), numbered (``1. Title``,
+    ``1.1 Title``), all-caps lines (>=5 chars), and Title-Case-followed-by-colon
+    lines.  Returns (level, label) or None.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return None
+
+    m = MD_HEADER.match(stripped)
+    if m:
+        hashes = m.group(1)
+        level = "major" if len(hashes) == 1 else "sub"
+        return (level, stripped)
+
+    m = NUMBERED_SUB.match(stripped)
+    if m:
+        return ("sub", stripped)
+
+    m = NUMBERED_MAJOR.match(stripped)
+    if m:
+        return ("major", stripped)
+
+    if ALLCAPS_HEADER.match(stripped):
+        return ("major", stripped)
+
+    if TITLE_COLON_HEADER.match(stripped):
+        return ("sub", stripped)
+
+    return None
+
+
+def _split_lines_by_headers(
+    lines_with_pages: list[tuple[str, Optional[int]]],
+    header_detector: Callable[[str], Optional[tuple[str, str]]],
+    min_text_len: int = 40,
+) -> list[dict]:
+    """Generic two-level section splitter shared by PDF and TXT paths.
+
+    Walks ``lines_with_pages`` once, calls ``header_detector`` on each
+    line, and flushes accumulated text on every header boundary.
+    Sections shorter than ``min_text_len`` are dropped.
+
+    Args:
+        lines_with_pages: list of (line_text, page_num | None).
+        header_detector: callable returning (level, label) or None.
+            level ∈ {"major", "sub"} — "major" resets sub level.
+        min_text_len: minimum text length to keep a section.
+
+    Returns list of section dicts with keys ``text``, ``section_hierarchy``,
+    ``pages``, ``temporal_markers``, ``merged_from``, ``chunk_type``.
+    """
+    sections: list[dict] = []
+    current_text_lines: list[str] = []
+    current_pages: list[Optional[int]] = []
+    current_major = ""
+    current_sub = ""
+
+    def flush(next_major: str = "", next_sub: str = "") -> None:
+        nonlocal current_text_lines, current_pages, current_major, current_sub
+        text = _strip_noise("\n".join(current_text_lines))
+        if len(text) > min_text_len:
+            hierarchy = [h for h in [current_major, current_sub] if h]
+            pages = [p for p in current_pages if p is not None]
+            sections.append({
+                "text": text,
+                "section_hierarchy": hierarchy,
+                "pages": list(dict.fromkeys(pages)),
+                "temporal_markers": _extract_temporal_markers(text),
+                "merged_from": [],
+                "chunk_type": "text",
+            })
+        current_text_lines = []
+        current_pages = []
+        current_major = next_major
+        current_sub = next_sub
+
+    for line, page_num in lines_with_pages:
+        detection = header_detector(line)
+        if detection:
+            level, label = detection
+            if level == "major":
+                flush(next_major=label, next_sub="")
+            else:
+                flush(next_major=current_major, next_sub=label)
+        current_text_lines.append(line)
+        current_pages.append(page_num)
+
+    flush()
+    return sections
 
 
 def _humanize_field_name(field_name: str, expansions: dict[str, str] | None = None) -> str:
@@ -265,58 +370,60 @@ def _auto_group_field(field_name: str) -> str:
 
 def _split_pdf_by_sections(pdf_path: str) -> list[dict]:
     """
-    Load PDF and split at Roman-numeral and letter section boundaries.
-    Returns list of raw section dicts with text, hierarchy, pages.
+    Load PDF and split at SFIP Roman-numeral / letter section boundaries.
+    Thin wrapper around :func:`_split_lines_by_headers` that flattens
+    pages into (line, page_num) pairs and delegates the section walk.
     """
     loader = PyPDFLoader(pdf_path)
     pages = loader.load()
 
-    sections: list[dict] = []
-    current_text_lines: list[str] = []
-    current_pages: list[int] = []
-    current_major = ""
-    current_sub = ""
-
-    def flush(next_major: str = "", next_sub: str = "") -> None:
-        nonlocal current_text_lines, current_pages, current_major, current_sub
-        text = _strip_noise("\n".join(current_text_lines))
-        if len(text) > 40:   # skip near-empty sections
-            hierarchy = [h for h in [current_major, current_sub] if h]
-            sections.append({
-                "text": text,
-                "section_hierarchy": hierarchy,
-                "pages": list(dict.fromkeys(current_pages)),
-                "temporal_markers": _extract_temporal_markers(text),
-                "merged_from": [],
-                "chunk_type": "text",
-            })
-        current_text_lines = []
-        current_pages = []
-        current_major = next_major
-        current_sub = next_sub
-
+    lines_with_pages: list[tuple[str, Optional[int]]] = []
     for page_num, page in enumerate(pages):
         raw = _strip_noise(page.page_content)
-        lines = raw.split('\n')
+        for line in raw.split('\n'):
+            lines_with_pages.append((line, page_num))
 
-        for line in lines:
-            detection = _detect_section_label(line)
-            if detection:
-                level, label = detection
-                if level == "major":
-                    flush(next_major=label, next_sub="")
-                else:  # sub-section
-                    flush(next_major=current_major, next_sub=label)
-            current_text_lines.append(line)
-            current_pages.append(page_num)
-
-    flush()  # capture last section
-    return sections
+    return _split_lines_by_headers(
+        lines_with_pages,
+        header_detector=_detect_section_label,
+        min_text_len=40,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Sub-chunking: split oversized sections by paragraph
 # ---------------------------------------------------------------------------
+
+_OVERLAP_SENTINEL = "[continued from previous part]"
+_OVERLAP_MAX_TOKENS = 200   # hard cap on tail overlap size
+
+
+def _bounded_tail(body_paragraphs: list[str],
+                   cap_tokens: int = _OVERLAP_MAX_TOKENS) -> str:
+    """Last body paragraph, truncated to last sentences if it exceeds *cap_tokens*.
+
+    Used to give a continuation sub-chunk just enough body context from
+    the previous part without exploding the token budget.
+    """
+    if not body_paragraphs:
+        return ""
+    last = body_paragraphs[-1].strip()
+    if not last:
+        return ""
+    if _approx_tokens(last) <= cap_tokens:
+        return last
+    # Trim from the front by sentence so the most recent prose survives.
+    sentences = re.split(r'(?<=[.!?])\s+', last)
+    kept: list[str] = []
+    used = 0
+    for s in reversed(sentences):
+        st = _approx_tokens(s)
+        if used + st > cap_tokens and kept:
+            break
+        kept.insert(0, s)
+        used += st
+    return " ".join(kept).strip()
+
 
 def _sub_chunk_section(section: dict,
                         max_tokens: int = MAX_CHUNK_TOKENS) -> list[dict]:
@@ -324,6 +431,14 @@ def _sub_chunk_section(section: dict,
     Split a single section that exceeds max_tokens by paragraph boundaries.
     Each sub-chunk inherits parent section_hierarchy and appends a 'part N' label.
     The first paragraph (section header) is repeated in every sub-chunk for context.
+
+    Continuation context: parts 2+ also include a bounded tail of the
+    previous part's last body paragraph (≤ ``_OVERLAP_MAX_TOKENS``)
+    under a ``[continued from previous part]`` sentinel.  This gives the
+    Zone 2 LLM enough context for definitions that span the split point
+    without inflating triple counts (Zone 2 dedup is keyed on
+    (subject, relation, object) only).
+
     Returns [section] unchanged if already within the token limit.
     """
     if _approx_tokens(section["text"]) <= max_tokens:
@@ -345,6 +460,19 @@ def _sub_chunk_section(section: dict,
     current_tokens = header_tokens
     sub_idx = 0
 
+    def _make_overlap_block(body_paras: list[str]) -> tuple[str, int]:
+        """Build the [continued] sentinel block + its token cost."""
+        # Strip any prior continuation sentinel so we don't recurse it.
+        cleaned = [
+            p for p in body_paras
+            if not p.startswith(_OVERLAP_SENTINEL)
+        ]
+        tail = _bounded_tail(cleaned)
+        if not tail:
+            return "", 0
+        block = f"{_OVERLAP_SENTINEL}\n{tail}"
+        return block, _approx_tokens(block)
+
     for para in paragraphs[1:]:
         para_tokens = _approx_tokens(para)
         if current_tokens + para_tokens > max_tokens and len(current_paras) > 1:
@@ -357,9 +485,19 @@ def _sub_chunk_section(section: dict,
                 ),
             })
             sub_idx += 1
-            # Next sub-chunk starts with header + this paragraph
-            current_paras = [header, para]
-            current_tokens = header_tokens + para_tokens
+            # Next sub-chunk starts with header + (optional) overlap + this paragraph.
+            overlap_block, overlap_tokens = _make_overlap_block(current_paras[1:])
+            next_paras = [header]
+            next_tokens = header_tokens
+            if overlap_block and (
+                next_tokens + overlap_tokens + para_tokens <= max_tokens
+            ):
+                next_paras.append(overlap_block)
+                next_tokens += overlap_tokens
+            next_paras.append(para)
+            next_tokens += para_tokens
+            current_paras = next_paras
+            current_tokens = next_tokens
         else:
             current_paras.append(para)
             current_tokens += para_tokens
@@ -1239,11 +1377,21 @@ def ingest_generic_csv(
 def ingest_text_file(
     txt_path: str,
     max_tokens: int = MAX_CHUNK_TOKENS,
+    model: SentenceTransformer | None = None,
 ) -> list[HybridChunk]:
     """Zone 1 ingestion for plain text files (e.g., scraped web policies).
 
-    Splits text into token-capped chunks using paragraph breaks (double
-    newlines), falling back to single newlines if needed.
+    Now uses the same structural pipeline as PDF, but with a generic
+    header detector instead of SFIP-tuned regexes:
+
+      1. Strip ``Source:/Title:/Retrieved:`` metadata header.
+      2. Split lines on generic header patterns (Markdown / numbered /
+         all-caps / Title-Case-colon).
+      3. Sub-chunk oversized sections at paragraph boundaries.
+      4. Optional semantic merge if an embedding ``model`` is provided.
+
+    Falls back to a single section spanning the file when no headers
+    are detected (preserves prior paragraph-only behavior).
     """
     filename = os.path.basename(txt_path)
     print(f"\n[TXT] {filename}")
@@ -1269,43 +1417,59 @@ def ingest_text_file(
     total_tokens = _approx_tokens(text)
     print(f"  {total_tokens} tokens, {len(text)} chars")
 
-    # Try splitting by double newlines first, fallback to single.
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    if len(paragraphs) <= 1:
-        paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    # Step 1: structural section splitting (no page numbers for TXT).
+    lines_with_pages: list[tuple[str, Optional[int]]] = [
+        (ln, None) for ln in text.split("\n")
+    ]
+    raw_sections = _split_lines_by_headers(
+        lines_with_pages,
+        header_detector=_detect_text_section,
+        min_text_len=40,
+    )
 
-    # Batch paragraphs into token-capped chunks.
+    if not raw_sections:
+        # Fallback: no headers detected — treat the file as one section
+        # so the sub-chunker still gets to split by paragraph.
+        raw_sections = [{
+            "text": text,
+            "section_hierarchy": [filename],
+            "pages": [],
+            "temporal_markers": _extract_temporal_markers(text),
+            "merged_from": [],
+            "chunk_type": "text",
+        }]
+    print(f"  → {len(raw_sections)} raw section(s) detected")
+
+    # Step 2: sub-chunk oversized sections.
+    expanded: list[dict] = []
+    oversized = 0
+    for sec in raw_sections:
+        if _approx_tokens(sec["text"]) > max_tokens:
+            oversized += 1
+        expanded.extend(_sub_chunk_section(sec, max_tokens))
+    if oversized:
+        print(f"  → {len(expanded)} sections after sub-chunking "
+              f"({oversized} oversized split)")
+
+    # Step 3: optional semantic merge.
+    if model is not None and len(expanded) > 1:
+        expanded = _semantic_merge(expanded, model)
+        print(f"  → {len(expanded)} chunks after semantic merge")
+
+    # Build HybridChunks; fall back to filename-only hierarchy when empty.
     chunks: list[HybridChunk] = []
-    current_batch: list[str] = []
-    current_tokens: int = 0
-
-    def flush() -> None:
-        nonlocal current_batch, current_tokens
-        if not current_batch:
-            return
-        chunk_text = "\n\n".join(current_batch)
+    for i, sec in enumerate(expanded):
         chunks.append(HybridChunk(
-            chunk_id=len(chunks),
-            content=chunk_text,
+            chunk_id=i,
+            content=sec["text"],
             source=txt_path,
-            section_hierarchy=[filename],
-            temporal_markers=[],
+            section_hierarchy=sec["section_hierarchy"] or [filename],
+            temporal_markers=sec["temporal_markers"],
             pages=[],
-            token_count=_approx_tokens(chunk_text),
-            merged_from=[],
-            chunk_type="text",
+            token_count=_approx_tokens(sec["text"]),
+            merged_from=sec.get("merged_from", []),
+            chunk_type=sec.get("chunk_type", "text"),
         ))
-        current_batch = []
-        current_tokens = 0
-
-    for para in paragraphs:
-        tok = _approx_tokens(para)
-        if current_tokens + tok > max_tokens and current_batch:
-            flush()
-        current_batch.append(para)
-        current_tokens += tok
-
-    flush()
 
     print(f"  → {len(chunks)} chunks (tok-cap max={max_tokens})")
     return chunks
@@ -1501,7 +1665,7 @@ def run_zone1(
             for f in sorted(files):
                 fpath = os.path.join(root, f)
                 if f.lower().endswith(".txt"):
-                    chunks = ingest_text_file(fpath)
+                    chunks = ingest_text_file(fpath, model=model)
                     all_chunks.extend(chunks)
 
         # Discover OpenFEMA-shaped JSONs (in case they're mixed in).
